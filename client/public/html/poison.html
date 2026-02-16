@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Diablo 4 毒系法術 - 強化版</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #000; font-family: 'Segoe UI', sans-serif; }
+        #canvas-container { width: 100vw; height: 100vh; }
+        
+        /* 暗黑風格 UI */
+        #ui-layer {
+            position: absolute;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 20px;
+            z-index: 10;
+        }
+        
+        .skill-btn {
+            background: rgba(0, 0, 0, 0.6);
+            border: 1px solid #3cb371;
+            color: #3cb371;
+            padding: 15px 25px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-transform: uppercase;
+            font-weight: bold;
+            letter-spacing: 1px;
+            clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+        }
+        
+        .skill-btn:hover {
+            background: #3cb371;
+            color: #000;
+            box-shadow: 0 0 15px #3cb371;
+            text-shadow: none;
+        }
+
+        #crosshair {
+            position: absolute;
+            top: 50%; left: 50%;
+            width: 20px; height: 20px;
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+        }
+    </style>
+    
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+</head>
+<body>
+
+    <div id="canvas-container"></div>
+    <div id="crosshair"></div>
+
+    <div id="ui-layer">
+        <button class="skill-btn" onclick="castSpell('spike')">瘟疫釘刺</button>
+        <button class="skill-btn" onclick="castSpell('cloud')">腐敗瘴氣</button>
+        <button class="skill-btn" onclick="castSpell('cone')">蛇信橫掃</button>
+    </div>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+        import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+        import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+
+        // --- 基礎設置 ---
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x050505);
+        scene.fog = new THREE.FogExp2(0x050505, 0.015);
+
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 6, 14);
+        camera.lookAt(0, 1, 0);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.toneMapping = THREE.ReinhardToneMapping; // 電影級色調映射
+        renderer.toneMappingExposure = 1.5;
+        container.appendChild(renderer.domElement);
+
+        // --- 後期處理 ---
+        const composer = new EffectComposer(renderer);
+        const renderPass = new RenderPass(scene, camera);
+        composer.addPass(renderPass);
+
+        const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
+        bloomPass.threshold = 0.1; // 讓暗部也能微微發光
+        bloomPass.strength = 2.0;  // 強烈的輝光
+        bloomPass.radius = 0.5;
+        composer.addPass(bloomPass);
+
+        // --- 光源 ---
+        const ambientLight = new THREE.AmbientLight(0x111111);
+        scene.add(ambientLight);
+
+        // --- 地面 ---
+        const floorGeo = new THREE.PlaneGeometry(100, 100, 50, 50);
+        // 簡單的頂點變形讓地面不平整
+        const pos = floorGeo.attributes.position;
+        for(let i=0; i<pos.count; i++) {
+            const x = pos.getX(i);
+            const y = pos.getY(i);
+            pos.setZ(i, Math.sin(x * 0.5) * 0.2 + Math.cos(y * 0.5) * 0.2);
+        }
+        floorGeo.computeVertexNormals();
+
+        const floorMat = new THREE.MeshStandardMaterial({ 
+            color: 0x111111, 
+            roughness: 0.9,
+            metalness: 0.2
+        });
+        const floor = new THREE.Mesh(floorGeo, floorMat);
+        floor.rotation.x = -Math.PI / 2;
+        floor.position.y = -0.5;
+        scene.add(floor);
+
+        // --- 粒子貼圖生成 (程式化生成圓形粒子) ---
+        function createParticleTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 64;
+            canvas.height = 64;
+            const ctx = canvas.getContext('2d');
+            const gradient = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+            gradient.addColorStop(0, 'rgba(255,255,255,1)');
+            gradient.addColorStop(0.3, 'rgba(200,255,200,0.8)');
+            gradient.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, 64, 64);
+            return new THREE.CanvasTexture(canvas);
+        }
+        const particleTexture = createParticleTexture();
+
+        // --- 法術管理 ---
+        const activeSpells = [];
+
+        // ==========================================
+        // 1. 強化版：瘟疫釘刺
+        // ==========================================
+        function createSpike() {
+            const group = new THREE.Group();
+
+            // 釘刺主體 (更複雜的模型)
+            const spikeGeo = new THREE.ConeGeometry(0.2, 2.5, 8);
+            const spikeMat = new THREE.MeshStandardMaterial({ 
+                color: 0x003300, 
+                emissive: 0x00ff00, 
+                emissiveIntensity: 2,
+                metalness: 0.8,
+                roughness: 0.2
+            });
+            const spike = new THREE.Mesh(spikeGeo, spikeMat);
+            spike.rotation.x = Math.PI / 2;
+            group.add(spike);
+
+            // 環繞能量環
+            const ringGeo = new THREE.TorusGeometry(0.4, 0.05, 8, 32);
+            const ringMat = new THREE.MeshBasicMaterial({ color: 0x00ff00, transparent: true, opacity: 0.8 });
+            const ring1 = new THREE.Mesh(ringGeo, ringMat);
+            const ring2 = new THREE.Mesh(ringGeo, ringMat);
+            ring1.position.z = -0.5;
+            ring2.position.z = -1.0;
+            group.add(ring1, ring2);
+
+            group.position.set(0, 1, 5); // 從前方發射
+
+            // 邏輯
+            group.userData = {
+                type: 'spike',
+                velocity: new THREE.Vector3(0, 0, -1.2),
+                life: 3.0,
+                rings: [ring1, ring2]
+            };
+
+            scene.add(group);
+            activeSpells.push(group);
+        }
+
+        // ==========================================
+        // 2. 強化版：腐敗瘴氣
+        // ==========================================
+        function createPoisonCloud() {
+            // 核心：大量垂直上升的軟粒子
+            const particleCount = 800;
+            const positions = new Float32Array(particleCount * 3);
+            const velocities = []; // 存儲速度
+
+            for(let i=0; i<particleCount; i++) {
+                // 圓形分佈
+                const r = Math.sqrt(Math.random()) * 5;
+                const theta = Math.random() * Math.PI * 2;
+                
+                positions[i*3] = Math.cos(theta) * r;
+                positions[i*3+1] = Math.random() * 0.5; // 起始高度低
+                positions[i*3+2] = Math.sin(theta) * r;
+                
+                velocities.push({
+                    x: (Math.random() - 0.5) * 0.1,
+                    y: 0.5 + Math.random() * 1.0, // 上升速度快
+                    z: (Math.random() - 0.5) * 0.1,
+                    origY: positions[i*3+1]
+                });
+            }
+
+            const geo = new THREE.BufferGeometry();
+            geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+
+            const mat = new THREE.PointsMaterial({
+                size: 2.0, // 大粒子
+                map: particleTexture,
+                transparent: true,
+                opacity: 0.6,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false, // 解決粒子遮擋問題
+                color: 0x32cd32
+            });
+
+            const particles = new THREE.Points(geo, mat);
+            particles.userData = {
+                type: 'cloud',
+                velocities: velocities,
+                life: 6.0,
+                maxLife: 6.0
+            };
+            
+            scene.add(particles);
+            activeSpells.push(particles);
+
+            // 地面腐蝕環
+            const ringGeo = new THREE.RingGeometry(0.1, 5, 32);
+            const ringMat = new THREE.MeshBasicMaterial({ 
+                color: 0x003300, 
+                transparent: true, 
+                opacity: 0.5, 
+                side: THREE.DoubleSide,
+                blending: THREE.AdditiveBlending
+            });
+            const groundRing = new THREE.Mesh(ringGeo, ringMat);
+            groundRing.rotation.x = -Math.PI / 2;
+            groundRing.position.y = 0.01;
+            groundRing.userData = { type: 'cloud_ring', life: 6.0, scaleTarget: 1.15 };
+            scene.add(groundRing);
+            activeSpells.push(groundRing);
+        }
+
+        // ==========================================
+        // 3. 強化版：蛇信橫掃
+        // ==========================================
+        function createConeAttack() {
+            const particleCount = 1000;
+            const positions = new Float32Array(particleCount * 3);
+            const velocities = [];
+
+            for(let i=0; i<particleCount; i++) {
+                positions[i*3] = 0;
+                positions[i*3+1] = 1;
+                positions[i*3+2] = 0;
+
+                // 扇形分佈 + 隨機擴散
+                const angle = (Math.random() - 0.5) * Math.PI * 0.9;
+                const speed = 0.6 + Math.random() * 0.8;
+                
+                velocities.push({
+                    x: Math.sin(angle) * speed,
+                    y: Math.random() * 0.3, // 輕微上升
+                    z: -Math.cos(angle) * speed,
+                    gravity: 0.015 + Math.random() * 0.01 // 重力影響
+                });
+            }
+
+            const geo = new THREE.BufferGeometry();
+            geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+
+            // 使用 Shader 讓粒子有顏色變化
+            const mat = new THREE.PointsMaterial({
+                size: 0.4,
+                map: particleTexture,
+                transparent: true,
+                opacity: 1.0,
+                blending: THREE.AdditiveBlending,
+                vertexColors: true,
+                depthWrite: false
+            });
+            
+            // 加入頂點顏色
+            const colors = new Float32Array(particleCount * 3);
+            const baseColor = new THREE.Color(0x00ff00);
+            const accentColor = new THREE.Color(0x90ee90);
+            
+            for(let i=0; i<particleCount; i++) {
+                const c = Math.random() > 0.5 ? baseColor : accentColor;
+                colors[i*3] = c.r;
+                colors[i*3+1] = c.g;
+                colors[i*3+2] = c.b;
+            }
+            geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+            const particles = new THREE.Points(geo, mat);
+            particles.userData = { type: 'cone', velocities: velocities, life: 2.0 };
+            
+            scene.add(particles);
+            activeSpells.push(particles);
+            
+            // 揮擊聲音/畫面震動暗示 (這裡用相機輕微位移模擬)
+            camera.position.x += 0.1;
+            setTimeout(() => camera.position.x -= 0.1, 50);
+        }
+
+        // ==========================================
+        // 動畫循環
+        // ==========================================
+        const clock = new THREE.Clock();
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const delta = Math.min(clock.getDelta(), 0.1); // 防止大跨度跳幀
+
+            for (let i = activeSpells.length - 1; i >= 0; i--) {
+                const obj = activeSpells[i];
+                obj.userData.life -= delta;
+
+                // 壽命結束，清理資源
+                if (obj.userData.life <= 0) {
+                    scene.remove(obj);
+                    if (obj.geometry) obj.geometry.dispose();
+                    if (obj.material) {
+                        if (Array.isArray(obj.material)) obj.material.forEach(m => m.dispose());
+                        else obj.material.dispose();
+                    }
+                    activeSpells.splice(i, 1);
+                    continue;
+                }
+
+                // --- 釘刺邏輯 ---
+                if (obj.userData.type === 'spike') {
+                    obj.position.add(obj.userData.velocity);
+                    // 旋轉動畫
+                    obj.userData.rings.forEach((ring, idx) => {
+                        ring.rotation.x += 0.1 * (idx + 1);
+                        ring.rotation.y += 0.1 * (idx + 1);
+                    });
+                    obj.rotation.z += 0.05;
+                    
+                    // 軌跡淡出
+                    if (obj.userData.life < 1.0) {
+                        obj.children.forEach(c => {
+                            if(c.material) c.material.opacity = obj.userData.life;
+                        });
+                    }
+                }
+
+                // --- 毒雲邏輯 ---
+                if (obj.userData.type === 'cloud') {
+                    const positions = obj.geometry.attributes.position.array;
+                    const vels = obj.userData.velocities;
+                    
+                    for(let j=0; j<vels.length; j++) {
+                        positions[j*3] += vels[j].x * delta;
+                        positions[j*3+1] += vels[j].y * delta; // 持續上升
+                        positions[j*3+2] += vels[j].z * delta;
+                        
+                        // 重置循環：如果粒子飛太高，回到地面
+                        if(positions[j*3+1] > 8.0) {
+                            positions[j*3+1] = 0.1;
+                        }
+                    }
+                    obj.geometry.attributes.position.needsUpdate = true;
+                    
+                    // 整體淡出
+                    const fadeStart = obj.userData.maxLife / 2;
+                    if (obj.userData.life < fadeStart) {
+                        obj.material.opacity = (obj.userData.life / fadeStart) * 0.6;
+                    }
+                }
+
+                // --- 毒雲地面環 ---
+                if (obj.userData.type === 'cloud_ring') {
+                    const scale = 1 + (1 - obj.userData.life / 6.0) * 2;
+                    obj.scale.set(scale, scale, scale);
+                    obj.material.opacity = (obj.userData.life / 6.0) * 0.5;
+                }
+
+                // --- 扇形邏輯 ---
+                if (obj.userData.type === 'cone') {
+                    const positions = obj.geometry.attributes.position.array;
+                    const vels = obj.userData.velocities;
+                    
+                    for(let j=0; j<vels.length; j++) {
+                        positions[j*3] += vels[j].x * delta * 60; // 乘以係數調整速度
+                        positions[j*3+1] += vels[j].y * delta * 60;
+                        positions[j*3+2] += vels[j].z * delta * 60;
+                        
+                        // 重力
+                        vels[j].y -= vels[j].gravity * delta * 60;
+                    }
+                    obj.geometry.attributes.position.needsUpdate = true;
+                    
+                    // 淡出
+                    if (obj.userData.life < 1.0) {
+                        obj.material.opacity = obj.userData.life;
+                    }
+                }
+            }
+
+            // 相機輕微晃動 (模擬魔法能量干擾)
+            const time = Date.now() * 0.001;
+            camera.position.x = Math.sin(time * 0.5) * 0.05;
+            camera.position.y = 6 + Math.cos(time * 0.5) * 0.05;
+
+            composer.render(); // 使用 composer 而非 renderer.render
+        }
+
+        window.castSpell = (type) => {
+            switch(type) {
+                case 'spike': createSpike(); break;
+                case 'cloud': createPoisonCloud(); break;
+                case 'cone': createConeAttack(); break;
+            }
+        };
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            composer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        animate();
+    </script>
+</body>
+</html>

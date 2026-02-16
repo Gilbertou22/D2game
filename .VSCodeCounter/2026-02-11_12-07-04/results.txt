@@ -1,0 +1,112 @@
+Date : 2026-02-11 12:07:04
+Directory : d:\Gilbert\d2-game
+Total : 65 files,  23868 codes, 318 comments, 726 blanks, all 24912 lines
+
+Languages
++----------------+------------+------------+------------+------------+------------+
+| language       | files      | code       | comment    | blank      | total      |
++----------------+------------+------------+------------+------------+------------+
+| JSON           |          5 |     19,143 |          0 |          5 |     19,148 |
+| JavaScript     |         51 |      4,370 |        283 |        643 |      5,296 |
+| JavaScript JSX |          3 |        211 |         12 |         27 |        250 |
+| PostCSS        |          2 |         82 |          0 |         17 |         99 |
+| Markdown       |          1 |         38 |          0 |         33 |         71 |
+| HTML           |          1 |         21 |         23 |          1 |         45 |
+| Dotenv         |          1 |          2 |          0 |          0 |          2 |
+| XML            |          1 |          1 |          0 |          0 |          1 |
++----------------+------------+------------+------------+------------+------------+
+
+Directories
++----------------------------------------------------------------+------------+------------+------------+------------+------------+
+| path                                                           | files      | code       | comment    | blank      | total      |
++----------------------------------------------------------------+------------+------------+------------+------------+------------+
+| .                                                              |         65 |     23,868 |        318 |        726 |     24,912 |
+| client                                                         |         59 |     22,730 |        314 |        716 |     23,760 |
+| client (Files)                                                 |          3 |     18,065 |          0 |         35 |     18,100 |
+| client\public                                                  |          2 |         46 |         23 |          2 |         71 |
+| client\src                                                     |         54 |      4,619 |        291 |        679 |      5,589 |
+| client\src (Files)                                             |          8 |        154 |          8 |         31 |        193 |
+| client\src\components                                          |         16 |      1,555 |         54 |        182 |      1,791 |
+| client\src\configs                                             |          1 |        134 |          1 |          2 |        137 |
+| client\src\game                                                |         16 |      1,791 |        116 |        283 |      2,190 |
+| client\src\game (Files)                                        |         10 |        910 |         61 |        166 |      1,137 |
+| client\src\game\Enemies                                        |          6 |        881 |         55 |        117 |      1,053 |
+| client\src\hooks                                               |          1 |        382 |         47 |         66 |        495 |
+| client\src\utils                                               |         12 |        603 |         65 |        115 |        783 |
+| server                                                         |          6 |      1,138 |          4 |         10 |      1,152 |
+| server (Files)                                                 |          4 |      1,138 |          4 |          8 |      1,150 |
+| server\models                                                  |          1 |          0 |          0 |          1 |          1 |
+| server\routes                                                  |          1 |          0 |          0 |          1 |          1 |
++----------------------------------------------------------------+------------+------------+------------+------------+------------+
+
+Files
++----------------------------------------------------------------+----------------+------------+------------+------------+------------+
+| filename                                                       | language       | code       | comment    | blank      | total      |
++----------------------------------------------------------------+----------------+------------+------------+------------+------------+
+| d:\Gilbert\d2-game\client\README.md                            | Markdown       |         38 |          0 |         33 |         71 |
+| d:\Gilbert\d2-game\client\package-lock.json                    | JSON           |     17,981 |          0 |          1 |     17,982 |
+| d:\Gilbert\d2-game\client\package.json                         | JSON           |         46 |          0 |          1 |         47 |
+| d:\Gilbert\d2-game\client\public\index.html                    | HTML           |         21 |         23 |          1 |         45 |
+| d:\Gilbert\d2-game\client\public\manifest.json                 | JSON           |         25 |          0 |          1 |         26 |
+| d:\Gilbert\d2-game\client\src\App.css                          | PostCSS        |         33 |          0 |          6 |         39 |
+| d:\Gilbert\d2-game\client\src\App.js                           | JavaScript     |         39 |          1 |          6 |         46 |
+| d:\Gilbert\d2-game\client\src\App.test.js                      | JavaScript     |          7 |          0 |          2 |          9 |
+| d:\Gilbert\d2-game\client\src\components\ClassicUI.js          | JavaScript     |        309 |          6 |         26 |        341 |
+| d:\Gilbert\d2-game\client\src\components\DamageNumbers.jsx     | JavaScript JSX |         34 |          1 |          5 |         40 |
+| d:\Gilbert\d2-game\client\src\components\EventLog.js           | JavaScript     |         74 |          3 |          7 |         84 |
+| d:\Gilbert\d2-game\client\src\components\FloatingNumbers.jsx   | JavaScript JSX |         45 |          4 |         11 |         60 |
+| d:\Gilbert\d2-game\client\src\components\FogOfWar.js           | JavaScript     |         71 |          5 |         20 |         96 |
+| d:\Gilbert\d2-game\client\src\components\FogOfWarOverlay.js    | JavaScript     |         62 |          7 |         17 |         86 |
+| d:\Gilbert\d2-game\client\src\components\GameOverScreen.js     | JavaScript     |         53 |          1 |          6 |         60 |
+| d:\Gilbert\d2-game\client\src\components\Hotkeys.js            | JavaScript     |         18 |          1 |          5 |         24 |
+| d:\Gilbert\d2-game\client\src\components\Inventory.js          | JavaScript     |        146 |          1 |          8 |        155 |
+| d:\Gilbert\d2-game\client\src\components\LootNotification.js   | JavaScript     |        131 |          1 |         14 |        146 |
+| d:\Gilbert\d2-game\client\src\components\MainUI.js             | JavaScript     |        152 |          1 |         12 |        165 |
+| d:\Gilbert\d2-game\client\src\components\Minimap.js            | JavaScript     |        132 |         13 |         24 |        169 |
+| d:\Gilbert\d2-game\client\src\components\MobileControls.js     | JavaScript     |         27 |          0 |          1 |         28 |
+| d:\Gilbert\d2-game\client\src\components\PlayerHealthBar.js    | JavaScript     |        110 |          2 |         10 |        122 |
+| d:\Gilbert\d2-game\client\src\components\SkillSlots.jsx        | JavaScript JSX |        132 |          7 |         11 |        150 |
+| d:\Gilbert\d2-game\client\src\components\TargetInfo.js         | JavaScript     |         59 |          1 |          5 |         65 |
+| d:\Gilbert\d2-game\client\src\configs\enemyConfigs.js          | JavaScript     |        134 |          1 |          2 |        137 |
+| d:\Gilbert\d2-game\client\src\game\Chests.js                   | JavaScript     |         99 |         11 |         25 |        135 |
+| d:\Gilbert\d2-game\client\src\game\Enemies\Boss.js             | JavaScript     |        175 |         18 |         33 |        226 |
+| d:\Gilbert\d2-game\client\src\game\Enemies\EnemiesContainer.js | JavaScript     |        177 |         11 |         26 |        214 |
+| d:\Gilbert\d2-game\client\src\game\Enemies\Enemy.js            | JavaScript     |         72 |          4 |         14 |         90 |
+| d:\Gilbert\d2-game\client\src\game\Enemies\EnemyHealthBar.js   | JavaScript     |        132 |          3 |         11 |        146 |
+| d:\Gilbert\d2-game\client\src\game\Enemies\enemyConfigs.js     | JavaScript     |        134 |          1 |          2 |        137 |
+| d:\Gilbert\d2-game\client\src\game\Enemies\useEnemyAI.js       | JavaScript     |        191 |         18 |         31 |        240 |
+| d:\Gilbert\d2-game\client\src\game\GameCanvas.js               | JavaScript     |         11 |          0 |          2 |         13 |
+| d:\Gilbert\d2-game\client\src\game\GameScene.js                | JavaScript     |        141 |          7 |         20 |        168 |
+| d:\Gilbert\d2-game\client\src\game\LevelManager.js             | JavaScript     |         30 |          4 |          7 |         41 |
+| d:\Gilbert\d2-game\client\src\game\Obstacles.js                | JavaScript     |         20 |          2 |          4 |         26 |
+| d:\Gilbert\d2-game\client\src\game\Particles.js                | JavaScript     |         99 |          2 |         18 |        119 |
+| d:\Gilbert\d2-game\client\src\game\Player.js                   | JavaScript     |        172 |         15 |         37 |        224 |
+| d:\Gilbert\d2-game\client\src\game\Projectiles.js              | JavaScript     |        117 |         10 |         24 |        151 |
+| d:\Gilbert\d2-game\client\src\game\Skills.js                   | JavaScript     |          4 |          0 |          1 |          5 |
+| d:\Gilbert\d2-game\client\src\game\SkillsManager.js            | JavaScript     |        217 |         10 |         28 |        255 |
+| d:\Gilbert\d2-game\client\src\hooks\useGameState.js            | JavaScript     |        382 |         47 |         66 |        495 |
+| d:\Gilbert\d2-game\client\src\index.css                        | PostCSS        |         49 |          0 |         11 |         60 |
+| d:\Gilbert\d2-game\client\src\index.js                         | JavaScript     |         12 |          3 |          3 |         18 |
+| d:\Gilbert\d2-game\client\src\logo.svg                         | XML            |          1 |          0 |          0 |          1 |
+| d:\Gilbert\d2-game\client\src\reportWebVitals.js               | JavaScript     |         12 |          0 |          2 |         14 |
+| d:\Gilbert\d2-game\client\src\setupTests.js                    | JavaScript     |          1 |          4 |          1 |          6 |
+| d:\Gilbert\d2-game\client\src\utils\bossLootPool.js            | JavaScript     |         26 |          3 |          5 |         34 |
+| d:\Gilbert\d2-game\client\src\utils\collision.js               | JavaScript     |         21 |          5 |          5 |         31 |
+| d:\Gilbert\d2-game\client\src\utils\dungeonGenerator.js        | JavaScript     |        144 |         12 |         26 |        182 |
+| d:\Gilbert\d2-game\client\src\utils\enemyUtils.js              | JavaScript     |          5 |          3 |          1 |          9 |
+| d:\Gilbert\d2-game\client\src\utils\gameUtils.js               | JavaScript     |         66 |         11 |         15 |         92 |
+| d:\Gilbert\d2-game\client\src\utils\itemUtils.js               | JavaScript     |         22 |          1 |          3 |         26 |
+| d:\Gilbert\d2-game\client\src\utils\levelUtils.js              | JavaScript     |          1 |          1 |          0 |          2 |
+| d:\Gilbert\d2-game\client\src\utils\lootTables.js              | JavaScript     |        123 |         13 |         21 |        157 |
+| d:\Gilbert\d2-game\client\src\utils\movement.js                | JavaScript     |          3 |          2 |          0 |          5 |
+| d:\Gilbert\d2-game\client\src\utils\pathfinding.js             | JavaScript     |         87 |          5 |         17 |        109 |
+| d:\Gilbert\d2-game\client\src\utils\rarities.js                | JavaScript     |          6 |          1 |          0 |          7 |
+| d:\Gilbert\d2-game\client\src\utils\skillUtils.js              | JavaScript     |         99 |          8 |         22 |        129 |
+| d:\Gilbert\d2-game\server\.env                                 | Dotenv         |          2 |          0 |          0 |          2 |
+| d:\Gilbert\d2-game\server\index.js                             | JavaScript     |         45 |          4 |          6 |         55 |
+| d:\Gilbert\d2-game\server\models\Player.js                     | JavaScript     |          0 |          0 |          1 |          1 |
+| d:\Gilbert\d2-game\server\package-lock.json                    | JSON           |      1,072 |          0 |          1 |      1,073 |
+| d:\Gilbert\d2-game\server\package.json                         | JSON           |         19 |          0 |          1 |         20 |
+| d:\Gilbert\d2-game\server\routes\api.js                        | JavaScript     |          0 |          0 |          1 |          1 |
+| Total                                                          |                |     23,868 |        318 |        726 |     24,912 |
++----------------------------------------------------------------+----------------+------------+------------+------------+------------+

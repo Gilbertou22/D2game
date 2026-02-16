@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Space Meteor - Purple Lightning</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            overflow: hidden;
+            background: #05050a; /* 深空背景 */
+            font-family: 'Cinzel', 'Times New Roman', serif;
+            cursor: crosshair;
+        }
+        #container { width: 100vw; height: 100vh; }
+        
+        /* UI */
+        #ui {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            text-align: center;
+            pointer-events: none;
+            z-index: 100;
+        }
+        #skill-name {
+            color: #aa55ff;
+            font-size: 2em;
+            letter-spacing: 4px;
+            text-shadow: 0 0 15px #8800ff;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+        }
+        #instructions {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            color: #9988aa;
+            background: rgba(20, 10, 30, 0.8);
+            padding: 15px;
+            border-left: 3px solid #aa55ff;
+            font-size: 0.9em;
+        }
+        #combo-text {
+            position: fixed;
+            top: 40%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 5em;
+            color: #dd88ff;
+            text-shadow: 0 0 20px #aa00ff, 0 0 40px #6600aa;
+            opacity: 0;
+            pointer-events: none;
+            font-weight: bold;
+            letter-spacing: 5px;
+        }
+        #combo-text.show {
+            animation: comboAnim 1s ease-out forwards;
+        }
+        @keyframes comboAnim {
+            0% { opacity: 0; transform: translate(-50%, -50%) scale(0.5) rotate(-10deg); }
+            30% { opacity: 1; transform: translate(-50%, -50%) scale(1.1) rotate(0deg); }
+            100% { opacity: 0; transform: translate(-50%, -50%) scale(1.5) translateY(-50px); }
+        }
+    </style>
+</head>
+<body>
+    <div id="container"></div>
+    
+    <div id="instructions">
+        <h3>Void Meteor</h3>
+        <div>點擊召喚虛空隕石</div>
+    </div>
+    
+    <div id="combo-text">VOID IMPACT</div>
+    
+    <div id="ui">
+        <div id="skill-name">Meteor</div>
+    </div>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+        }
+    }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+        import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+        import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+
+        // --- 場景設置 ---
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x020205);
+        scene.fog = new THREE.FogExp2(0x020205, 0.015);
+        
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 20, 35);
+        camera.lookAt(0, 0, 0);
+        
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.2;
+        document.getElementById('container').appendChild(renderer.domElement);
+
+        // --- 後期處理 (加強泛光) ---
+        const composer = new EffectComposer(renderer);
+        composer.addPass(new RenderPass(scene, camera));
+        
+        const bloomPass = new UnrealBloomPass(
+            new THREE.Vector2(window.innerWidth, window.innerHeight),
+            1.5, 0.4, 0.85
+        );
+        bloomPass.threshold = 0.1;
+        bloomPass.strength = 2.5; // 強光效果
+        bloomPass.radius = 0.8;
+        composer.addPass(bloomPass);
+
+        // --- 光照 ---
+        const ambientLight = new THREE.AmbientLight(0x220044, 0.4);
+        scene.add(ambientLight);
+        
+        // --- 地面 ---
+        const groundGeo = new THREE.PlaneGeometry(100, 100, 50, 50);
+        const groundMat = new THREE.MeshStandardMaterial({
+            color: 0x0a0a10,
+            roughness: 0.9,
+            metalness: 0.2
+        });
+        const ground = new THREE.Mesh(groundGeo, groundMat);
+        ground.rotation.x = -Math.PI / 2;
+        ground.position.y = -2;
+        scene.add(ground);
+
+        // --- 紋理生成 ---
+        function createParticleTexture(color1, color2) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 64; canvas.height = 64;
+            const ctx = canvas.getContext('2d');
+            const gradient = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+            gradient.addColorStop(0, color1);
+            gradient.addColorStop(0.3, color2);
+            gradient.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, 64, 64);
+            return new THREE.CanvasTexture(canvas);
+        }
+        
+        const sparkTexture = createParticleTexture('rgba(255,255,255,1)', 'rgba(200,100,255,0)');
+        const smokeTexture = createParticleTexture('rgba(50,20,60,0.5)', 'rgba(0,0,0,0)');
+
+        // --- 閃電生成函數 ---
+        function createLightningPath(start, end, segments, offset) {
+            const points = [start.clone()];
+            const direction = end.clone().sub(start);
+            const length = direction.length();
+            direction.normalize();
+            
+            const midPointsCount = segments - 1;
+            for (let i = 1; i <= midPointsCount; i++) {
+                const t = i / (midPointsCount + 1);
+                const point = start.clone().add(direction.clone().multiplyScalar(length * t));
+                
+                // 隨機偏移
+                const perpendicular = new THREE.Vector3(-direction.z, direction.y, direction.x).normalize();
+                const randomOffset = (Math.random() - 0.5) * offset;
+                point.add(perpendicular.multiplyScalar(randomOffset));
+                point.y += (Math.random() - 0.5) * offset * 0.5;
+                
+                points.push(point);
+            }
+            points.push(end.clone());
+            return points;
+        }
+
+        // --- 隕石類 (太空紫電版) ---
+        class Meteor {
+            constructor(targetPos) {
+                this.target = targetPos.clone();
+                this.target.y = -1.5;
+                
+                this.startPos = targetPos.clone();
+                this.startPos.y = 60;
+                this.startPos.x += (Math.random() - 0.5) * 20;
+                this.startPos.z += (Math.random() - 0.5) * 20;
+                
+                this.group = new THREE.Group();
+                this.group.position.copy(this.startPos);
+                
+                const direction = this.target.clone().sub(this.startPos);
+                this.velocity = direction.normalize().multiplyScalar(45); // 更快一點
+                this.life = 10;
+                this.time = 0;
+                
+                // 1. 核心本體 (黑曜石)
+                const coreGeo = new THREE.IcosahedronGeometry(1.5, 1);
+                const coreMat = new THREE.MeshStandardMaterial({
+                    color: 0x111111,       // 深黑色
+                    emissive: 0x4400aa,    // 內部紫色光芒
+                    emissiveIntensity: 2,
+                    roughness: 0.3,
+                    metalness: 0.8
+                });
+                this.core = new THREE.Mesh(coreGeo, coreMat);
+                this.group.add(this.core);
+                
+                // 2. 紫色能量場
+                const glowGeo = new THREE.SphereGeometry(2.5, 16, 16);
+                const glowMat = new THREE.MeshBasicMaterial({
+                    color: 0x8800ff,
+                    transparent: true,
+                    opacity: 0.2,
+                    side: THREE.BackSide
+                });
+                this.glow = new THREE.Mesh(glowGeo, glowMat);
+                this.group.add(this.glow);
+                
+                // 3. 點光源
+                this.light = new THREE.PointLight(0xaa00ff, 8, 25);
+                this.group.add(this.light);
+                
+                // 4. 尾跡系統
+                this.trailParticles = [];
+                this.trailMesh = this.createTrailSystem();
+                scene.add(this.trailMesh);
+                
+                // 5. 動態閃電容器
+                this.lightningLines = [];
+                
+                // 6. 地面預警
+                this.indicator = new THREE.Mesh(
+                    new THREE.RingGeometry(0.5, 6, 32),
+                    new THREE.MeshBasicMaterial({ 
+                        color: 0xaa00ff, 
+                        transparent: true, 
+                        opacity: 0.3,
+                        side: THREE.DoubleSide
+                    })
+                );
+                this.indicator.rotation.x = -Math.PI / 2;
+                this.indicator.position.copy(this.target);
+                this.indicator.position.y = -1.9;
+                scene.add(this.indicator);
+                
+                scene.add(this.group);
+            }
+            
+            createTrailSystem() {
+                const geometry = new THREE.BufferGeometry();
+                const count = 150;
+                const positions = new Float32Array(count * 3);
+                const colors = new Float32Array(count * 3);
+                
+                for(let i=0; i<count; i++) {
+                    positions[i*3] = this.startPos.x;
+                    positions[i*3+1] = this.startPos.y;
+                    positions[i*3+2] = this.startPos.z;
+                    colors[i*3] = 0.8; colors[i*3+1] = 0.2; colors[i*3+2] = 1.0;
+                    
+                    this.trailParticles.push({
+                        pos: new THREE.Vector3(),
+                        vel: new THREE.Vector3(),
+                        life: 0
+                    });
+                }
+                
+                geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+                geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+                
+                const material = new THREE.PointsMaterial({
+                    size: 1.0,
+                    map: sparkTexture,
+                    vertexColors: true,
+                    transparent: true,
+                    blending: THREE.AdditiveBlending,
+                    depthWrite: false
+                });
+                
+                return new THREE.Points(geometry, material);
+            }
+            
+            update(delta) {
+                this.life -= delta;
+                this.time += delta;
+                
+                this.group.position.add(this.velocity.clone().multiplyScalar(delta));
+                
+                // 自轉
+                this.core.rotation.x += delta * 3;
+                this.core.rotation.z += delta * 2;
+                
+                // 脈動
+                const pulse = 1 + Math.sin(this.time * 20) * 0.1;
+                this.glow.scale.setScalar(pulse);
+                
+                // 更新尾跡與閃電
+                this.updateTrail(delta);
+                this.updateLightning();
+                
+                if (this.group.position.y <= this.target.y + 1.5) {
+                    this.explode();
+                    return false;
+                }
+                
+                return true;
+            }
+            
+            updateTrail(delta) {
+                const positions = this.trailMesh.geometry.attributes.position.array;
+                const colors = this.trailMesh.geometry.attributes.color.array;
+                
+                for (let i=0; i<this.trailParticles.length; i++) {
+                    const p = this.trailParticles[i];
+                    p.life -= delta;
+                    
+                    if (p.life <= 0) {
+                        p.pos.copy(this.group.position);
+                        // 擴散尾跡
+                        p.pos.x += (Math.random() - 0.5) * 3;
+                        p.pos.y += (Math.random() - 0.5) * 3;
+                        p.pos.z += (Math.random() - 0.5) * 3;
+                        
+                        p.vel.copy(this.velocity).multiplyScalar(-0.1);
+                        p.vel.x += (Math.random() - 0.5) * 8;
+                        p.vel.y += (Math.random() - 0.5) * 8;
+                        p.vel.z += (Math.random() - 0.5) * 8;
+                        
+                        p.life = 0.4 + Math.random() * 0.3;
+                    } else {
+                        p.pos.add(p.vel.clone().multiplyScalar(delta));
+                        p.vel.multiplyScalar(0.98);
+                    }
+                    
+                    positions[i*3] = p.pos.x;
+                    positions[i*3+1] = p.pos.y;
+                    positions[i*3+2] = p.pos.z;
+                    
+                    // 顏色：紫色到藍色漸變
+                    const lifeRatio = p.life / 0.7;
+                    colors[i*3] = 0.6 + lifeRatio * 0.4; // R
+                    colors[i*3+1] = 0.2; // G
+                    colors[i*3+2] = 1.0; // B
+                }
+                
+                this.trailMesh.geometry.attributes.position.needsUpdate = true;
+                this.trailMesh.geometry.attributes.color.needsUpdate = true;
+            }
+            
+            updateLightning() {
+                // 清除舊閃電
+                this.lightningLines.forEach(l => scene.remove(l));
+                this.lightningLines = [];
+                
+                // 每幀隨機生成1-2條閃電圍繞隕石
+                const count = Math.random() > 0.5 ? 2 : 1;
+                for(let i=0; i<count; i++) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const start = this.group.position.clone();
+                    const end = start.clone().add(new THREE.Vector3(
+                        Math.cos(angle) * 4,
+                        (Math.random() - 0.5) * 4,
+                        Math.sin(angle) * 4
+                    ));
+                    
+                    const points = createLightningPath(start, end, 5, 2);
+                    const geo = new THREE.BufferGeometry().setFromPoints(points);
+                    const mat = new THREE.LineBasicMaterial({ 
+                        color: 0xcc88ff, 
+                        transparent: true, 
+                        opacity: 0.8 
+                    });
+                    const line = new THREE.Line(geo, mat);
+                    scene.add(line);
+                    this.lightningLines.push(line);
+                }
+            }
+            
+            explode() {
+                const pos = this.target.clone();
+                shakeCamera();
+                
+                // 紫色爆炸閃光
+                const flash = new THREE.PointLight(0xdd88ff, 80, 60);
+                flash.position.copy(pos);
+                scene.add(flash);
+                setTimeout(() => scene.remove(flash), 150);
+                
+                createExplosion(pos);
+                
+                // 清理
+                this.lightningLines.forEach(l => scene.remove(l));
+                scene.remove(this.group);
+                scene.remove(this.indicator);
+                scene.remove(this.trailMesh);
+            }
+        }
+
+        // --- 爆炸系統 ---
+        const explosions = [];
+        
+        function createExplosion(pos) {
+            // 1. 電漿衝擊波
+            const shockwave = new THREE.Mesh(
+                new THREE.RingGeometry(0.1, 1, 32),
+                new THREE.MeshBasicMaterial({ 
+                    color: 0xaa55ff, 
+                    transparent: true, 
+                    opacity: 1.0, 
+                    side: THREE.DoubleSide 
+                })
+            );
+            shockwave.rotation.x = -Math.PI / 2;
+            shockwave.position.copy(pos);
+            shockwave.position.y = -1.8;
+            scene.add(shockwave);
+            
+            explosions.push({
+                mesh: shockwave,
+                speed: 50,
+                life: 1.0,
+                type: 'shockwave'
+            });
+            
+            // 2. 核心能量球
+            const coreGeo = new THREE.SphereGeometry(4, 16, 16);
+            const coreMat = new THREE.MeshBasicMaterial({ 
+                color: 0xcc00ff, 
+                transparent: true, 
+                opacity: 1.0 
+            });
+            const core = new THREE.Mesh(coreGeo, coreMat);
+            core.position.copy(pos);
+            scene.add(core);
+            
+            explosions.push({
+                mesh: core,
+                life: 0.4,
+                type: 'core'
+            });
+            
+            // 3. 放射狀閃電
+            for(let i=0; i<6; i++) {
+                const angle = (i/6) * Math.PI * 2;
+                const start = pos.clone();
+                const end = pos.clone().add(new THREE.Vector3(
+                    Math.cos(angle) * 10,
+                    0,
+                    Math.sin(angle) * 10
+                ));
+                
+                const points = createLightningPath(start, end, 7, 3);
+                const geo = new THREE.BufferGeometry().setFromPoints(points);
+                const mat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true });
+                const line = new THREE.Line(geo, mat);
+                scene.add(line);
+                
+                explosions.push({
+                    mesh: line,
+                    life: 0.6,
+                    type: 'lightning'
+                });
+            }
+            
+            // 4. 碎片
+            const debrisCount = 40;
+            const debrisGeo = new THREE.BufferGeometry();
+            const debrisPos = new Float32Array(debrisCount * 3);
+            const debrisVel = [];
+            
+            for(let i=0; i<debrisCount; i++) {
+                debrisPos[i*3] = pos.x;
+                debrisPos[i*3+1] = pos.y + 1;
+                debrisPos[i*3+2] = pos.z;
+                
+                const angle = Math.random() * Math.PI * 2;
+                const speed = 15 + Math.random() * 15;
+                debrisVel.push(new THREE.Vector3(
+                    Math.cos(angle) * speed,
+                    15 + Math.random() * 15,
+                    Math.sin(angle) * speed
+                ));
+            }
+            
+            debrisGeo.setAttribute('position', new THREE.BufferAttribute(debrisPos, 3));
+            const debrisMat = new THREE.PointsMaterial({
+                size: 0.8,
+                map: sparkTexture,
+                transparent: true,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false,
+                color: 0xaa88ff
+            });
+            const debrisMesh = new THREE.Points(debrisGeo, debrisMat);
+            scene.add(debrisMesh);
+            
+            explosions.push({
+                mesh: debrisMesh,
+                velocities: debrisVel,
+                life: 2.0,
+                type: 'debris'
+            });
+        }
+        
+        function updateExplosions(delta) {
+            for (let i = explosions.length - 1; i >= 0; i--) {
+                const exp = explosions[i];
+                exp.life -= delta;
+                
+                if (exp.life <= 0) {
+                    scene.remove(exp.mesh);
+                    explosions.splice(i, 1);
+                    continue;
+                }
+                
+                if (exp.type === 'shockwave') {
+                    exp.mesh.scale.x += exp.speed * delta;
+                    exp.mesh.scale.y += exp.speed * delta;
+                    exp.mesh.material.opacity = exp.life;
+                }
+                else if (exp.type === 'core') {
+                    exp.mesh.scale.multiplyScalar(1 + delta * 10);
+                    exp.mesh.material.opacity = exp.life * 2.5;
+                }
+                else if (exp.type === 'lightning') {
+                    exp.mesh.material.opacity = exp.life;
+                }
+                else if (exp.type === 'debris') {
+                    const positions = exp.mesh.geometry.attributes.position.array;
+                    for (let j = 0; j < exp.velocities.length; j++) {
+                        const vel = exp.velocities[j];
+                        positions[j*3] += vel.x * delta;
+                        positions[j*3+1] += vel.y * delta;
+                        positions[j*3+2] += vel.z * delta;
+                        
+                        vel.y -= 30 * delta;
+                        
+                        if (positions[j*3+1] < -1.5) {
+                            positions[j*3+1] = -1.5;
+                            vel.y *= -0.2;
+                            vel.x *= 0.5;
+                            vel.z *= 0.5;
+                        }
+                    }
+                    exp.mesh.geometry.attributes.position.needsUpdate = true;
+                }
+            }
+        }
+
+        // --- 鏡頭震動 ---
+        let shakeIntensity = 0;
+        const originalCamPos = camera.position.clone();
+
+        function shakeCamera() {
+            shakeIntensity = 2.0;
+        }
+
+        function updateCameraShake() {
+            if (shakeIntensity > 0) {
+                shakeIntensity *= 0.92;
+                camera.position.x = originalCamPos.x + (Math.random() - 0.5) * shakeIntensity;
+                camera.position.y = originalCamPos.y + (Math.random() - 0.5) * shakeIntensity;
+            }
+        }
+
+        // --- 操作 ---
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+        const meteors = [];
+
+        function onMouseClick(event) {
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+            
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObject(ground);
+            
+            if (intersects.length > 0) {
+                meteors.push(new Meteor(intersects[0].point));
+                showCombo();
+            }
+        }
+
+        function showCombo() {
+            const el = document.getElementById('combo-text');
+            el.classList.remove('show');
+            void el.offsetWidth;
+            el.classList.add('show');
+        }
+
+        window.addEventListener('click', onMouseClick);
+
+        // --- 動畫循環 ---
+        const clock = new THREE.Clock();
+
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            const delta = Math.min(clock.getDelta(), 0.1);
+            
+            for (let i = meteors.length - 1; i >= 0; i--) {
+                if (!meteors[i].update(delta)) {
+                    meteors.splice(i, 1);
+                }
+            }
+            
+            updateExplosions(delta);
+            updateCameraShake();
+            
+            composer.render();
+        }
+        
+        animate();
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            composer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>

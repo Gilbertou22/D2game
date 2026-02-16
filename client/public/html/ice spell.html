@@ -1,0 +1,892 @@
+<!doctype html>
+<html lang="zh">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Diablo 2 Ice Spell</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        overflow: hidden;
+        background: #050510;
+        font-family: "Cinzel", "Times New Roman", serif;
+      }
+      #container {
+        width: 100vw;
+        height: 100vh;
+        cursor: crosshair;
+      }
+      #ui {
+        position: fixed;
+        bottom: 30px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 15px;
+        z-index: 100;
+      }
+      #mana-orb {
+        width: 120px;
+        height: 120px;
+        border-radius: 50%;
+        background: radial-gradient(
+          ellipse at 30% 30%,
+          #4488cc,
+          #1a3a6a 50%,
+          #0a1a3a
+        );
+        border: 3px solid #2a4a7a;
+        box-shadow:
+          0 0 30px rgba(68, 136, 204, 0.5),
+          inset 0 0 40px rgba(100, 180, 255, 0.3);
+        position: relative;
+        cursor: pointer;
+        transition: all 0.3s ease;
+      }
+      #mana-orb:hover {
+        box-shadow:
+          0 0 50px rgba(68, 136, 204, 0.8),
+          inset 0 0 50px rgba(100, 180, 255, 0.5);
+      }
+      #mana-orb::after {
+        content: "CAST";
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        color: #aaddff;
+        font-size: 1.2em;
+        font-weight: bold;
+        text-shadow: 0 0 10px #88ccff;
+        letter-spacing: 3px;
+      }
+      #spell-info {
+        color: #88bbdd;
+        text-align: center;
+        text-shadow: 0 0 10px #4488aa;
+      }
+      #spell-name {
+        font-size: 1.5em;
+        color: #aaddff;
+        margin-bottom: 5px;
+        letter-spacing: 2px;
+      }
+      #instructions {
+        position: fixed;
+        top: 20px;
+        left: 20px;
+        color: #6699aa;
+        font-size: 0.9em;
+        text-shadow: 0 0 5px #335566;
+        background: rgba(5, 10, 20, 0.8);
+        padding: 15px;
+        border-left: 2px solid #3366aa;
+      }
+      #instructions h3 {
+        color: #88bbdd;
+        margin-bottom: 10px;
+      }
+      #combo {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-size: 3em;
+        color: #aaeeff;
+        text-shadow:
+          0 0 30px #66ccff,
+          0 0 60px #4488cc;
+        opacity: 0;
+        pointer-events: none;
+        letter-spacing: 5px;
+        transition: opacity 0.3s ease;
+      }
+      #combo.show {
+        opacity: 1;
+        animation: comboPulse 0.5s ease-out;
+      }
+      @keyframes comboPulse {
+        0% {
+          transform: translate(-50%, -50%) scale(0.5);
+          opacity: 0;
+        }
+        50% {
+          transform: translate(-50%, -50%) scale(1.2);
+          opacity: 1;
+        }
+        100% {
+          transform: translate(-50%, -50%) scale(1);
+          opacity: 1;
+        }
+      }
+      .spell-btn {
+        background: linear-gradient(180deg, #1a3a6a 0%, #0a1a3a 100%);
+        border: 2px solid #3366aa;
+        color: #88bbdd;
+        padding: 8px 20px;
+        margin: 5px;
+        cursor: pointer;
+        font-family: inherit;
+        font-size: 0.9em;
+        letter-spacing: 1px;
+        transition: all 0.3s ease;
+      }
+      .spell-btn:hover {
+        background: linear-gradient(180deg, #2a5a9a 0%, #1a3a6a 100%);
+        box-shadow: 0 0 20px rgba(68, 136, 204, 0.5);
+      }
+      .spell-btn.active {
+        border-color: #66aaff;
+        color: #aaeeff;
+        box-shadow: 0 0 25px rgba(102, 170, 255, 0.6);
+      }
+    </style>
+  </head>
+  <body>
+    <div id="container"></div>
+
+    <div id="instructions">
+      <h3>Frozen Orb</h3>
+      <div>点击地面施法</div>
+      <div>按住拖动瞄准</div>
+      <div>1-3 切换法术</div>
+    </div>
+
+    <div id="combo">FROZEN ORB</div>
+
+    <div id="ui">
+      <div id="spell-info">
+        <div id="spell-name">Frozen Orb</div>
+        <div>Mana Cost: 25</div>
+      </div>
+      <div id="mana-orb"></div>
+      <div>
+        <button class="spell-btn active" data-spell="orb">Ice Orb</button>
+        <button class="spell-btn" data-spell="blizzard">Blizzard</button>
+        <button class="spell-btn" data-spell="nova">Ice Nova</button>
+      </div>
+    </div>
+
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+          "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+        }
+      }
+    </script>
+
+    <script type="module">
+      import * as THREE from "three";
+      import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
+      import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
+      import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
+
+      // Scene setup
+      const scene = new THREE.Scene();
+      scene.fog = new THREE.FogExp2(0x050515, 0.02);
+
+      const camera = new THREE.PerspectiveCamera(
+        60,
+        window.innerWidth / window.innerHeight,
+        0.1,
+        1000,
+      );
+      camera.position.set(0, 15, 20);
+      camera.lookAt(0, 0, 0);
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.2;
+      document.getElementById("container").appendChild(renderer.domElement);
+
+      // Post-processing
+      const composer = new EffectComposer(renderer);
+      composer.addPass(new RenderPass(scene, camera));
+
+      const bloomPass = new UnrealBloomPass(
+        new THREE.Vector2(window.innerWidth, window.innerHeight),
+        1.5,
+        0.4,
+        0.85,
+      );
+      bloomPass.threshold = 0.1;
+      bloomPass.strength = 2;
+      bloomPass.radius = 1;
+      composer.addPass(bloomPass);
+
+      // Lighting
+      const ambientLight = new THREE.AmbientLight(0x223344, 0.5);
+      scene.add(ambientLight);
+
+      const moonLight = new THREE.DirectionalLight(0x8899bb, 0.8);
+      moonLight.position.set(10, 20, -10);
+      scene.add(moonLight);
+
+      // Ground
+      const groundGeo = new THREE.PlaneGeometry(100, 100, 50, 50);
+      const groundMat = new THREE.MeshStandardMaterial({
+        color: 0x111122,
+        roughness: 0.9,
+        metalness: 0.1,
+      });
+      const ground = new THREE.Mesh(groundGeo, groundMat);
+      ground.rotation.x = -Math.PI / 2;
+      ground.position.y = -2;
+      scene.add(ground);
+
+      // Grid helper
+      const gridHelper = new THREE.GridHelper(100, 50, 0x1a2a4a, 0x0a1a2a);
+      gridHelper.position.y = -1.99;
+      scene.add(gridHelper);
+
+      // Spell system
+      let currentSpell = "orb";
+      const spells = [];
+      const iceShards = [];
+      const frostParticles = [];
+      const explosions = [];
+
+      // Ice materials
+      const iceCoreMaterial = new THREE.MeshStandardMaterial({
+        color: 0x88ddff,
+        emissive: 0x4488cc,
+        emissiveIntensity: 0.8,
+        transparent: true,
+        opacity: 0.9,
+        roughness: 0.1,
+        metalness: 0.2,
+      });
+
+      const iceShardMaterial = new THREE.MeshStandardMaterial({
+        color: 0xaaddff,
+        emissive: 0x66aacc,
+        emissiveIntensity: 0.5,
+        transparent: true,
+        opacity: 0.8,
+        roughness: 0.2,
+        metalness: 0.3,
+      });
+
+      // Ice core geometry
+      function createIceCore() {
+        const group = new THREE.Group();
+
+        // Main sphere
+        const coreGeo = new THREE.IcosahedronGeometry(0.5, 2);
+        const core = new THREE.Mesh(coreGeo, iceCoreMaterial.clone());
+        group.add(core);
+
+        // Inner glow
+        const glowGeo = new THREE.SphereGeometry(0.6, 16, 16);
+        const glowMat = new THREE.MeshBasicMaterial({
+          color: 0x88ccff,
+          transparent: true,
+          opacity: 0.3,
+          side: THREE.BackSide,
+        });
+        const glow = new THREE.Mesh(glowGeo, glowMat);
+        group.add(glow);
+
+        // Outer glow
+        const outerGlowGeo = new THREE.SphereGeometry(0.9, 16, 16);
+        const outerGlowMat = new THREE.MeshBasicMaterial({
+          color: 0x66aaee,
+          transparent: true,
+          opacity: 0.15,
+          side: THREE.BackSide,
+        });
+        const outerGlow = new THREE.Mesh(outerGlowGeo, outerGlowMat);
+        group.add(outerGlow);
+
+        // Ice spikes on core
+        for (let i = 0; i < 8; i++) {
+          const spikeGeo = new THREE.ConeGeometry(0.1, 0.3, 4);
+          const spike = new THREE.Mesh(spikeGeo, iceShardMaterial.clone());
+          const theta = (i / 8) * Math.PI * 2;
+          const phi = Math.random() * Math.PI;
+          spike.position.setFromSpherical(new THREE.Spherical(0.5, phi, theta));
+          spike.lookAt(0, 0, 0);
+          spike.rotateX(Math.PI);
+          group.add(spike);
+        }
+
+        return group;
+      }
+
+      // Create ice shard
+      function createIceShard(position, velocity, size = 0.3) {
+        const group = new THREE.Group();
+
+        // Main shard
+        const shardGeo = new THREE.ConeGeometry(size * 0.3, size * 1.5, 4);
+        const shard = new THREE.Mesh(shardGeo, iceShardMaterial.clone());
+        group.add(shard);
+
+        // Trail
+        const trailGeo = new THREE.ConeGeometry(size * 0.15, size * 0.8, 4);
+        const trail = new THREE.Mesh(
+          trailGeo,
+          new THREE.MeshBasicMaterial({
+            color: 0x88ddff,
+            transparent: true,
+            opacity: 0.4,
+          }),
+        );
+        trail.position.y = -size * 0.8;
+        trail.rotation.x = Math.PI;
+        group.add(trail);
+
+        group.position.copy(position);
+        group.userData = {
+          velocity: velocity.clone(),
+          life: 3,
+          maxLife: 3,
+          type: "shard",
+        };
+
+        // Orient to velocity
+        if (velocity.length() > 0) {
+          group.lookAt(position.clone().add(velocity));
+          group.rotateX(Math.PI / 2);
+        }
+
+        scene.add(group);
+        iceShards.push(group);
+
+        return group;
+      }
+
+      // Frozen Orb spell
+      class FrozenOrb {
+        constructor(startPos, direction) {
+          this.group = new THREE.Group();
+          this.group.position.copy(startPos);
+
+          this.core = createIceCore();
+          this.group.add(this.core);
+
+          this.velocity = direction.clone().normalize().multiplyScalar(12);
+          this.life = 4;
+          this.maxLife = 4;
+          this.shardTimer = 0;
+          this.shardInterval = 0.08;
+          this.rotationSpeed = 8;
+          this.type = "orb";
+
+          // Point light
+          this.light = new THREE.PointLight(0x88ccff, 3, 10);
+          this.group.add(this.light);
+
+          scene.add(this.group);
+        }
+
+        update(delta) {
+          this.life -= delta;
+
+          // Move
+          this.group.position.add(this.velocity.clone().multiplyScalar(delta));
+
+          // Slow down
+          this.velocity.multiplyScalar(0.995);
+
+          // Rotate core
+          this.core.rotation.y += this.rotationSpeed * delta;
+          this.core.rotation.x += this.rotationSpeed * 0.7 * delta;
+
+          // Emit shards
+          this.shardTimer += delta;
+          if (this.shardTimer >= this.shardInterval && this.life > 0.5) {
+            this.shardTimer = 0;
+            this.emitShards();
+          }
+
+          // Pulsing glow
+          const pulse = 1 + Math.sin(this.life * 10) * 0.1;
+          this.light.intensity = 3 * pulse;
+
+          // Fade out
+          if (this.life < 0.5) {
+            const fade = this.life / 0.5;
+            this.core.scale.setScalar(fade);
+            this.light.intensity *= fade;
+          }
+
+          return this.life > 0;
+        }
+
+        emitShards() {
+          const count = 4;
+          for (let i = 0; i < count; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const upAngle = (Math.random() - 0.5) * Math.PI * 0.8;
+
+            const dir = new THREE.Vector3(
+              Math.cos(angle) * Math.cos(upAngle),
+              Math.sin(upAngle),
+              Math.sin(angle) * Math.cos(upAngle),
+            );
+
+            const speed = 5 + Math.random() * 3;
+            const velocity = dir.multiplyScalar(speed);
+
+            createIceShard(
+              this.group.position.clone(),
+              velocity,
+              0.2 + Math.random() * 0.15,
+            );
+          }
+        }
+
+        destroy() {
+          // Create explosion
+          createExplosion(this.group.position.clone());
+          scene.remove(this.group);
+        }
+      }
+
+      // Blizzard spell
+      class Blizzard {
+        constructor(targetPos) {
+          this.center = targetPos.clone();
+          this.life = 5;
+          this.maxLife = 5;
+          this.shardTimer = 0;
+          this.type = "blizzard";
+
+          // Area indicator
+          const indicatorGeo = new THREE.RingGeometry(4, 5, 32);
+          const indicatorMat = new THREE.MeshBasicMaterial({
+            color: 0x4488cc,
+            transparent: true,
+            opacity: 0.3,
+            side: THREE.DoubleSide,
+          });
+          this.indicator = new THREE.Mesh(indicatorGeo, indicatorMat);
+          this.indicator.rotation.x = -Math.PI / 2;
+          this.indicator.position.copy(this.center);
+          this.indicator.position.y = -1.9;
+          scene.add(this.indicator);
+
+          // Light
+          this.light = new THREE.PointLight(0x88ccff, 5, 15);
+          this.light.position.copy(this.center);
+          this.light.position.y = 5;
+          scene.add(this.light);
+        }
+
+        update(delta) {
+          this.life -= delta;
+
+          this.shardTimer += delta;
+          if (this.shardTimer >= 0.05) {
+            this.shardTimer = 0;
+            this.emitShards();
+          }
+
+          // Pulse indicator
+          const pulse = 1 + Math.sin(this.life * 5) * 0.2;
+          this.indicator.scale.setScalar(pulse);
+          this.light.intensity = 5 * (this.life / this.maxLife);
+
+          if (this.life < 1) {
+            this.indicator.material.opacity = 0.3 * this.life;
+          }
+
+          return this.life > 0;
+        }
+
+        emitShards() {
+          const count = 3;
+          for (let i = 0; i < count; i++) {
+            const offset = new THREE.Vector3(
+              (Math.random() - 0.5) * 8,
+              10 + Math.random() * 5,
+              (Math.random() - 0.5) * 8,
+            );
+            const pos = this.center.clone().add(offset);
+            const velocity = new THREE.Vector3(
+              (Math.random() - 0.5) * 2,
+              -15 - Math.random() * 5,
+              (Math.random() - 0.5) * 2,
+            );
+            createIceShard(pos, velocity, 0.25);
+          }
+        }
+
+        destroy() {
+          scene.remove(this.indicator);
+          scene.remove(this.light);
+        }
+      }
+
+      // Ice Nova spell
+      class IceNova {
+        constructor(position) {
+          this.center = position.clone();
+          this.life = 1;
+          this.maxLife = 1;
+          this.shards = [];
+          this.type = "nova";
+
+          // Create ring of shards
+          const count = 24;
+          for (let i = 0; i < count; i++) {
+            const angle = (i / count) * Math.PI * 2;
+            const dir = new THREE.Vector3(Math.cos(angle), 0, Math.sin(angle));
+
+            const shard = createIceShard(
+              position.clone(),
+              dir.multiplyScalar(15),
+              0.35,
+            );
+            shard.userData.isNova = true;
+            this.shards.push(shard);
+          }
+
+          // Flash light
+          this.light = new THREE.PointLight(0xaaeeff, 10, 20);
+          this.light.position.copy(position);
+          scene.add(this.light);
+        }
+
+        update(delta) {
+          this.life -= delta;
+
+          // Fade light
+          this.light.intensity = 10 * (this.life / this.maxLife);
+
+          return this.life > 0;
+        }
+
+        destroy() {
+          scene.remove(this.light);
+        }
+      }
+
+      // Explosion effect
+      function createExplosion(position) {
+        const particleCount = 50;
+        const geometry = new THREE.BufferGeometry();
+        const positions = new Float32Array(particleCount * 3);
+        const colors = new Float32Array(particleCount * 3);
+        const velocities = [];
+
+        for (let i = 0; i < particleCount; i++) {
+          positions[i * 3] = position.x;
+          positions[i * 3 + 1] = position.y;
+          positions[i * 3 + 2] = position.z;
+
+          colors[i * 3] = 0.6 + Math.random() * 0.4;
+          colors[i * 3 + 1] = 0.8 + Math.random() * 0.2;
+          colors[i * 3 + 2] = 1;
+
+          velocities.push(
+            new THREE.Vector3(
+              (Math.random() - 0.5) * 15,
+              Math.random() * 8,
+              (Math.random() - 0.5) * 15,
+            ),
+          );
+        }
+
+        geometry.setAttribute(
+          "position",
+          new THREE.BufferAttribute(positions, 3),
+        );
+        geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+
+        const material = new THREE.PointsMaterial({
+          size: 0.3,
+          vertexColors: true,
+          transparent: true,
+          opacity: 1,
+          blending: THREE.AdditiveBlending,
+        });
+
+        const particles = new THREE.Points(geometry, material);
+        particles.userData = {
+          velocities: velocities,
+          life: 1.5,
+        };
+
+        scene.add(particles);
+        explosions.push(particles);
+
+        // Create ice chunks
+        for (let i = 0; i < 12; i++) {
+          const velocity = new THREE.Vector3(
+            (Math.random() - 0.5) * 10,
+            Math.random() * 8,
+            (Math.random() - 0.5) * 10,
+          );
+          createIceShard(position.clone(), velocity, 0.3);
+        }
+
+        // Flash light
+        const flashLight = new THREE.PointLight(0x88ddff, 10, 15);
+        flashLight.position.copy(position);
+        scene.add(flashLight);
+
+        setTimeout(() => {
+          scene.remove(flashLight);
+        }, 100);
+      }
+
+      // Update functions
+      function updateShards(delta) {
+        for (let i = iceShards.length - 1; i >= 0; i--) {
+          const shard = iceShards[i];
+          shard.userData.life -= delta;
+
+          if (shard.userData.life <= 0) {
+            scene.remove(shard);
+            iceShards.splice(i, 1);
+            continue;
+          }
+
+          // Move
+          shard.position.add(
+            shard.userData.velocity.clone().multiplyScalar(delta),
+          );
+
+          // Gravity
+          if (!shard.userData.isNova) {
+            shard.userData.velocity.y -= 8 * delta;
+          }
+
+          // Fade
+          const fade = shard.userData.life / shard.userData.maxLife;
+          shard.children.forEach((child) => {
+            if (child.material) {
+              child.material.opacity = fade * 0.8;
+            }
+          });
+
+          // Ground collision
+          if (shard.position.y < -1.8) {
+            shard.position.y = -1.8;
+            shard.userData.velocity.y *= -0.3;
+            shard.userData.velocity.x *= 0.8;
+            shard.userData.velocity.z *= 0.8;
+          }
+        }
+      }
+
+      function updateExplosions(delta) {
+        for (let i = explosions.length - 1; i >= 0; i--) {
+          const exp = explosions[i];
+          exp.userData.life -= delta;
+
+          if (exp.userData.life <= 0) {
+            scene.remove(exp);
+            explosions.splice(i, 1);
+            continue;
+          }
+
+          const positions = exp.geometry.attributes.position.array;
+          const velocities = exp.userData.velocities;
+
+          for (let j = 0; j < velocities.length; j++) {
+            positions[j * 3] += velocities[j].x * delta;
+            positions[j * 3 + 1] += velocities[j].y * delta;
+            positions[j * 3 + 2] += velocities[j].z * delta;
+
+            velocities[j].y -= 15 * delta;
+          }
+
+          exp.geometry.attributes.position.needsUpdate = true;
+          exp.material.opacity = exp.userData.life / 1.5;
+        }
+      }
+
+      // Cast spell
+      function castSpell(targetPos) {
+        const startPos = new THREE.Vector3(0, 0, 5);
+
+        let spell;
+
+        switch (currentSpell) {
+          case "orb":
+            const direction = targetPos.clone().sub(startPos);
+            spell = new FrozenOrb(startPos, direction);
+            break;
+          case "blizzard":
+            spell = new Blizzard(targetPos);
+            break;
+          case "nova":
+            spell = new IceNova(startPos);
+            break;
+        }
+
+        spells.push(spell);
+
+        // Show combo text
+        showCombo();
+      }
+
+      function showCombo() {
+        const combo = document.getElementById("combo");
+        combo.classList.add("show");
+
+        const names = {
+          orb: "FROZEN ORB",
+          blizzard: "BLIZZARD",
+          nova: "ICE NOVA",
+        };
+        combo.textContent = names[currentSpell];
+
+        setTimeout(() => {
+          combo.classList.remove("show");
+        }, 800);
+      }
+
+      // Raycasting for mouse
+      const raycaster = new THREE.Raycaster();
+      const mouse = new THREE.Vector2();
+      const targetPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 2);
+
+      function getMousePosition(event) {
+        mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+        mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+        raycaster.setFromCamera(mouse, camera);
+
+        const target = new THREE.Vector3();
+        raycaster.ray.intersectPlane(targetPlane, target);
+
+        return target;
+      }
+
+      // Event listeners
+      renderer.domElement.addEventListener("click", (e) => {
+        const target = getMousePosition(e);
+        if (target) {
+          castSpell(target);
+        }
+      });
+
+      // Spell buttons
+      document.querySelectorAll(".spell-btn").forEach((btn) => {
+        btn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          document
+            .querySelectorAll(".spell-btn")
+            .forEach((b) => b.classList.remove("active"));
+          btn.classList.add("active");
+          currentSpell = btn.dataset.spell;
+
+          const names = {
+            orb: "Frozen Orb",
+            blizzard: "Blizzard",
+            nova: "Ice Nova",
+          };
+          document.getElementById("spell-name").textContent =
+            names[currentSpell];
+        });
+      });
+
+      document.getElementById("mana-orb").addEventListener("click", (e) => {
+        e.stopPropagation();
+        const target = new THREE.Vector3(
+          (Math.random() - 0.5) * 10,
+          0,
+          (Math.random() - 0.5) * 10 - 5,
+        );
+        castSpell(target);
+      });
+
+      // Keyboard
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "1") {
+          document.querySelector('[data-spell="orb"]').click();
+        } else if (e.key === "2") {
+          document.querySelector('[data-spell="blizzard"]').click();
+        } else if (e.key === "3") {
+          document.querySelector('[data-spell="nova"]').click();
+        }
+      });
+
+      // Ambient particles
+      const ambientParticles = (() => {
+        const count = 200;
+        const geometry = new THREE.BufferGeometry();
+        const positions = new Float32Array(count * 3);
+
+        for (let i = 0; i < count; i++) {
+          positions[i * 3] = (Math.random() - 0.5) * 50;
+          positions[i * 3 + 1] = Math.random() * 20;
+          positions[i * 3 + 2] = (Math.random() - 0.5) * 50;
+        }
+
+        geometry.setAttribute(
+          "position",
+          new THREE.BufferAttribute(positions, 3),
+        );
+
+        const material = new THREE.PointsMaterial({
+          color: 0x4488aa,
+          size: 0.1,
+          transparent: true,
+          opacity: 0.5,
+          blending: THREE.AdditiveBlending,
+        });
+
+        const particles = new THREE.Points(geometry, material);
+        scene.add(particles);
+        return particles;
+      })();
+
+      // Resize
+      window.addEventListener("resize", () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        composer.setSize(window.innerWidth, window.innerHeight);
+      });
+
+      // Animation loop
+      const clock = new THREE.Clock();
+
+      function animate() {
+        requestAnimationFrame(animate);
+
+        const delta = Math.min(clock.getDelta(), 0.1);
+
+        // Update spells
+        for (let i = spells.length - 1; i >= 0; i--) {
+          if (!spells[i].update(delta)) {
+            spells[i].destroy();
+            spells.splice(i, 1);
+          }
+        }
+
+        updateShards(delta);
+        updateExplosions(delta);
+
+        // Animate ambient particles
+        const positions = ambientParticles.geometry.attributes.position.array;
+        for (let i = 0; i < positions.length; i += 3) {
+          positions[i + 1] -= delta * 0.5;
+          if (positions[i + 1] < -2) {
+            positions[i + 1] = 20;
+          }
+        }
+        ambientParticles.geometry.attributes.position.needsUpdate = true;
+        ambientParticles.rotation.y += delta * 0.02;
+
+        composer.render();
+      }
+
+      animate();
+    </script>
+  </body>
+</html>

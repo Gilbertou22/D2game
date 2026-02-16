@@ -1,0 +1,1096 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Diablo 2 Fireball</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            overflow: hidden;
+            background: #0a0505;
+            font-family: 'Times New Roman', serif;
+            cursor: crosshair;
+        }
+        #container {
+            width: 100vw;
+            height: 100vh;
+        }
+        
+        /* Diablo Style UI */
+        #ui {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            z-index: 100;
+        }
+        
+        #skill-orb {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: radial-gradient(circle at 30% 30%, #ff6633, #aa2211 60%, #441100);
+            border: 3px solid #553322;
+            box-shadow: 
+                0 0 30px rgba(255, 100, 30, 0.6),
+                inset 0 0 20px rgba(255, 200, 100, 0.4);
+            cursor: pointer;
+            position: relative;
+            transition: all 0.2s ease;
+        }
+        
+        #skill-orb:hover {
+            box-shadow: 
+                0 0 50px rgba(255, 120, 50, 0.9),
+                inset 0 0 30px rgba(255, 220, 150, 0.6);
+            transform: scale(1.1);
+        }
+        
+        #skill-orb::after {
+            content: '';
+            position: absolute;
+            top: 5px;
+            left: 15px;
+            width: 20px;
+            height: 10px;
+            background: rgba(255, 255, 200, 0.4);
+            border-radius: 50%;
+            transform: rotate(-30deg);
+        }
+        
+        #skill-name {
+            color: #ff8844;
+            font-size: 1.3em;
+            text-shadow: 0 0 10px #ff4400;
+            margin-top: 10px;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+        }
+        
+        #mana-bar {
+            width: 200px;
+            height: 12px;
+            background: #1a1a3a;
+            border: 2px solid #3344aa;
+            border-radius: 6px;
+            margin-top: 8px;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        #mana-fill {
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, #2244aa, #4488ff);
+            box-shadow: 0 0 10px #4488ff;
+            transition: width 0.3s ease;
+        }
+        
+        #info {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            color: #aa8866;
+            background: rgba(10, 5, 5, 0.9);
+            padding: 15px;
+            border-left: 3px solid #ff6633;
+            font-size: 0.9em;
+        }
+        
+        #info h3 {
+            color: #ff9944;
+            margin-bottom: 8px;
+            text-shadow: 0 0 5px #ff4400;
+        }
+        
+        #combo-text {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 4em;
+            color: #ffaa44;
+            text-shadow: 
+                0 0 20px #ff4400,
+                0 0 40px #ff2200,
+                0 0 60px #aa1100;
+            opacity: 0;
+            pointer-events: none;
+            letter-spacing: 8px;
+            font-weight: bold;
+        }
+        
+        #combo-text.show {
+            animation: fireCombo 0.8s ease-out forwards;
+        }
+        
+        @keyframes fireCombo {
+            0% { 
+                opacity: 0; 
+                transform: translate(-50%, -50%) scale(0.5);
+                filter: blur(10px);
+            }
+            30% { 
+                opacity: 1; 
+                transform: translate(-50%, -50%) scale(1.2);
+                filter: blur(0);
+            }
+            100% { 
+                opacity: 0; 
+                transform: translate(-50%, -50%) scale(1.5) translateY(-30px);
+                filter: blur(5px);
+            }
+        }
+        
+        .controls {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        .spell-btn {
+            background: linear-gradient(180deg, #331111 0%, #220808 100%);
+            border: 2px solid #662222;
+            color: #ff8855;
+            padding: 10px 20px;
+            font-family: inherit;
+            font-size: 0.9em;
+            cursor: pointer;
+            letter-spacing: 1px;
+            transition: all 0.3s ease;
+        }
+        
+        .spell-btn:hover {
+            background: linear-gradient(180deg, #552222 0%, #331111 100%);
+            box-shadow: 0 0 15px rgba(255, 100, 50, 0.5);
+        }
+        
+        .spell-btn.active {
+            border-color: #ff6633;
+            box-shadow: 0 0 20px rgba(255, 100, 50, 0.7);
+            color: #ffaa66;
+        }
+    </style>
+</head>
+<body>
+    <div id="container"></div>
+    
+    <div id="info">
+        <h3>Fireball</h3>
+        <div>Click to cast</div>
+        <div>1: Fireball</div>
+        <div>2: Meteor</div>
+        <div>3: Hydra</div>
+    </div>
+    
+    <div id="combo-text">FIREBALL</div>
+    
+    <div id="ui">
+        <div id="skill-name">Fireball</div>
+        <div id="skill-orb"></div>
+        <div id="mana-bar">
+            <div id="mana-fill"></div>
+        </div>
+    </div>
+    
+    <div class="controls">
+        <button class="spell-btn active" data-spell="fireball">Fireball</button>
+        <button class="spell-btn" data-spell="meteor">Meteor</button>
+        <button class="spell-btn" data-spell="hydra">Hydra</button>
+    </div>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+        }
+    }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+        import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+        import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+
+        // Scene setup
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x050202);
+        scene.fog = new THREE.FogExp2(0x050202, 0.025);
+        
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 12, 18);
+        camera.lookAt(0, 0, 0);
+        
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.0;
+        document.getElementById('container').appendChild(renderer.domElement);
+
+        // Post-processing
+        const composer = new EffectComposer(renderer);
+        composer.addPass(new RenderPass(scene, camera));
+        
+        const bloomPass = new UnrealBloomPass(
+            new THREE.Vector2(window.innerWidth, window.innerHeight),
+            1.5, 0.4, 0.85
+        );
+        bloomPass.threshold = 0.2;
+        bloomPass.strength = 2.5;
+        bloomPass.radius = 0.8;
+        composer.addPass(bloomPass);
+
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0x221111, 0.3);
+        scene.add(ambientLight);
+
+        // Ground
+        const groundGeo = new THREE.PlaneGeometry(80, 80, 40, 40);
+        const groundMat = new THREE.MeshStandardMaterial({
+            color: 0x1a1510,
+            roughness: 0.95,
+            metalness: 0.1
+        });
+        const ground = new THREE.Mesh(groundGeo, groundMat);
+        ground.rotation.x = -Math.PI / 2;
+        ground.position.y = -2;
+        ground.receiveShadow = true;
+        scene.add(ground);
+
+        // Stone floor pattern
+        const stoneGeo = new THREE.PlaneGeometry(78, 78);
+        const stoneMat = new THREE.MeshStandardMaterial({
+            color: 0x151210,
+            roughness: 0.9,
+            transparent: true,
+            opacity: 0.8
+        });
+        const stones = new THREE.Mesh(stoneGeo, stoneMat);
+        stones.rotation.x = -Math.PI / 2;
+        stones.position.y = -1.98;
+        scene.add(stones);
+
+        // Grid
+        const gridHelper = new THREE.GridHelper(80, 40, 0x332222, 0x1a1111);
+        gridHelper.position.y = -1.97;
+        scene.add(gridHelper);
+
+        // Textures
+        function createFireTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 64;
+            canvas.height = 64;
+            const ctx = canvas.getContext('2d');
+            
+            const gradient = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+            gradient.addColorStop(0, 'rgba(255, 255, 200, 1)');
+            gradient.addColorStop(0.2, 'rgba(255, 200, 50, 0.9)');
+            gradient.addColorStop(0.5, 'rgba(255, 100, 20, 0.6)');
+            gradient.addColorStop(0.8, 'rgba(150, 30, 0, 0.2)');
+            gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, 64, 64);
+            
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        function createSparkTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 32;
+            canvas.height = 32;
+            const ctx = canvas.getContext('2d');
+            
+            const gradient = ctx.createRadialGradient(16, 16, 0, 16, 16, 16);
+            gradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
+            gradient.addColorStop(0.3, 'rgba(255, 200, 100, 0.8)');
+            gradient.addColorStop(1, 'rgba(255, 50, 0, 0)');
+            
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, 32, 32);
+            
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        function createSmokeTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 64;
+            canvas.height = 64;
+            const ctx = canvas.getContext('2d');
+            
+            const gradient = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+            gradient.addColorStop(0, 'rgba(80, 40, 20, 0.4)');
+            gradient.addColorStop(0.5, 'rgba(40, 20, 10, 0.2)');
+            gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, 64, 64);
+            
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        const fireTexture = createFireTexture();
+        const sparkTexture = createSparkTexture();
+        const smokeTexture = createSmokeTexture();
+
+        // Materials
+        const fireMaterial = new THREE.PointsMaterial({
+            size: 1.2,
+            map: fireTexture,
+            blending: THREE.AdditiveBlending,
+            transparent: true,
+            depthWrite: false,
+            vertexColors: true
+        });
+
+        const sparkMaterial = new THREE.PointsMaterial({
+            size: 0.4,
+            map: sparkTexture,
+            blending: THREE.AdditiveBlending,
+            transparent: true,
+            depthWrite: false,
+            vertexColors: true
+        });
+
+        const smokeMaterial = new THREE.PointsMaterial({
+            size: 2,
+            map: smokeTexture,
+            blending: THREE.NormalBlending,
+            transparent: true,
+            depthWrite: false,
+            vertexColors: true,
+            opacity: 0.6
+        });
+
+        // Spell management
+        let currentSpell = 'fireball';
+        const projectiles = [];
+        const explosions = [];
+        const hydragroup = [];
+
+        // Fireball class
+        class Fireball {
+            constructor(startPos, direction) {
+                this.group = new THREE.Group();
+                this.group.position.copy(startPos);
+                
+                this.velocity = direction.clone().normalize().multiplyScalar(18);
+                this.life = 4;
+                this.speed = 18;
+                
+                // Core light
+                this.light = new THREE.PointLight(0xff6633, 5, 15);
+                this.light.castShadow = true;
+                this.group.add(this.light);
+                
+                // Core mesh
+                const coreGeo = new THREE.SphereGeometry(0.3, 16, 16);
+                const coreMat = new THREE.MeshBasicMaterial({
+                    color: 0xffffcc,
+                    transparent: true,
+                    opacity: 0.9
+                });
+                this.core = new THREE.Mesh(coreGeo, coreMat);
+                this.group.add(this.core);
+                
+                // Outer glow
+                const glowGeo = new THREE.SphereGeometry(0.5, 16, 16);
+                const glowMat = new THREE.MeshBasicMaterial({
+                    color: 0xff8833,
+                    transparent: true,
+                    opacity: 0.6
+                });
+                this.glow = new THREE.Mesh(glowGeo, glowMat);
+                this.group.add(this.glow);
+                
+                // Trail particles
+                this.trailParticles = [];
+                this.sparkParticles = [];
+                this.time = 0;
+                
+                scene.add(this.group);
+            }
+            
+            update(delta) {
+                this.life -= delta;
+                this.time += delta;
+                
+                // Move
+                this.group.position.add(this.velocity.clone().multiplyScalar(delta));
+                
+                // Pulsing
+                const pulse = 1 + Math.sin(this.time * 15) * 0.15;
+                this.core.scale.setScalar(pulse);
+                this.glow.scale.setScalar(pulse * 1.3);
+                this.light.intensity = 5 + Math.sin(this.time * 20) * 2;
+                
+                // Emit trail
+                this.emitTrail();
+                this.emitSparks();
+                
+                // Update trail
+                this.updateTrail(delta);
+                
+                // Ground check
+                if (this.group.position.y < -1.5) {
+                    this.explode();
+                    return false;
+                }
+                
+                return this.life > 0;
+            }
+            
+            emitTrail() {
+                const count = 3;
+                for (let i = 0; i < count; i++) {
+                    const offset = new THREE.Vector3(
+                        (Math.random() - 0.5) * 0.5,
+                        (Math.random() - 0.5) * 0.5,
+                        (Math.random() - 0.5) * 0.5
+                    );
+                    
+                    this.trailParticles.push({
+                        position: this.group.position.clone().add(offset),
+                        velocity: new THREE.Vector3(
+                            (Math.random() - 0.5) * 2 - this.velocity.x * 0.1,
+                            Math.random() * 2,
+                            (Math.random() - 0.5) * 2 - this.velocity.z * 0.1
+                        ),
+                        life: 0.5 + Math.random() * 0.3,
+                        maxLife: 0.8,
+                        size: 0.8 + Math.random() * 0.4
+                    });
+                }
+            }
+            
+            emitSparks() {
+                if (Math.random() > 0.4) return;
+                
+                const count = 2;
+                for (let i = 0; i < count; i++) {
+                    this.sparkParticles.push({
+                        position: this.group.position.clone(),
+                        velocity: new THREE.Vector3(
+                            (Math.random() - 0.5) * 8,
+                            Math.random() * 4,
+                            (Math.random() - 0.5) * 8
+                        ),
+                        life: 0.3 + Math.random() * 0.3,
+                        maxLife: 0.6
+                    });
+                }
+            }
+            
+            updateTrail(delta) {
+                // Update trail particles
+                for (let i = this.trailParticles.length - 1; i >= 0; i--) {
+                    const p = this.trailParticles[i];
+                    p.life -= delta;
+                    
+                    if (p.life <= 0) {
+                        this.trailParticles.splice(i, 1);
+                        continue;
+                    }
+                    
+                    p.position.add(p.velocity.clone().multiplyScalar(delta));
+                    p.velocity.y -= 3 * delta;
+                    p.velocity.multiplyScalar(0.98);
+                }
+                
+                // Update sparks
+                for (let i = this.sparkParticles.length - 1; i >= 0; i--) {
+                    const p = this.sparkParticles[i];
+                    p.life -= delta;
+                    
+                    if (p.life <= 0) {
+                        this.sparkParticles.splice(i, 1);
+                        continue;
+                    }
+                    
+                    p.position.add(p.velocity.clone().multiplyScalar(delta));
+                    p.velocity.y -= 15 * delta;
+                }
+            }
+            
+            explode() {
+                createExplosion(this.group.position.clone(), 'fireball');
+                scene.remove(this.group);
+            }
+            
+            render() {
+                // Render trail
+                const positions = [];
+                const colors = [];
+                
+                this.trailParticles.forEach(p => {
+                    positions.push(p.position.x, p.position.y, p.position.z);
+                    const t = p.life / p.maxLife;
+                    colors.push(
+                        1,
+                        0.3 + t * 0.5,
+                        t * 0.3
+                    );
+                });
+                
+                // Render sparks
+                const sparkPositions = [];
+                const sparkColors = [];
+                
+                this.sparkParticles.forEach(p => {
+                    sparkPositions.push(p.position.x, p.position.y, p.position.z);
+                    const t = p.life / p.maxLife;
+                    sparkColors.push(1, 0.8 + t * 0.2, t * 0.5);
+                });
+                
+                return {
+                    trail: { positions, colors },
+                    sparks: { positions: sparkPositions, colors: sparkColors }
+                };
+            }
+        }
+
+        // Meteor class
+        class Meteor {
+            constructor(targetPos) {
+                this.target = targetPos.clone();
+                this.target.y = -1.5;
+                
+                // Start from sky
+                this.startPos = targetPos.clone();
+                this.startPos.y = 30;
+                this.startPos.x += (Math.random() - 0.5) * 10;
+                this.startPos.z += (Math.random() - 0.5) * 10;
+                
+                this.group = new THREE.Group();
+                this.group.position.copy(this.startPos);
+                
+                this.velocity = this.target.clone().sub(this.startPos).normalize().multiplyScalar(35);
+                this.life = 5;
+                this.time = 0;
+                
+                // Core
+                const coreGeo = new THREE.SphereGeometry(0.8, 16, 16);
+                const coreMat = new THREE.MeshBasicMaterial({ color: 0xffaa33 });
+                this.core = new THREE.Mesh(coreGeo, coreMat);
+                this.group.add(this.core);
+                
+                // Light
+                this.light = new THREE.PointLight(0xff4400, 8, 25);
+                this.group.add(this.light);
+                
+                // Trail
+                this.trailParticles = [];
+                
+                // Warning indicator
+                this.warning = new THREE.Mesh(
+                    new THREE.RingGeometry(2, 3, 32),
+                    new THREE.MeshBasicMaterial({ 
+                        color: 0xff3300, 
+                        transparent: true, 
+                        opacity: 0.5,
+                        side: THREE.DoubleSide
+                    })
+                );
+                this.warning.rotation.x = -Math.PI / 2;
+                this.warning.position.copy(this.target);
+                this.warning.position.y = -1.9;
+                scene.add(this.warning);
+                
+                scene.add(this.group);
+            }
+            
+            update(delta) {
+                this.life -= delta;
+                this.time += delta;
+                
+                // Move
+                this.group.position.add(this.velocity.clone().multiplyScalar(delta));
+                
+                // Check arrival
+                if (this.group.position.y <= this.target.y + 1) {
+                    this.explode();
+                    return false;
+                }
+                
+                // Pulsing warning
+                this.warning.scale.setScalar(1 + Math.sin(this.time * 10) * 0.3);
+                
+                // Emit trail
+                for (let i = 0; i < 5; i++) {
+                    this.trailParticles.push({
+                        position: this.group.position.clone().add(new THREE.Vector3(
+                            (Math.random() - 0.5) * 1,
+                            (Math.random() - 0.5) * 1,
+                            (Math.random() - 0.5) * 1
+                        )),
+                        velocity: new THREE.Vector3(
+                            (Math.random() - 0.5) * 5,
+                            (Math.random() - 0.5) * 5,
+                            (Math.random() - 0.5) * 5
+                        ),
+                        life: 0.5 + Math.random() * 0.5,
+                        maxLife: 1
+                    });
+                }
+                
+                // Update trail
+                for (let i = this.trailParticles.length - 1; i >= 0; i--) {
+                    const p = this.trailParticles[i];
+                    p.life -= delta;
+                    if (p.life <= 0) {
+                        this.trailParticles.splice(i, 1);
+                        continue;
+                    }
+                    p.position.add(p.velocity.clone().multiplyScalar(delta));
+                }
+                
+                return this.life > 0;
+            }
+            
+            explode() {
+                createExplosion(this.target.clone(), 'meteor');
+                scene.remove(this.group);
+                scene.remove(this.warning);
+            }
+            
+            render() {
+                const positions = [];
+                const colors = [];
+                
+                this.trailParticles.forEach(p => {
+                    positions.push(p.position.x, p.position.y, p.position.z);
+                    const t = p.life / p.maxLife;
+                    colors.push(1, 0.4 + t * 0.4, t * 0.2);
+                });
+                
+                return { trail: { positions, colors }, sparks: { positions: [], colors: [] } };
+            }
+        }
+
+        // Hydra class
+        class Hydra {
+            constructor(position) {
+                this.position = position.clone();
+                this.position.y = -1.5;
+                this.life = 8;
+                this.fireTimer = 0;
+                this.fireInterval = 0.4;
+                this.time = 0;
+                
+                // Hydra head
+                this.group = new THREE.Group();
+                this.group.position.copy(this.position);
+                
+                // Body
+                const bodyGeo = new THREE.ConeGeometry(0.4, 1.2, 8);
+                const bodyMat = new THREE.MeshStandardMaterial({
+                    color: 0x224422,
+                    roughness: 0.6,
+                    metalness: 0.2,
+                    emissive: 0x112211,
+                    emissiveIntensity: 0.3
+                });
+                const body = new THREE.Mesh(bodyGeo, bodyMat);
+                body.position.y = 0.6;
+                body.rotation.x = Math.PI;
+                this.group.add(body);
+                
+                // Head
+                const headGeo = new THREE.SphereGeometry(0.35, 12, 12);
+                const headMat = new THREE.MeshStandardMaterial({
+                    color: 0x336633,
+                    roughness: 0.5,
+                    emissive: 0x114411,
+                    emissiveIntensity: 0.5
+                });
+                this.head = new THREE.Mesh(headGeo, headMat);
+                this.head.position.y = 1.3;
+                this.group.add(this.head);
+                
+                // Eyes
+                const eyeGeo = new THREE.SphereGeometry(0.08, 8, 8);
+                const eyeMat = new THREE.MeshBasicMaterial({ color: 0xff4400 });
+                [-0.12, 0.12].forEach(x => {
+                    const eye = new THREE.Mesh(eyeGeo, eyeMat);
+                    eye.position.set(x, 1.35, 0.25);
+                    this.group.add(eye);
+                });
+                
+                // Light
+                this.light = new THREE.PointLight(0x44ff44, 2, 8);
+                this.light.position.y = 1.5;
+                this.group.add(this.light);
+                
+                scene.add(this.group);
+            }
+            
+            update(delta) {
+                this.life -= delta;
+                this.time += delta;
+                this.fireTimer += delta;
+                
+                // Animate
+                this.head.rotation.y = Math.sin(this.time * 2) * 0.5;
+                this.head.position.y = 1.3 + Math.sin(this.time * 4) * 0.1;
+                
+                // Fire at random targets
+                if (this.fireTimer >= this.fireInterval) {
+                    this.fireTimer = 0;
+                    this.fire();
+                }
+                
+                return this.life > 0;
+            }
+            
+            fire() {
+                const target = new THREE.Vector3(
+                    this.position.x + (Math.random() - 0.5) * 15,
+                    -1,
+                    this.position.z + (Math.random() - 0.5) * 15
+                );
+                
+                const start = this.head.position.clone();
+                start.y = 1.3;
+                this.group.localToWorld(start);
+                
+                const dir = target.clone().sub(start);
+                
+                // Small fireball
+                const fb = new Fireball(start, dir);
+                fb.speed = 12;
+                fb.velocity.multiplyScalar(0.7);
+                fb.core.scale.setScalar(0.5);
+                fb.glow.scale.setScalar(0.6);
+                projectiles.push(fb);
+            }
+            
+            render() {
+                return { trail: { positions: [], colors: [] }, sparks: { positions: [], colors: [] } };
+            }
+        }
+
+        // Explosion effect
+        function createExplosion(position, type) {
+            const explosion = {
+                position: position,
+                type: type,
+                life: type === 'meteor' ? 2 : 1.2,
+                maxLife: type === 'meteor' ? 2 : 1.2,
+                particles: [],
+                lights: [],
+                time: 0
+            };
+            
+            // Flash light
+            const flash = new THREE.PointLight(0xffaa00, type === 'meteor' ? 20 : 10, type === 'meteor' ? 30 : 15);
+            flash.position.copy(position);
+            scene.add(flash);
+            explosion.lights.push(flash);
+            
+            // Core explosion particles
+            const count = type === 'meteor' ? 150 : 80;
+            for (let i = 0; i < count; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const upAngle = (Math.random() - 0.3) * Math.PI;
+                const speed = (type === 'meteor' ? 8 : 5) + Math.random() * (type === 'meteor' ? 12 : 8);
+                
+                explosion.particles.push({
+                    position: position.clone(),
+                    velocity: new THREE.Vector3(
+                        Math.cos(angle) * Math.cos(upAngle) * speed,
+                        Math.sin(upAngle) * speed * 1.5,
+                        Math.sin(angle) * Math.cos(upAngle) * speed
+                    ),
+                    life: 0.5 + Math.random() * 0.8,
+                    maxLife: 1.3,
+                    size: (type === 'meteor' ? 1.5 : 0.8) + Math.random() * 0.8,
+                    type: 'fire'
+                });
+            }
+            
+            // Smoke particles
+            const smokeCount = type === 'meteor' ? 40 : 25;
+            for (let i = 0; i < smokeCount; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const speed = 1 + Math.random() * 3;
+                
+                explosion.particles.push({
+                    position: position.clone(),
+                    velocity: new THREE.Vector3(
+                        Math.cos(angle) * speed,
+                        2 + Math.random() * 3,
+                        Math.sin(angle) * speed
+                    ),
+                    life: 1 + Math.random() * 1,
+                    maxLife: 2,
+                    size: 2 + Math.random() * 2,
+                    type: 'smoke'
+                });
+            }
+            
+            // Debris
+            const debrisCount = type === 'meteor' ? 20 : 12;
+            for (let i = 0; i < debrisCount; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const speed = 5 + Math.random() * 10;
+                
+                explosion.particles.push({
+                    position: position.clone(),
+                    velocity: new THREE.Vector3(
+                        Math.cos(angle) * speed,
+                        5 + Math.random() * 8,
+                        Math.sin(angle) * speed
+                    ),
+                    life: 0.8 + Math.random() * 0.5,
+                    maxLife: 1.3,
+                    size: 0.3,
+                    type: 'debris'
+                });
+            }
+            
+            explosions.push(explosion);
+            
+            // Screen shake effect
+            const shakeIntensity = type === 'meteor' ? 0.3 : 0.15;
+            camera.position.x += (Math.random() - 0.5) * shakeIntensity;
+            camera.position.y += (Math.random() - 0.5) * shakeIntensity;
+        }
+
+        // Particle rendering
+        const fireParticles = new THREE.Points(new THREE.BufferGeometry(), fireMaterial);
+        scene.add(fireParticles);
+
+        const sparkParticles = new THREE.Points(new THREE.BufferGeometry(), sparkMaterial);
+        scene.add(sparkParticles);
+
+        const smokeParticles = new THREE.Points(new THREE.BufferGeometry(), smokeMaterial);
+        scene.add(smokeParticles);
+
+        function updateParticleBuffers() {
+            const firePositions = [];
+            const fireColors = [];
+            const sparkPositions = [];
+            const sparkColors = [];
+            const smokePositions = [];
+            const smokeColors = [];
+            
+            // From projectiles
+            projectiles.forEach(p => {
+                const render = p.render();
+                firePositions.push(...render.trail.positions);
+                fireColors.push(...render.trail.colors);
+                sparkPositions.push(...render.sparks.positions);
+                sparkColors.push(...render.sparks.colors);
+            });
+            
+            // From explosions
+            explosions.forEach(exp => {
+                exp.particles.forEach(p => {
+                    if (p.type === 'fire' || p.type === 'debris') {
+                        firePositions.push(p.position.x, p.position.y, p.position.z);
+                        const t = p.life / p.maxLife;
+                        fireColors.push(1, 0.3 + t * 0.5, t * 0.2);
+                    } else if (p.type === 'smoke') {
+                        smokePositions.push(p.position.x, p.position.y, p.position.z);
+                        const t = p.life / p.maxLife;
+                        smokeColors.push(0.3 + t * 0.2, 0.15 + t * 0.1, 0.1);
+                    }
+                });
+            });
+            
+            // Update buffers
+            fireParticles.geometry.setAttribute('position', 
+                new THREE.Float32BufferAttribute(firePositions, 3));
+            fireParticles.geometry.setAttribute('color',
+                new THREE.Float32BufferAttribute(fireColors, 3));
+            
+            sparkParticles.geometry.setAttribute('position',
+                new THREE.Float32BufferAttribute(sparkPositions, 3));
+            sparkParticles.geometry.setAttribute('color',
+                new THREE.Float32BufferAttribute(sparkColors, 3));
+            
+            smokeParticles.geometry.setAttribute('position',
+                new THREE.Float32BufferAttribute(smokePositions, 3));
+            smokeParticles.geometry.setAttribute('color',
+                new THREE.Float32BufferAttribute(smokeColors, 3));
+        }
+
+        // Cast spell
+        function castSpell(targetPos) {
+            const startPos = new THREE.Vector3(0, 1, 8);
+            
+            showCombo();
+            
+            switch (currentSpell) {
+                case 'fireball':
+                    const dir = targetPos.clone().sub(startPos);
+                    projectiles.push(new Fireball(startPos, dir));
+                    break;
+                case 'meteor':
+                    projectiles.push(new Meteor(targetPos));
+                    break;
+                case 'hydra':
+                    const hydraPos = targetPos.clone();
+                    hydraPos.y = -1.5;
+                    projectiles.push(new Hydra(hydraPos));
+                    break;
+            }
+        }
+
+        function showCombo() {
+            const combo = document.getElementById('combo-text');
+            const names = {
+                'fireball': 'FIREBALL',
+                'meteor': 'METEOR',
+                'hydra': 'HYDRA'
+            };
+            combo.textContent = names[currentSpell];
+            combo.classList.remove('show');
+            void combo.offsetWidth;
+            combo.classList.add('show');
+        }
+
+        // Raycasting
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+        const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 2);
+
+        function getTargetPosition(event) {
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+            
+            raycaster.setFromCamera(mouse, camera);
+            const target = new THREE.Vector3();
+            raycaster.ray.intersectPlane(groundPlane, target);
+            return target;
+        }
+
+        renderer.domElement.addEventListener('click', (e) => {
+            const target = getTargetPosition(e);
+            if (target) {
+                castSpell(target);
+            }
+        });
+
+        // Buttons
+        document.querySelectorAll('.spell-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                document.querySelectorAll('.spell-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                currentSpell = btn.dataset.spell;
+                
+                const names = { 'fireball': 'Fireball', 'meteor': 'Meteor', 'hydra': 'Hydra' };
+                document.getElementById('skill-name').textContent = names[currentSpell];
+            });
+        });
+
+        document.getElementById('skill-orb').addEventListener('click', (e) => {
+            e.stopPropagation();
+            const target = new THREE.Vector3(
+                (Math.random() - 0.5) * 10,
+                0,
+                -5 + (Math.random() - 0.5) * 10
+            );
+            castSpell(target);
+        });
+
+        // Keyboard
+        document.addEventListener('keydown', (e) => {
+            if (e.key === '1') document.querySelector('[data-spell="fireball"]').click();
+            if (e.key === '2') document.querySelector('[data-spell="meteor"]').click();
+            if (e.key === '3') document.querySelector('[data-spell="hydra"]').click();
+        });
+
+        // Resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            composer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Animation
+        const clock = new THREE.Clock();
+
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            const delta = Math.min(clock.getDelta(), 0.1);
+            
+            // Update projectiles
+            for (let i = projectiles.length - 1; i >= 0; i--) {
+                if (!projectiles[i].update(delta)) {
+                    projectiles.splice(i, 1);
+                }
+            }
+            
+            // Update explosions
+            for (let i = explosions.length - 1; i >= 0; i--) {
+                const exp = explosions[i];
+                exp.life -= delta;
+                exp.time += delta;
+                
+                if (exp.life <= 0) {
+                    exp.lights.forEach(l => scene.remove(l));
+                    explosions.splice(i, 1);
+                    continue;
+                }
+                
+                // Update particles
+                for (let j = exp.particles.length - 1; j >= 0; j--) {
+                    const p = exp.particles[j];
+                    p.life -= delta;
+                    
+                    if (p.life <= 0) {
+                        exp.particles.splice(j, 1);
+                        continue;
+                    }
+                    
+                    p.position.add(p.velocity.clone().multiplyScalar(delta));
+                    
+                    if (p.type !== 'smoke') {
+                        p.velocity.y -= 12 * delta;
+                    } else {
+                        p.velocity.y += 1 * delta;
+                        p.velocity.multiplyScalar(0.98);
+                    }
+                    
+                    // Ground bounce for debris
+                    if (p.type === 'debris' && p.position.y < -1.8) {
+                        p.position.y = -1.8;
+                        p.velocity.y *= -0.4;
+                        p.velocity.x *= 0.7;
+                        p.velocity.z *= 0.7;
+                    }
+                }
+                
+                // Fade lights
+                exp.lights.forEach(l => {
+                    l.intensity *= 0.95;
+                });
+            }
+            
+            updateParticleBuffers();
+            
+            composer.render();
+        }
+        
+        animate();
+    </script>
+</body>
+</html>

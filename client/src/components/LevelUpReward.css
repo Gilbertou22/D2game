@@ -1,0 +1,139 @@
+/* src/components/LevelUpReward.css */
+.level-up-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.85);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.level-up-container {
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+    border-radius: 16px;
+    padding: 30px;
+    max-width: 600px;
+    width: 90%;
+    border: 2px solid #ffd700;
+    box-shadow: 0 0 30px rgba(255, 215, 0, 0.3);
+    animation: slideUp 0.5s ease;
+}
+
+@keyframes slideUp {
+    from {
+        transform: translateY(50px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.level-up-header {
+    text-align: center;
+    margin-bottom: 30px;
+}
+
+.level-up-header h2 {
+    font-size: 2.5rem;
+    color: #ffd700;
+    margin: 0;
+    text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+    animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+}
+
+.level-up-header p {
+    color: #fff;
+    font-size: 1.2rem;
+    margin: 10px 0 0;
+}
+
+.level-up-header .subtitle {
+    color: #aaa;
+    font-size: 0.9rem;
+    margin-top: 5px;
+}
+
+.rewards-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    margin-bottom: 25px;
+}
+
+.reward-card {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    padding: 15px 20px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 2px solid #444;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-align: left;
+}
+
+.reward-card:hover {
+    background: rgba(255, 255, 255, 0.1);
+    transform: translateX(10px);
+    box-shadow: 0 0 20px rgba(255, 215, 0, 0.2);
+}
+
+.reward-icon {
+    width: 50px;
+    height: 50px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.8rem;
+    flex-shrink: 0;
+}
+
+.reward-info h3 {
+    margin: 0;
+    font-size: 1.1rem;
+}
+
+.reward-info p {
+    margin: 5px 0 0;
+    color: #ccc;
+    font-size: 0.9rem;
+}
+
+.level-up-footer {
+    text-align: center;
+}
+
+.skip-btn {
+    padding: 10px 30px;
+    background: transparent;
+    border: 1px solid #666;
+    border-radius: 8px;
+    color: #888;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: all 0.2s ease;
+}
+
+.skip-btn:hover {
+    border-color: #ffd700;
+    color: #ffd700;
+}

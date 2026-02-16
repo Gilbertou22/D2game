@@ -1,0 +1,276 @@
+/* ItemTooltip.css - 物品提示框樣式 */
+
+.item-tooltip {
+    position: fixed;
+    width: 300px;
+    background: rgba(15, 15, 25, 0.98);
+    border: 2px solid;
+    border-radius: 10px;
+    padding: 0;
+    z-index: 5000;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8),
+                0 0 20px rgba(0, 0, 0, 0.5);
+    font-size: 13px;
+    pointer-events: none;
+    animation: tooltipFadeIn 0.15s ease-out;
+}
+
+@keyframes tooltipFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(5px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* 頭部 */
+.tooltip-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 15px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 8px 8px 0 0;
+    margin: -2px -2px 0 -2px;
+}
+
+.item-icon-large {
+    font-size: 36px;
+    filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.3));
+}
+
+.item-title {
+    flex: 1;
+}
+
+.item-title h3 {
+    margin: 0 0 5px 0;
+    font-size: 16px;
+    font-weight: bold;
+    text-shadow: 0 0 10px currentColor;
+}
+
+.rarity-label {
+    font-size: 11px;
+    color: #888;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+/* 基礎信息 */
+.tooltip-info {
+    padding: 12px 15px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.info-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 6px;
+}
+
+.info-row:last-child {
+    margin-bottom: 0;
+}
+
+.info-label {
+    color: #888;
+    font-size: 12px;
+}
+
+.info-value {
+    color: #ccc;
+    font-weight: 500;
+}
+
+.info-value.gold {
+    color: #ffd700;
+}
+
+/* 屬性區域 */
+.tooltip-stats,
+.tooltip-affixes,
+.tooltip-set,
+.tooltip-special,
+.tooltip-effect,
+.tooltip-comparison {
+    padding: 12px 15px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.tooltip-stats h4,
+.tooltip-affixes h4,
+.tooltip-set h4,
+.tooltip-special h4,
+.tooltip-effect h4,
+.tooltip-comparison h4 {
+    margin: 0 0 10px 0;
+    font-size: 12px;
+    color: #aaa;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+/* 屬性行 */
+.stat-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 0;
+    color: #aaddff;
+    font-size: 12px;
+}
+
+.stat-row.better {
+    color: #1eff00;
+}
+
+.stat-row.worse {
+    color: #ff4444;
+}
+
+.stat-text {
+    flex: 1;
+}
+
+.stat-comparison {
+    margin-left: 8px;
+    font-size: 10px;
+    font-weight: bold;
+}
+
+/* 詞綴 */
+.affix-row {
+    padding: 4px 0;
+    color: #88ccff;
+    font-size: 12px;
+}
+
+/* 套裝效果 */
+.set-description {
+    margin: 5px 0 0 0;
+    font-size: 11px;
+    color: #888;
+    font-style: italic;
+}
+
+/* 特殊效果 */
+.tooltip-special p {
+    margin: 0;
+    font-size: 12px;
+    font-weight: bold;
+}
+
+/* 效果 */
+.tooltip-effect p {
+    margin: 0;
+    font-size: 12px;
+}
+
+/* 比較區域 */
+.comparison-summary {
+    margin-bottom: 10px;
+    padding: 8px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 5px;
+    text-align: center;
+    font-weight: bold;
+    font-size: 12px;
+}
+
+.better-indicator {
+    color: #1eff00;
+}
+
+.worse-indicator {
+    color: #ff4444;
+}
+
+.comparison-details {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.comparison-stat {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    padding: 3px 5px;
+    border-radius: 3px;
+}
+
+.comparison-stat.better {
+    background: rgba(30, 255, 0, 0.1);
+    color: #1eff00;
+}
+
+.comparison-stat.worse {
+    background: rgba(255, 68, 68, 0.1);
+    color: #ff4444;
+}
+
+.more-differences {
+    margin: 5px 0 0 0;
+    font-size: 10px;
+    color: #666;
+    text-align: center;
+    font-style: italic;
+}
+
+.no-difference {
+    margin: 0;
+    font-size: 11px;
+    color: #888;
+    text-align: center;
+    font-style: italic;
+}
+
+/* 提示文字 */
+.tooltip-hint {
+    padding: 12px 15px;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 0 0 8px 8px;
+    margin: 0 -2px -2px -2px;
+}
+
+.tooltip-hint p {
+    margin: 0;
+    font-size: 11px;
+    color: #666;
+    text-align: center;
+}
+
+/* 滾動支持（當內容過多時） */
+.item-tooltip {
+    max-height: 80vh;
+    overflow-y: auto;
+}
+
+.item-tooltip::-webkit-scrollbar {
+    width: 6px;
+}
+
+.item-tooltip::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 3px;
+}
+
+.item-tooltip::-webkit-scrollbar-thumb {
+    background: #444;
+    border-radius: 3px;
+}
+
+.item-tooltip::-webkit-scrollbar-thumb:hover {
+    background: #666;
+}
+
+/* 稀有度特定樣式 */
+.item-tooltip.rarity-common { border-color: #9d9d9d; }
+.item-tooltip.rarity-uncommon { border-color: #1eff00; }
+.item-tooltip.rarity-rare { border-color: #0070dd; }
+.item-tooltip.rarity-epic { border-color: #a335ee; }
+.item-tooltip.rarity-legendary { border-color: #ff8000; }
