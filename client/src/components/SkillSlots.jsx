@@ -44,6 +44,48 @@ const SKILL_CONFIG = {
         name: '冰封球',
         icon: '🧊',
         description: '發射旋轉冰球'
+    },
+    plagueSpike: {
+        label: '0',
+        color: '#2ecc71',
+        name: '瘟疫釘刺',
+        icon: '🦠',
+        description: '發射毒釘造成持續傷害'
+    },
+    poisonCloud: {
+        label: '-',
+        color: '#27ae60',
+        name: '腐敗瘴氣',
+        icon: '☠️',
+        description: '召喚毒雲範圍攻擊'
+    },
+    serpentSweep: {
+        label: '=',
+        color: '#16a085',
+        name: '蛇信橫掃',
+        icon: '🐍',
+        description: '扇形毒系攻擊'
+    },
+    windBlades: {
+        label: '[',
+        color: '#a9a9a9',
+        name: '風之極刑',
+        icon: '🌀',
+        description: '三連發風刃'
+    },
+    tornado: {
+        label: ']',
+        color: '#d3d3d3',
+        name: '狂怒塵魔',
+        icon: '🌪️',
+        description: '持續範圍龍捲風'
+    },
+    tornadoRing: {
+        label: '\\',
+        color: '#c0c0c0',
+        name: '塵魔之環',
+        icon: '💨',
+        description: '向四周發射龍捲風'
     }
 };
 

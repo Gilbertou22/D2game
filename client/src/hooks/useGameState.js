@@ -244,6 +244,48 @@ const useGameState = create((set, get) => ({
             icon: '🐍',
             name: '蛇信橫掃'
         },
+        // 風系技能
+        windBlades: {
+            unlocked: true,
+            level: 1,
+            cooldown: 0,
+            maxCooldown: 6,
+            manaCost: 30,
+            damage: 150,
+            projectileSpeed: 30,
+            bladeCount: 3,
+            spreadAngle: 0.15,
+            icon: '🌀',
+            name: '風之極刑'
+        },
+        tornado: {
+            unlocked: true,
+            level: 1,
+            cooldown: 0,
+            maxCooldown: 18,
+            manaCost: 55,
+            damage: 80,
+            dotDamage: 20,
+            dotDuration: 8,
+            radius: 6,
+            duration: 8,
+            moveSpeed: 4,
+            icon: '🌪️',
+            name: '狂怒塵魔'
+        },
+        tornadoRing: {
+            unlocked: true,
+            level: 1,
+            cooldown: 0,
+            maxCooldown: 20,
+            manaCost: 70,
+            damage: 100,
+            tornadoCount: 6,
+            spreadRadius: 25,
+            duration: 4,
+            icon: '💨',
+            name: '塵魔之環'
+        },
     },
 
     // 按鍵綁定配置 (可自行修改)
@@ -259,7 +301,10 @@ const useGameState = create((set, get) => ({
         '9': 'meteor',
         '0': 'plagueSpike',
         '-': 'poisonCloud',
-        '=': 'serpentSweep'
+        '=': 'serpentSweep',
+        '[': 'windBlades',
+        ']': 'tornado',
+        '\\': 'tornadoRing'
     },
 
     // 設置按鍵綁定

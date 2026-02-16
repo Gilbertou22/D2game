@@ -27,7 +27,11 @@ function Minimap() {
 
         const draw = () => {
             const state = useGameState.getState();
-            const { playerPos: pos, playerRotation: rot, enemies = [], obstacles = [], chests = [] } = state;
+            const pos = state.playerPos;
+            const rot = state.playerRotation;
+            const enemies = Array.isArray(state.enemies) ? state.enemies : [];
+            const obstacles = Array.isArray(state.obstacles) ? state.obstacles : [];
+            const chests = Array.isArray(state.chests) ? state.chests : [];
 
             // 清空畫布
             ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';

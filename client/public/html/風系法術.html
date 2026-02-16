@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Diablo 4 風系法術 - 強化演示</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #000; font-family: 'Segoe UI', sans-serif; }
+        #canvas-container { width: 100vw; height: 100vh; }
+        
+        #ui-layer {
+            position: absolute;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 20px;
+            z-index: 10;
+        }
+        
+        .skill-btn {
+            background: rgba(0, 0, 0, 0.6);
+            border: 1px solid #a9a9a9;
+            color: #d3d3d3;
+            padding: 15px 25px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-transform: uppercase;
+            font-weight: bold;
+            letter-spacing: 1px;
+            clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+        }
+        
+        .skill-btn:hover {
+            background: rgba(169, 169, 169, 0.8);
+            color: #000;
+            box-shadow: 0 0 15px rgba(211, 211, 211, 0.5);
+        }
+
+        #info {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: #888;
+            pointer-events: none;
+            text-shadow: 1px 1px 2px #000;
+        }
+    </style>
+    
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+</head>
+<body>
+
+    <div id="info">
+        <h2 style="color: #d3d3d3; margin: 0;">風系法術 MOD</h2>
+        <p>多重風刃 & 環繞龍捲</p>
+    </div>
+
+    <div id="canvas-container"></div>
+
+    <div id="ui-layer">
+        <button class="skill-btn" onclick="castSpell('blade')">風之極刑 (三連)</button>
+        <button class="skill-btn" onclick="castSpell('tornado')">狂怒塵魔</button>
+        <button class="skill-btn" onclick="castSpell('blast')">塵魔之環</button>
+    </div>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+        import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+        import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+
+        // --- 基礎設置 ---
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x080808);
+        scene.fog = new THREE.FogExp2(0x080808, 0.02);
+
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 8, 18);
+        camera.lookAt(0, 1, 0);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        container.appendChild(renderer.domElement);
+
+        // --- 後期處理 ---
+        const composer = new EffectComposer(renderer);
+        composer.addPass(new RenderPass(scene, camera));
+        const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.8, 0.3, 0.9);
+        composer.addPass(bloomPass);
+
+        // --- 光源 ---
+        const ambientLight = new THREE.AmbientLight(0x444444);
+        scene.add(ambientLight);
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        dirLight.position.set(10, 20, 10);
+        scene.add(dirLight);
+
+        // --- 地面 ---
+        const floorGeo = new THREE.PlaneGeometry(100, 100);
+        const floorMat = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.9 });
+        const floor = new THREE.Mesh(floorGeo, floorMat);
+        floor.rotation.x = -Math.PI / 2;
+        floor.position.y = -0.5;
+        scene.add(floor);
+
+        // --- 貼圖生成 ---
+        function createWindTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 64; canvas.height = 64;
+            const ctx = canvas.getContext('2d');
+            const gradient = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+            gradient.addColorStop(0, 'rgba(255,255,255,1)');
+            gradient.addColorStop(0.2, 'rgba(200,200,220,0.8)');
+            gradient.addColorStop(0.5, 'rgba(150,150,170,0.2)');
+            gradient.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, 64, 64);
+            return new THREE.CanvasTexture(canvas);
+        }
+        const windTexture = createWindTexture();
+
+        // --- 法術管理 ---
+        const activeSpells = [];
+
+        // ==========================================
+        // 1. 遠程：風之極刑 (三連發)
+        // ==========================================
+        function createWindBlades() {
+            // 發射 3 個風刃
+            for(let i=0; i<3; i++) {
+                const group = new THREE.Group();
+
+                // 核心風刃
+                const bladeGeo = new THREE.ConeGeometry(0.15, 3, 4);
+                const bladeMat = new THREE.MeshBasicMaterial({ 
+                    color: 0xffffff, transparent: true, opacity: 0.9, side: THREE.DoubleSide
+                });
+                const blade = new THREE.Mesh(bladeGeo, bladeMat);
+                blade.rotation.x = Math.PI / 2;
+                group.add(blade);
+
+                // 拖尾粒子
+                const trailCount = 50;
+                const trailGeo = new THREE.BufferGeometry();
+                const positions = new Float32Array(trailCount * 3);
+                trailGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+                const trailMat = new THREE.PointsMaterial({
+                    size: 0.2, map: windTexture, transparent: true, opacity: 0.6,
+                    blending: THREE.AdditiveBlending, depthWrite: false, color: 0xaaccff
+                });
+                const trail = new THREE.Points(trailGeo, trailMat);
+                scene.add(trail);
+
+                // 設定位置：扇形分佈
+                // i=0(左), i=1(中), i=2(右)
+                const offset = (i - 1) * 1.5; 
+                group.position.set(offset, 1.2, 8);
+                
+                // 稍微調整角度向中心聚焦
+                const angleAdjust = (i - 1) * 0.05;
+                const velocity = new THREE.Vector3(angleAdjust, 0, -2.2);
+
+                group.userData = {
+                    type: 'blade',
+                    velocity: velocity,
+                    trail: trail,
+                    trailVel: Array(trailCount).fill(0).map(() => ({
+                        x: (Math.random() - 0.5) * 0.5,
+                        y: (Math.random() - 0.5) * 0.5,
+                        z: Math.random() * 0.5,
+                        life: Math.random() * 0.2
+                    })),
+                    life: 2.5
+                };
+
+                scene.add(group);
+                activeSpells.push(group);
+            }
+        }
+
+        // ==========================================
+        // 2. 範圍：狂怒塵魔 (保持原樣)
+        // ==========================================
+        function createTornado() {
+            const particleCount = 800;
+            const positions = new Float32Array(particleCount * 3);
+            const colors = new Float32Array(particleCount * 3);
+            
+            const data = {
+                type: 'tornado',
+                pos: new THREE.Vector3(0, 0, 0),
+                targetPos: new THREE.Vector3((Math.random() - 0.5) * 10, 0, (Math.random() - 0.5) * 10),
+                life: 8.0,
+                particles: null,
+                rotations: []
+            };
+
+            for(let i=0; i<particleCount; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const radius = 0.5 + Math.random() * 1.5;
+                const height = Math.random() * 8;
+                
+                positions[i*3] = Math.cos(angle) * radius;
+                positions[i*3+1] = height;
+                positions[i*3+2] = Math.sin(angle) * radius;
+
+                data.rotations.push({
+                    r: radius, a: angle, h: height,
+                    speed: 0.05 + Math.random() * 0.05,
+                    rise: 0.02 + Math.random() * 0.02
+                });
+
+                const c = 0.6 + Math.random() * 0.4;
+                colors[i*3] = c; colors[i*3+1] = c; colors[i*3+2] = c;
+            }
+
+            const geo = new THREE.BufferGeometry();
+            geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+            const mat = new THREE.PointsMaterial({
+                size: 0.4, map: windTexture, vertexColors: true, transparent: true, opacity: 0.8,
+                blending: THREE.NormalBlending, depthWrite: false
+            });
+
+            data.particles = new THREE.Points(geo, mat);
+            scene.add(data.particles);
+            activeSpells.push(data);
+        }
+
+        // ==========================================
+        // 3. 扇形 -> 環繞：塵魔之環 (向四周發射龍捲)
+        // ==========================================
+        function createTornadoRing() {
+            const tornadoCount = 6; // 發射 6 個小龍捲
+            
+            for(let t=0; t<tornadoCount; t++) {
+                const angle = (t / tornadoCount) * Math.PI * 2;
+                
+                // 每個龍捲的數據結構
+                const particleCount = 150; // 少一點粒子以保持流暢
+                const positions = new Float32Array(particleCount * 3);
+                
+                const data = {
+                    type: 'radial_tornado', // 新類型：徑向移動的龍捲
+                    pos: new THREE.Vector3(0, 0, 0), // 從中心出發
+                    velocity: new THREE.Vector3(Math.sin(angle) * 0.3, 0, Math.cos(angle) * 0.3), // 向外的速度
+                    life: 3.0,
+                    particles: null,
+                    rotations: []
+                };
+
+                for(let i=0; i<particleCount; i++) {
+                    // 初始為小型緊密結構
+                    const a = Math.random() * Math.PI * 2;
+                    const r = Math.random() * 0.8; // 半徑較小
+                    const h = Math.random() * 2;   // 高度較低
+                    
+                    positions[i*3] = Math.cos(a) * r;
+                    positions[i*3+1] = h;
+                    positions[i*3+2] = Math.sin(a) * r;
+
+                    data.rotations.push({
+                        r: r, a: a, h: h,
+                        speed: 0.15, // 轉速快
+                        rise: 0.05
+                    });
+                }
+
+                const geo = new THREE.BufferGeometry();
+                geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+                const mat = new THREE.PointsMaterial({
+                    size: 0.3, map: windTexture, color: 0xaaaaaa, transparent: true, opacity: 0.9,
+                    blending: THREE.NormalBlending, depthWrite: false
+                });
+
+                data.particles = new THREE.Points(geo, mat);
+                scene.add(data.particles);
+                activeSpells.push(data);
+            }
+            
+            // 衝擊波視覺反饋
+            camera.position.y += 0.5;
+        }
+
+        // ==========================================
+        // 主循環
+        // ==========================================
+        const clock = new THREE.Clock();
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const delta = Math.min(clock.getDelta(), 0.1);
+            
+            for (let i = activeSpells.length - 1; i >= 0; i--) {
+                const obj = activeSpells[i];
+                
+                // 生命週期清理
+                if (obj.isObject3D) {
+                     if(obj.userData.life) obj.userData.life -= delta;
+                     if(obj.userData.life <= 0) {
+                        scene.remove(obj);
+                        if(obj.userData.trail) {
+                            scene.remove(obj.userData.trail);
+                            obj.userData.trail.geometry.dispose();
+                            obj.userData.trail.material.dispose();
+                        }
+                        obj.geometry.dispose();
+                        obj.material.dispose();
+                        activeSpells.splice(i, 1);
+                        continue;
+                     }
+                } else {
+                    obj.life -= delta;
+                    if(obj.life <= 0) {
+                        scene.remove(obj.particles);
+                        obj.particles.geometry.dispose();
+                        obj.particles.material.dispose();
+                        activeSpells.splice(i, 1);
+                        continue;
+                    }
+                }
+
+                // --- 風刃邏輯 ---
+                if (obj.userData && obj.userData.type === 'blade') {
+                    obj.position.add(obj.userData.velocity);
+                    
+                    const trail = obj.userData.trail;
+                    const tPos = trail.geometry.attributes.position.array;
+                    const tVel = obj.userData.trailVel;
+                    
+                    for(let j=0; j<tVel.length; j++) {
+                        tPos[j*3] += tVel[j].x;
+                        tPos[j*3+1] += tVel[j].y;
+                        tPos[j*3+2] += tVel[j].z;
+                        
+                        tVel[j].life -= delta;
+                        if(tVel[j].life <= 0) {
+                            tPos[j*3] = obj.position.x + (Math.random()-0.5);
+                            tPos[j*3+1] = obj.position.y + (Math.random()-0.5);
+                            tPos[j*3+2] = obj.position.z;
+                            tVel[j].life = 0.1;
+                        }
+                    }
+                    trail.geometry.attributes.position.needsUpdate = true;
+                }
+
+                // --- 原版塵魔邏輯 ---
+                if (obj.type === 'tornado') {
+                    if(Math.random() < 0.02) {
+                        obj.targetPos.set((Math.random() - 0.5) * 15, 0, (Math.random() - 0.5) * 15);
+                    }
+                    obj.pos.lerp(obj.targetPos, 0.02);
+                    
+                    const posArray = obj.particles.geometry.attributes.position.array;
+                    const rotData = obj.rotations;
+                    
+                    for(let j=0; j<rotData.length; j++) {
+                        rotData[j].a += rotData[j].speed;
+                        rotData[j].h += rotData[j].rise;
+                        if(rotData[j].h > 8) rotData[j].h = 0;
+                        
+                        posArray[j*3] = obj.pos.x + Math.cos(rotData[j].a) * rotData[j].r;
+                        posArray[j*3+1] = rotData[j].h;
+                        posArray[j*3+2] = obj.pos.z + Math.sin(rotData[j].a) * rotData[j].r;
+                    }
+                    obj.particles.geometry.attributes.position.needsUpdate = true;
+                    
+                    if (obj.life < 2.0) obj.particles.material.opacity = obj.life / 2.0;
+                }
+
+                // --- 新版徑向龍捲邏輯 ---
+                if (obj.type === 'radial_tornado') {
+                    // 向外移動
+                    obj.pos.add(obj.velocity);
+                    
+                    // 隨著移動，龍捲風變大、變慢 (模擬擴散消散)
+                    obj.velocity.multiplyScalar(0.99);
+
+                    const posArray = obj.particles.geometry.attributes.position.array;
+                    const rotData = obj.rotations;
+                    
+                    for(let j=0; j<rotData.length; j++) {
+                        rotData[j].a += rotData[j].speed;
+                        rotData[j].h += rotData[j].rise;
+                        
+                        // 循環高度
+                        if(rotData[j].h > 2.5) rotData[j].h = 0;
+                        
+                        // 擴大半徑
+                        rotData[j].r += 0.01;
+
+                        posArray[j*3] = obj.pos.x + Math.cos(rotData[j].a) * rotData[j].r;
+                        posArray[j*3+1] = rotData[j].h;
+                        posArray[j*3+2] = obj.pos.z + Math.sin(rotData[j].a) * rotData[j].r;
+                    }
+                    obj.particles.geometry.attributes.position.needsUpdate = true;
+
+                    // 淡出
+                    if (obj.life < 1.0) obj.particles.material.opacity = obj.life;
+                }
+            }
+
+            // 相機緩動復位
+            camera.position.y += (8 - camera.position.y) * 0.1;
+
+            composer.render();
+        }
+
+        window.castSpell = (type) => {
+            switch(type) {
+                case 'blade': createWindBlades(); break;
+                case 'tornado': createTornado(); break;
+                case 'blast': createTornadoRing(); break;
+            }
+        };
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            composer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        animate();
+    </script>
+</body>
+</html>

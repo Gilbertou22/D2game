@@ -1411,6 +1411,425 @@ export class SerpentSweepEffect {
     }
 }
 
+// ==========================================
+// 風系法術效果
+// ==========================================
+
+// 風之極刑 - 三連發風刃
+export class WindBladesEffect {
+    constructor(startPos, targetPos, damage, bladeCount, spreadAngle) {
+        this.startPos = startPos.clone();
+        this.targetPos = targetPos.clone();
+        this.damage = damage;
+        this.bladeCount = bladeCount || 3;
+        this.spreadAngle = spreadAngle || 0.15;
+        this.blades = [];
+        this.trails = [];
+        this.life = 3;
+        
+        this.group = new THREE.Group();
+        
+        // 風刃貼圖生成
+        const windTexture = this.createWindTexture();
+        
+        // 創建多個風刃
+        for (let i = 0; i < this.bladeCount; i++) {
+            const bladeGroup = new THREE.Group();
+            
+            // 風刃核心
+            const bladeGeo = new THREE.ConeGeometry(0.15, 3, 4);
+            const bladeMat = new THREE.MeshBasicMaterial({ 
+                color: 0xffffff, 
+                transparent: true, 
+                opacity: 0.9, 
+                side: THREE.DoubleSide
+            });
+            const blade = new THREE.Mesh(bladeGeo, bladeMat);
+            blade.rotation.x = Math.PI / 2;
+            bladeGroup.add(blade);
+            
+            // 扇形分佈偏移
+            const offset = (i - (this.bladeCount - 1) / 2) * this.spreadAngle;
+            
+            // 方向
+            const direction = targetPos.clone().sub(startPos).normalize();
+            const directionWithOffset = new THREE.Vector3(
+                direction.x + offset,
+                0,
+                direction.z
+            ).normalize();
+            
+            // 拖尾粒子
+            const trailCount = 50;
+            const trailPositions = new Float32Array(trailCount * 3);
+            const trailGeo = new THREE.BufferGeometry();
+            trailGeo.setAttribute('position', new THREE.BufferAttribute(trailPositions, 3));
+            
+            const trailMat = new THREE.PointsMaterial({
+                size: 0.2,
+                map: windTexture,
+                transparent: true,
+                opacity: 0.6,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false,
+                color: 0xaaccff
+            });
+            const trail = new THREE.Points(trailGeo, trailMat);
+            
+            this.trails.push({
+                mesh: trail,
+                positions: trailPositions,
+                velocities: Array(trailCount).fill(0).map(() => ({
+                    x: (Math.random() - 0.5) * 0.5,
+                    y: (Math.random() - 0.5) * 0.5,
+                    z: Math.random() * 0.5,
+                    life: Math.random() * 0.2
+                })),
+                startPos: startPos.clone()
+            });
+            
+            this.blades.push({
+                group: bladeGroup,
+                mesh: blade,
+                velocity: directionWithOffset.multiplyScalar(30),
+                position: startPos.clone()
+            });
+            
+            this.group.add(bladeGroup);
+        }
+        
+        // 風系光源
+        this.light = new THREE.PointLight(0xaaccff, 3, 20);
+        this.group.add(this.light);
+    }
+    
+    createWindTexture() {
+        const canvas = document.createElement('canvas');
+        canvas.width = 64;
+        canvas.height = 64;
+        const ctx = canvas.getContext('2d');
+        const gradient = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+        gradient.addColorStop(0, 'rgba(255,255,255,1)');
+        gradient.addColorStop(0.2, 'rgba(200,200,220,0.8)');
+        gradient.addColorStop(0.5, 'rgba(150,150,170,0.2)');
+        gradient.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, 64, 64);
+        return new THREE.CanvasTexture(canvas);
+    }
+    
+    update(delta) {
+        this.life -= delta;
+        
+        // 更新每個風刃
+        for (let i = 0; i < this.blades.length; i++) {
+            const blade = this.blades[i];
+            blade.position.add(blade.velocity.clone().multiplyScalar(delta));
+            blade.group.position.copy(blade.position);
+            blade.group.lookAt(blade.position.clone().add(blade.velocity));
+            
+            // 更新拖尾
+            const trail = this.trails[i];
+            const positions = trail.mesh.geometry.attributes.position.array;
+            
+            for (let j = 0; j < trail.velocities.length; j++) {
+                const vel = trail.velocities[j];
+                positions[j * 3] += vel.x;
+                positions[j * 3 + 1] += vel.y;
+                positions[j * 3 + 2] += vel.z;
+                
+                vel.life -= delta;
+                if (vel.life <= 0) {
+                    positions[j * 3] = blade.position.x + (Math.random() - 0.5);
+                    positions[j * 3 + 1] = blade.position.y + (Math.random() - 0.5);
+                    positions[j * 3 + 2] = blade.position.z;
+                    vel.life = 0.1;
+                }
+            }
+            trail.mesh.geometry.attributes.position.needsUpdate = true;
+        }
+        
+        // 淡出
+        if (this.life < 1.0) {
+            this.light.intensity = 3 * this.life;
+        }
+        
+        return this.life > 0;
+    }
+    
+    dispose() {
+        for (const trail of this.trails) {
+            trail.mesh.geometry.dispose();
+            trail.mesh.material.dispose();
+        }
+    }
+}
+
+// 狂怒塵魔 - 持續範圍龍捲風
+export class TornadoEffect {
+    constructor(centerPos, damage, dotDamage, dotDuration, radius, duration, moveSpeed) {
+        this.centerPos = centerPos.clone();
+        this.damage = damage;
+        this.dotDamage = dotDamage;
+        this.dotDuration = dotDuration;
+        this.radius = radius;
+        this.duration = duration;
+        this.moveSpeed = moveSpeed || 4;
+        this.life = duration;
+        this.maxLife = duration;
+        
+        this.group = new THREE.Group();
+        this.group.position.copy(centerPos);
+        
+        // 目標移動位置
+        this.targetPos = centerPos.clone();
+        
+        // 粒子系統
+        const particleCount = 800;
+        const positions = new Float32Array(particleCount * 3);
+        const colors = new Float32Array(particleCount * 3);
+        this.rotations = [];
+        
+        for (let i = 0; i < particleCount; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const r = 0.5 + Math.random() * 1.5;
+            const height = Math.random() * 8;
+            
+            positions[i * 3] = Math.cos(angle) * r;
+            positions[i * 3 + 1] = height;
+            positions[i * 3 + 2] = Math.sin(angle) * r;
+            
+            this.rotations.push({
+                r: r,
+                a: angle,
+                h: height,
+                speed: 0.05 + Math.random() * 0.05,
+                rise: 0.02 + Math.random() * 0.02
+            });
+            
+            const c = 0.6 + Math.random() * 0.4;
+            colors[i * 3] = c;
+            colors[i * 3 + 1] = c;
+            colors[i * 3 + 2] = c;
+        }
+        
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+        
+        const mat = new THREE.PointsMaterial({
+            size: 0.4,
+            vertexColors: true,
+            transparent: true,
+            opacity: 0.8,
+            blending: THREE.NormalBlending,
+            depthWrite: false
+        });
+        
+        this.particles = new THREE.Points(geo, mat);
+        this.group.add(this.particles);
+        
+        // 光源
+        this.light = new THREE.PointLight(0xaaccff, 4, 25);
+        this.light.position.y = 4;
+        this.group.add(this.light);
+    }
+    
+    update(delta) {
+        this.life -= delta;
+        
+        // 隨機移動
+        if (Math.random() < 0.02) {
+            this.targetPos.set(
+                this.centerPos.x + (Math.random() - 0.5) * 15,
+                0,
+                this.centerPos.z + (Math.random() - 0.5) * 15
+            );
+        }
+        
+        // 移動向目標
+        const dir = this.targetPos.clone().sub(this.group.position);
+        dir.y = 0;
+        if (dir.length() > 0.5) {
+            dir.normalize().multiplyScalar(this.moveSpeed * delta);
+            this.group.position.add(dir);
+        }
+        
+        // 更新粒子旋轉
+        const posArray = this.particles.geometry.attributes.position.array;
+        
+        for (let i = 0; i < this.rotations.length; i++) {
+            const rot = this.rotations[i];
+            rot.a += rot.speed;
+            rot.h += rot.rise;
+            if (rot.h > 8) rot.h = 0;
+            
+            posArray[i * 3] = this.group.position.x + Math.cos(rot.a) * rot.r;
+            posArray[i * 3 + 1] = rot.h;
+            posArray[i * 3 + 2] = this.group.position.z + Math.sin(rot.a) * rot.r;
+        }
+        
+        this.particles.geometry.attributes.position.needsUpdate = true;
+        
+        // 淡出
+        if (this.life < 2.0) {
+            this.particles.material.opacity = this.life / 2.0 * 0.8;
+            this.light.intensity = 4 * (this.life / 2.0);
+        }
+        
+        return this.life > 0;
+    }
+    
+    dispose() {
+        this.particles.geometry.dispose();
+        this.particles.material.dispose();
+    }
+}
+
+// 塵魔之環 - 向四周發射龍捲風
+export class TornadoRingEffect {
+    constructor(centerPos, damage, tornadoCount, spreadRadius, duration) {
+        this.centerPos = centerPos.clone();
+        this.damage = damage;
+        this.tornadoCount = tornadoCount || 6;
+        this.spreadRadius = spreadRadius || 25;
+        this.duration = duration || 4;
+        this.life = duration;
+        
+        this.group = new THREE.Group();
+        this.group.position.copy(centerPos);
+        
+        this.tornadoes = [];
+        
+        // 風刃貼圖
+        const windTexture = this.createWindTexture();
+        
+        // 創建多個徑向龍捲
+        for (let t = 0; t < this.tornadoCount; t++) {
+            const angle = (t / this.tornadoCount) * Math.PI * 2;
+            
+            const particleCount = 150;
+            const positions = new Float32Array(particleCount * 3);
+            
+            const tornadoData = {
+                pos: centerPos.clone(),
+                velocity: new THREE.Vector3(
+                    Math.sin(angle) * 0.3,
+                    0,
+                    Math.cos(angle) * 0.3
+                ),
+                rotations: []
+            };
+            
+            for (let i = 0; i < particleCount; i++) {
+                const a = Math.random() * Math.PI * 2;
+                const r = Math.random() * 0.8;
+                const h = Math.random() * 2;
+                
+                positions[i * 3] = Math.cos(a) * r;
+                positions[i * 3 + 1] = h;
+                positions[i * 3 + 2] = Math.sin(a) * r;
+                
+                tornadoData.rotations.push({
+                    r: r,
+                    a: a,
+                    h: h,
+                    speed: 0.15,
+                    rise: 0.05
+                });
+            }
+            
+            const geo = new THREE.BufferGeometry();
+            geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            
+            const mat = new THREE.PointsMaterial({
+                size: 0.3,
+                map: windTexture,
+                color: 0xaaaaaa,
+                transparent: true,
+                opacity: 0.9,
+                blending: THREE.NormalBlending,
+                depthWrite: false
+            });
+            
+            const particles = new THREE.Points(geo, mat);
+            tornadoData.particles = particles;
+            
+            this.tornadoes.push(tornadoData);
+            this.group.add(particles);
+        }
+        
+        // 光源
+        this.light = new THREE.PointLight(0xaaccff, 5, 30);
+        this.light.position.y = 3;
+        this.group.add(this.light);
+    }
+    
+    createWindTexture() {
+        const canvas = document.createElement('canvas');
+        canvas.width = 64;
+        canvas.height = 64;
+        const ctx = canvas.getContext('2d');
+        const gradient = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+        gradient.addColorStop(0, 'rgba(255,255,255,1)');
+        gradient.addColorStop(0.2, 'rgba(200,200,220,0.8)');
+        gradient.addColorStop(0.5, 'rgba(150,150,170,0.2)');
+        gradient.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, 64, 64);
+        return new THREE.CanvasTexture(canvas);
+    }
+    
+    update(delta) {
+        this.life -= delta;
+        
+        // 更新每個龍捲
+        for (const tornado of this.tornadoes) {
+            // 向外移動
+            tornado.pos.add(tornado.velocity);
+            
+            // 速度遞減
+            tornado.velocity.multiplyScalar(0.99);
+            
+            // 更新粒子
+            const posArray = tornado.particles.geometry.attributes.position.array;
+            
+            for (let i = 0; i < tornado.rotations.length; i++) {
+                const rot = tornado.rotations[i];
+                rot.a += rot.speed;
+                rot.h += rot.rise;
+                
+                if (rot.h > 2.5) rot.h = 0;
+                rot.r += 0.01;
+                
+                posArray[i * 3] = tornado.pos.x + Math.cos(rot.a) * rot.r;
+                posArray[i * 3 + 1] = rot.h;
+                posArray[i * 3 + 2] = tornado.pos.z + Math.sin(rot.a) * rot.r;
+            }
+            
+            tornado.particles.geometry.attributes.position.needsUpdate = true;
+        }
+        
+        // 淡出
+        if (this.life < 1.0) {
+            const opacity = this.life;
+            for (const tornado of this.tornadoes) {
+                tornado.particles.material.opacity = opacity * 0.9;
+            }
+            this.light.intensity = 5 * this.life;
+        }
+        
+        return this.life > 0;
+    }
+    
+    dispose() {
+        for (const tornado of this.tornadoes) {
+            tornado.particles.geometry.dispose();
+            tornado.particles.material.dispose();
+        }
+    }
+}
+
 export default {
     FireballEffect,
     FireExplosion,
@@ -1421,5 +1840,8 @@ export default {
     MeteorEffect,
     PlagueSpikeEffect,
     PoisonCloudEffect,
-    SerpentSweepEffect
+    SerpentSweepEffect,
+    WindBladesEffect,
+    TornadoEffect,
+    TornadoRingEffect
 };

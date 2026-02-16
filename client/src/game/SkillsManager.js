@@ -6,7 +6,7 @@ import { useThree } from '@react-three/fiber';
 import useGameState from '../hooks/useGameState';
 import { createProjectile } from './Projectiles';
 import { createParticles } from './Particles';
-import { LightningEffect, FrozenOrbEffect, BlizzardEffect, MeteorEffect, IceNovaEffect, FireballEffect, FireExplosion, PlagueSpikeEffect, PoisonCloudEffect, SerpentSweepEffect } from './SkillEffects';
+import { LightningEffect, FrozenOrbEffect, BlizzardEffect, MeteorEffect, IceNovaEffect, FireballEffect, FireExplosion, PlagueSpikeEffect, PoisonCloudEffect, SerpentSweepEffect, WindBladesEffect, TornadoEffect, TornadoRingEffect } from './SkillEffects';
 import * as THREE from 'three';
 
 function SkillsManager() {
@@ -389,6 +389,110 @@ function SkillsManager() {
                     });
                     createParticles(playerPosY, 0x45ff45, 20, 10, 1, 'poison_aoe');
                 }, 100);
+                break;
+            }
+            
+            // ==================== 風系技能 ====================
+            
+            case 'windBlades': {
+                const targetPos = currentTarget ? currentTarget.position.clone() : defaultTargetPos;
+                targetPos.y = 1;
+                
+                const skill = skills.windBlades;
+                const windBlades = new WindBladesEffect(
+                    playerPosY,
+                    targetPos,
+                    skill.damage || 150,
+                    skill.bladeCount || 3,
+                    skill.spreadAngle || 0.15
+                );
+                scene.add(windBlades.group);
+                effectsRef.current.push(windBlades);
+                
+                // 延遲造成傷害
+                const distance = playerPosY.distanceTo(targetPos);
+                const travelTime = distance / 30;
+                
+                setTimeout(() => {
+                    enemies.forEach(enemy => {
+                        const dist = enemy.position.distanceTo(targetPos);
+                        if (dist < 3 && enemy.hp > 0) {
+                            const dmg = skill.damage || 150;
+                            updateEnemy(enemy.id, { hp: Math.max(0, enemy.hp - dmg) });
+                            addFloatingNumber(enemy.position.clone().add(new THREE.Vector3(0, 3, 0)), dmg, 'damage');
+                        }
+                    });
+                    createParticles(targetPos, 0xaaccff, 15, 10, 1, 'wind_hit');
+                }, travelTime * 1000);
+                break;
+            }
+            
+            case 'tornado': {
+                const targetPos = currentTarget ? currentTarget.position.clone() : defaultTargetPos;
+                targetPos.y = 0;
+                
+                const skill = skills.tornado;
+                const tornado = new TornadoEffect(
+                    targetPos,
+                    skill.damage || 80,
+                    skill.dotDamage || 20,
+                    skill.dotDuration || 8,
+                    skill.radius || 6,
+                    skill.duration || 8,
+                    skill.moveSpeed || 4
+                );
+                scene.add(tornado.group);
+                effectsRef.current.push(tornado);
+                
+                // 持續範圍傷害
+                const damageInterval = setInterval(() => {
+                    if (tornado.life <= 0) {
+                        clearInterval(damageInterval);
+                        return;
+                    }
+                    
+                    const tornadoPos = tornado.group.position;
+                    enemies.forEach(enemy => {
+                        const dist = enemy.position.distanceTo(tornadoPos);
+                        if (dist < (skill.radius || 6) && enemy.hp > 0) {
+                            const dmg = skill.dotDamage || 20;
+                            updateEnemy(enemy.id, { hp: Math.max(0, enemy.hp - dmg) });
+                            addFloatingNumber(enemy.position.clone().add(new THREE.Vector3(0, 3, 0)), dmg, 'damage');
+                        }
+                    });
+                }, 1000);
+                
+                setTimeout(() => clearInterval(damageInterval), (skill.duration || 8) * 1000);
+                break;
+            }
+            
+            case 'tornadoRing': {
+                const targetPos = currentTarget ? currentTarget.position.clone() : defaultTargetPos;
+                targetPos.y = 0;
+                
+                const skill = skills.tornadoRing;
+                const tornadoRing = new TornadoRingEffect(
+                    targetPos,
+                    skill.damage || 100,
+                    skill.tornadoCount || 6,
+                    skill.spreadRadius || 25,
+                    skill.duration || 4
+                );
+                scene.add(tornadoRing.group);
+                effectsRef.current.push(tornadoRing);
+                
+                // 範圍傷害
+                setTimeout(() => {
+                    enemies.forEach(enemy => {
+                        const dist = enemy.position.distanceTo(targetPos);
+                        if (dist < (skill.spreadRadius || 25) && enemy.hp > 0) {
+                            const dmg = skill.damage || 100;
+                            updateEnemy(enemy.id, { hp: Math.max(0, enemy.hp - dmg) });
+                            addFloatingNumber(enemy.position.clone().add(new THREE.Vector3(0, 3, 0)), dmg, 'damage');
+                        }
+                    });
+                    createParticles(targetPos, 0xaaccff, 30, 15, 2, 'wind_aoe');
+                }, 200);
                 break;
             }
             
