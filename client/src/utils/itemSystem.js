@@ -94,156 +94,417 @@ export const EQUIPMENT_TYPES = {
         icon: '⚔️',
         slot: 'weapon',
         baseStats: ['attack', 'critChance'],
-        possibleAffixes: ['attack', 'critChance', 'critDamage', 'attackSpeed', 'lifeSteal']
+        possibleAffixes: ['attack', 'attackPercent', 'fireDamage', 'iceDamage', 'lightningDamage', 'critChance', 'critDamage', 'attackSpeed', 'castSpeed', 'lifeSteal', 'igniteChance', 'freezeChance', 'shockChance', 'skillLevel']
     },
     armor: {
-        name: '护甲',
+        name: '護甲',
         icon: '🛡️',
         slot: 'armor',
         baseStats: ['defense', 'hp'],
-        possibleAffixes: ['defense', 'hp', 'hpRegen', 'damageReduction', 'resistance']
+        possibleAffixes: ['defense', 'defensePercent', 'hp', 'hpPercent', 'hpRegen', 'damageReduction', 'resistance', 'fireResist', 'iceResist', 'lightningResist', 'strength', 'allStats']
     },
     helmet: {
-        name: '头盔',
+        name: '頭盔',
         icon: '⛑️',
         slot: 'helmet',
         baseStats: ['defense', 'mana'],
-        possibleAffixes: ['defense', 'mana', 'manaRegen', 'cooldownReduction', 'resistance']
+        possibleAffixes: ['defense', 'hp', 'hpRegen', 'mana', 'manaRegen', 'resistance', 'cooldownReduction', 'manaCostReduction', 'intelligence', 'allStats']
     },
     ring: {
         name: '戒指',
         icon: '💍',
         slot: 'ring',
         baseStats: ['attack', 'defense'],
-        possibleAffixes: ['attack', 'defense', 'hp', 'mana', 'critChance', 'goldFind', 'expBonus']
+        possibleAffixes: ['attack', 'defense', 'hp', 'mana', 'critChance', 'critDamage', 'attackSpeed', 'goldFind', 'expBonus', 'allStats']
     },
     amulet: {
-        name: '项链',
+        name: '項鍊',
         icon: '📿',
         slot: 'amulet',
         baseStats: ['hp', 'mana'],
-        possibleAffixes: ['hp', 'mana', 'allStats', 'lifeSteal', 'manaSteal', 'cooldownReduction', 'movementSpeed']
+        possibleAffixes: ['hp', 'hpPercent', 'mana', 'manaPercent', 'allStats', 'lifeSteal', 'manaSteal', 'cooldownReduction', 'manaCostReduction', 'areaIncrease', 'skillLevel', 'movementSpeed']
     }
 };
 
 // ==========================================
-// 3. 属性词缀定义
+// 3. 詞綴群組定義 (移動端優化)
+// ==========================================
+export const AFFIX_GROUPS = {
+    MaxLife: {
+        name: '生命',
+        max: 1,
+        description: '最大生命、%最大生命、生命回復'
+    },
+    Resource: {
+        name: '資源',
+        max: 1,
+        description: '最大魔力、能量、怒氣、%回復'
+    },
+    PhysicalDamage: {
+        name: '物理傷害',
+        max: 1,
+        description: '物理傷害、%物理傷害'
+    },
+    ElementalDamage: {
+        name: '元素傷害',
+        max: 2,
+        description: '火焰/冰/雷傷害%、轉換傷害'
+    },
+    AttackSpeed: {
+        name: '攻擊速度',
+        max: 1,
+        description: '攻擊速度%、施法速度%'
+    },
+    Critical: {
+        name: '暴擊',
+        max: 1,
+        description: '暴擊率、暴擊傷害'
+    },
+    Resistances: {
+        name: '抗性',
+        max: 2,
+        description: '全抗、單元素抗性'
+    },
+    Defense: {
+        name: '防禦',
+        max: 1,
+        description: '護甲、%護甲、閃避、格擋'
+    },
+    MovementSpeed: {
+        name: '移動速度',
+        max: 1,
+        description: '移動速度%'
+    },
+    SkillLevel: {
+        name: '技能等級',
+        max: 1,
+        description: '技能等級、特定職業技能'
+    },
+    Leech: {
+        name: '偷取',
+        max: 1,
+        description: '生命/魔力偷取'
+    },
+    Ailment: {
+        name: '異常狀態',
+        max: 1,
+        description: '點燃/冰凍/感電機率與持續'
+    },
+    Utility: {
+        name: '輔助',
+        max: 2,
+        description: '魔力消耗減少、冷卻縮短、範圍擴大'
+    },
+    Attribute: {
+        name: '屬性',
+        max: 1,
+        description: '力量/敏捷/智力'
+    },
+    GoldExp: {
+        name: '金幣經驗',
+        max: 1,
+        description: '金幣獲取、經驗加成'
+    }
+};
+
+// ==========================================
+// 4. 属性词缀定义
 // ==========================================
 export const AFFIXES = {
-    // 攻击类
-    attack: {
-        name: '攻击力',
-        suffixes: ['之力', '的毁灭', '的屠杀', '的破坏'],
-        getValue: (level, rarity) => Math.floor((10 + level * 3) * RARITIES[rarity].multiplier),
-        format: (val) => `+${val} 攻击力`
-    },
-    critChance: {
-        name: '暴击率',
-        suffixes: ['的精准', '的致命', '的收割'],
-        getValue: (level, rarity) => Math.floor((3 + level * 0.2) * RARITIES[rarity].multiplier),
-        format: (val) => `+${val}% 暴击率`
-    },
-    critDamage: {
-        name: '暴击伤害',
-        suffixes: ['的毁灭', '的破坏', '的湮灭'],
-        getValue: (level, rarity) => Math.floor((10 + level * 1.5) * RARITIES[rarity].multiplier),
-        format: (val) => `+${val}% 暴击伤害`
-    },
-    attackSpeed: {
-        name: '攻击速度',
-        suffixes: ['的迅捷', '的狂风', '的飓风'],
-        getValue: (level, rarity) => Math.floor((5 + level * 0.3) * RARITIES[rarity].multiplier),
-        format: (val) => `+${val}% 攻击速度`
-    },
-    lifeSteal: {
-        name: '生命偷取',
-        suffixes: ['的吸血鬼', '的鲜血', '的嗜血'],
-        getValue: (level, rarity) => Math.floor((2 + level * 0.15) * RARITIES[rarity].multiplier),
-        format: (val) => `+${val}% 生命偷取`
-    },
-    
-    // 防御类
-    defense: {
-        name: '防御力',
-        suffixes: ['之盾', '的守护', '的保护', '的钢铁'],
-        getValue: (level, rarity) => Math.floor((8 + level * 2.5) * RARITIES[rarity].multiplier),
-        format: (val) => `+${val} 防御力`
-    },
+    // 生命類 (MaxLife)
     hp: {
         name: '生命值',
+        group: 'MaxLife',
         suffixes: ['之血', '的生命', '的活力', '的坚韧'],
         getValue: (level, rarity) => Math.floor((30 + level * 8) * RARITIES[rarity].multiplier),
         format: (val) => `+${val} 生命值`
     },
+    hpPercent: {
+        name: '最大生命',
+        group: 'MaxLife',
+        suffixes: ['之血', '的生命', '的活力'],
+        getValue: (level, rarity) => Math.floor((2 + level * 0.15) * RARITIES[rarity].multiplier),
+        format: (val) => `+${val}% 最大生命`
+    },
     hpRegen: {
-        name: '生命恢复',
-        suffixes: ['的恢复', '的再生', '的治愈'],
+        name: '生命恢復',
+        group: 'MaxLife',
+        suffixes: ['的恢復', '的再生', '的治愈'],
         getValue: (level, rarity) => Math.floor((2 + level * 0.3) * RARITIES[rarity].multiplier),
-        format: (val) => `+${val}/秒 生命恢复`
-    },
-    damageReduction: {
-        name: '伤害减免',
-        suffixes: ['的坚韧', '的吸收', '的缓冲'],
-        getValue: (level, rarity) => Math.floor((3 + level * 0.2) * RARITIES[rarity].multiplier),
-        format: (val) => `+${val}% 伤害减免`
-    },
-    resistance: {
-        name: '元素抗性',
-        suffixes: ['的抵抗', '的防护', '的屏障'],
-        getValue: (level, rarity) => Math.floor((5 + level * 0.5) * RARITIES[rarity].multiplier),
-        format: (val) => `+${val}% 元素抗性`
+        format: (val) => `+${val}/秒 生命恢復`
     },
     
-    // 魔法类
+    // 資源類 (Resource)
     mana: {
         name: '魔力值',
-        suffixes: ['之蓝', '的魔力', '的法术', '的神秘'],
+        group: 'Resource',
+        suffixes: ['之藍', '的魔力', '的法術', '的神秘'],
         getValue: (level, rarity) => Math.floor((20 + level * 6) * RARITIES[rarity].multiplier),
         format: (val) => `+${val} 魔力值`
     },
+    manaPercent: {
+        name: '最大魔力',
+        group: 'Resource',
+        suffixes: ['之藍', '的魔力'],
+        getValue: (level, rarity) => Math.floor((2 + level * 0.12) * RARITIES[rarity].multiplier),
+        format: (val) => `+${val}% 最大魔力`
+    },
     manaRegen: {
-        name: '魔力恢复',
-        suffixes: ['的冥想', '的专注', '的清晰'],
+        name: '魔力恢復',
+        group: 'Resource',
+        suffixes: ['的冥想', '的專注', '的清晰'],
         getValue: (level, rarity) => Math.floor((1.5 + level * 0.2) * RARITIES[rarity].multiplier),
-        format: (val) => `+${val}/秒 魔力恢复`
+        format: (val) => `+${val}/秒 魔力恢復`
+    },
+    
+    // 物理傷害類 (PhysicalDamage)
+    attack: {
+        name: '攻擊力',
+        group: 'PhysicalDamage',
+        suffixes: ['之力', '的毀滅', '的屠殺', '的破壞'],
+        getValue: (level, rarity) => Math.floor((10 + level * 3) * RARITIES[rarity].multiplier),
+        format: (val) => `+${val} 攻擊力`
+    },
+    attackPercent: {
+        name: '攻擊力%',
+        group: 'PhysicalDamage',
+        suffixes: ['之力', '的毀滅'],
+        getValue: (level, rarity) => Math.floor((3 + level * 0.2) * RARITIES[rarity].multiplier),
+        format: (val) => `+${val}% 攻擊力`
+    },
+    
+    // 元素傷害類 (ElementalDamage) - max 2
+    fireDamage: {
+        name: '火焰傷害',
+        group: 'ElementalDamage',
+        suffixes: ['之焰', '的燃燒', '的熾熱'],
+        getValue: (level, rarity) => Math.floor((5 + level * 2) * RARITIES[rarity].multiplier),
+        format: (val) => `+${val}% 火焰傷害`
+    },
+    iceDamage: {
+        name: '冰霜傷害',
+        group: 'ElementalDamage',
+        suffixes: ['之霜', '的冰凍', '的寒冰'],
+        getValue: (level, rarity) => Math.floor((5 + level * 2) * RARITIES[rarity].multiplier),
+        format: (val) => `+${val}% 冰霜傷害`
+    },
+    lightningDamage: {
+        name: '閃電傷害',
+        group: 'ElementalDamage',
+        suffixes: ['之雷', '的閃電', '的雷電'],
+        getValue: (level, rarity) => Math.floor((5 + level * 2) * RARITIES[rarity].multiplier),
+        format: (val) => `+${val}% 閃電傷害`
+    },
+    
+    // 攻擊速度類 (AttackSpeed)
+    attackSpeed: {
+        name: '攻擊速度',
+        group: 'AttackSpeed',
+        suffixes: ['的迅捷', '的狂風', '的颶風'],
+        getValue: (level, rarity) => Math.floor((5 + level * 0.3) * RARITIES[rarity].multiplier),
+        format: (val) => `+${val}% 攻擊速度`
+    },
+    castSpeed: {
+        name: '施法速度',
+        group: 'AttackSpeed',
+        suffixes: ['的迅捷', '的流暢'],
+        getValue: (level, rarity) => Math.floor((4 + level * 0.25) * RARITIES[rarity].multiplier),
+        format: (val) => `+${val}% 施法速度`
+    },
+    
+    // 暴擊類 (Critical)
+    critChance: {
+        name: '暴擊率',
+        group: 'Critical',
+        suffixes: ['的精準', '的致命', '的收割'],
+        getValue: (level, rarity) => Math.floor((3 + level * 0.2) * RARITIES[rarity].multiplier),
+        format: (val) => `+${val}% 暴擊率`
+    },
+    critDamage: {
+        name: '暴擊傷害',
+        group: 'Critical',
+        suffixes: ['的毀滅', '的破壞', '的湮滅'],
+        getValue: (level, rarity) => Math.floor((10 + level * 1.5) * RARITIES[rarity].multiplier),
+        format: (val) => `+${val}% 暴擊傷害`
+    },
+    
+    // 抗性類 (Resistances) - max 2
+    resistance: {
+        name: '全元素抗性',
+        group: 'Resistances',
+        suffixes: ['的抵抗', '的防護', '的屏障'],
+        getValue: (level, rarity) => Math.floor((5 + level * 0.5) * RARITIES[rarity].multiplier),
+        format: (val) => `+${val}% 全元素抗性`
+    },
+    fireResist: {
+        name: '火焰抗性',
+        group: 'Resistances',
+        suffixes: ['的火焰抵抗', '的熾熱防護'],
+        getValue: (level, rarity) => Math.floor((8 + level * 0.8) * RARITIES[rarity].multiplier),
+        format: (val) => `+${val}% 火焰抗性`
+    },
+    iceResist: {
+        name: '冰霜抗性',
+        group: 'Resistances',
+        suffixes: ['的冰霜抵抗', '的寒冰防護'],
+        getValue: (level, rarity) => Math.floor((8 + level * 0.8) * RARITIES[rarity].multiplier),
+        format: (val) => `+${val}% 冰霜抗性`
+    },
+    lightningResist: {
+        name: '閃電抗性',
+        group: 'Resistances',
+        suffixes: ['的閃電抵抗', '的雷電防護'],
+        getValue: (level, rarity) => Math.floor((8 + level * 0.8) * RARITIES[rarity].multiplier),
+        format: (val) => `+${val}% 閃電抗性`
+    },
+    
+    // 防禦類 (Defense)
+    defense: {
+        name: '防禦力',
+        group: 'Defense',
+        suffixes: ['之盾', '的守護', '的保護', '的鋼鐵'],
+        getValue: (level, rarity) => Math.floor((8 + level * 2.5) * RARITIES[rarity].multiplier),
+        format: (val) => `+${val} 防禦力`
+    },
+    defensePercent: {
+        name: '防禦力%',
+        group: 'Defense',
+        suffixes: ['之盾', '的守護'],
+        getValue: (level, rarity) => Math.floor((3 + level * 0.2) * RARITIES[rarity].multiplier),
+        format: (val) => `+${val}% 防禦力`
+    },
+    damageReduction: {
+        name: '傷害減免',
+        group: 'Defense',
+        suffixes: ['的堅韌', '的吸收', '的緩衝'],
+        getValue: (level, rarity) => Math.floor((3 + level * 0.2) * RARITIES[rarity].multiplier),
+        format: (val) => `+${val}% 傷害減免`
+    },
+    
+    // 移動速度類 (MovementSpeed)
+    movementSpeed: {
+        name: '移動速度',
+        group: 'MovementSpeed',
+        suffixes: ['的疾風', '的迅捷', '的飛馳'],
+        getValue: (level, rarity) => Math.floor((5 + level * 0.4) * RARITIES[rarity].multiplier),
+        format: (val) => `+${val}% 移動速度`
+    },
+    
+    // 技能等級類 (SkillLevel)
+    skillLevel: {
+        name: '技能等級',
+        group: 'SkillLevel',
+        suffixes: ['的精通', '的專精'],
+        getValue: (level, rarity) => Math.min(3, Math.floor((1 + level * 0.05) * RARITIES[rarity].multiplier)),
+        format: (val) => `+${val} 技能等級`
+    },
+    
+    // 偷取類 (Leech)
+    lifeSteal: {
+        name: '生命偷取',
+        group: 'Leech',
+        suffixes: ['的吸血鬼', '的鮮血', '的嗜血'],
+        getValue: (level, rarity) => Math.floor((2 + level * 0.15) * RARITIES[rarity].multiplier),
+        format: (val) => `+${val}% 生命偷取`
     },
     manaSteal: {
         name: '魔力偷取',
-        suffixes: ['的吸魔', '的窃取', '的榨取'],
+        group: 'Leech',
+        suffixes: ['的吸魔', '的竊取', '的榨取'],
         getValue: (level, rarity) => Math.floor((1 + level * 0.1) * RARITIES[rarity].multiplier),
         format: (val) => `+${val}% 魔力偷取`
     },
-    cooldownReduction: {
-        name: '冷却缩减',
-        suffixes: ['的急速', '的流畅', '的迅捷'],
-        getValue: (level, rarity) => Math.floor((3 + level * 0.15) * RARITIES[rarity].multiplier),
-        format: (val) => `+${val}% 冷却缩减`
+    
+    // 異常狀態類 (Ailment)
+    igniteChance: {
+        name: '點燃機率',
+        group: 'Ailment',
+        suffixes: ['的燃燒', '的熾熱'],
+        getValue: (level, rarity) => Math.floor((5 + level * 0.3) * RARITIES[rarity].multiplier),
+        format: (val) => `+${val}% 點燃機率`
+    },
+    freezeChance: {
+        name: '冰凍機率',
+        group: 'Ailment',
+        suffixes: ['的冰凍', '的寒冰'],
+        getValue: (level, rarity) => Math.floor((5 + level * 0.3) * RARITIES[rarity].multiplier),
+        format: (val) => `+${val}% 冰凍機率`
+    },
+    shockChance: {
+        name: '感電機率',
+        group: 'Ailment',
+        suffixes: ['的感電', '的雷電'],
+        getValue: (level, rarity) => Math.floor((5 + level * 0.3) * RARITIES[rarity].multiplier),
+        format: (val) => `+${val}% 感電機率`
     },
     
-    // 实用类
-    movementSpeed: {
-        name: '移动速度',
-        suffixes: ['的疾风', '的迅捷', '的飞驰'],
-        getValue: (level, rarity) => Math.floor((5 + level * 0.4) * RARITIES[rarity].multiplier),
-        format: (val) => `+${val}% 移动速度`
+    // 輔助類 (Utility) - max 2
+    cooldownReduction: {
+        name: '冷卻縮減',
+        group: 'Utility',
+        suffixes: ['的急速', '的流暢', '的迅捷'],
+        getValue: (level, rarity) => Math.floor((3 + level * 0.15) * RARITIES[rarity].multiplier),
+        format: (val) => `+${val}% 冷卻縮減`
     },
-    goldFind: {
-        name: '金币获取',
-        suffixes: ['的财富', '的贪婪', '的幸运'],
-        getValue: (level, rarity) => Math.floor((10 + level * 1) * RARITIES[rarity].multiplier),
-        format: (val) => `+${val}% 金币获取`
+    manaCostReduction: {
+        name: '魔力消耗減少',
+        group: 'Utility',
+        suffixes: ['的節能', '的省魔'],
+        getValue: (level, rarity) => Math.floor((3 + level * 0.2) * RARITIES[rarity].multiplier),
+        format: (val) => `-${val}% 魔力消耗`
     },
-    expBonus: {
-        name: '经验加成',
-        suffixes: ['的智慧', '的学识', '的启迪'],
-        getValue: (level, rarity) => Math.floor((5 + level * 0.5) * RARITIES[rarity].multiplier),
-        format: (val) => `+${val}% 经验加成`
+    areaIncrease: {
+        name: '範圍擴大',
+        group: 'Utility',
+        suffixes: ['的廣域', '的擴散'],
+        getValue: (level, rarity) => Math.floor((5 + level * 0.3) * RARITIES[rarity].multiplier),
+        format: (val) => `+${val}% 技能範圍`
+    },
+    
+    // 屬性類 (Attribute)
+    strength: {
+        name: '力量',
+        group: 'Attribute',
+        suffixes: ['的力量', '的強壯'],
+        getValue: (level, rarity) => Math.floor((3 + level * 0.4) * RARITIES[rarity].multiplier),
+        format: (val) => `+${val} 力量`
+    },
+    dexterity: {
+        name: '敏捷',
+        group: 'Attribute',
+        suffixes: ['的敏捷', '的靈巧'],
+        getValue: (level, rarity) => Math.floor((3 + level * 0.4) * RARITIES[rarity].multiplier),
+        format: (val) => `+${val} 敏捷`
+    },
+    intelligence: {
+        name: '智力',
+        group: 'Attribute',
+        suffixes: ['的智力', '的智慧'],
+        getValue: (level, rarity) => Math.floor((3 + level * 0.4) * RARITIES[rarity].multiplier),
+        format: (val) => `+${val} 智力`
     },
     allStats: {
-        name: '全属性',
-        suffixes: ['的均衡', '的完美', '的和谐'],
+        name: '全屬性',
+        group: 'Attribute',
+        suffixes: ['的均衡', '的完美', '的和諧'],
         getValue: (level, rarity) => Math.floor((2 + level * 0.3) * RARITIES[rarity].multiplier),
-        format: (val) => `+${val} 所有属性`
+        format: (val) => `+${val} 所有屬性`
+    },
+    
+    // 金幣經驗類 (GoldExp)
+    goldFind: {
+        name: '金幣獲取',
+        group: 'GoldExp',
+        suffixes: ['的財富', '的貪婪', '的幸運'],
+        getValue: (level, rarity) => Math.floor((10 + level * 1) * RARITIES[rarity].multiplier),
+        format: (val) => `+${val}% 金幣獲取`
+    },
+    expBonus: {
+        name: '經驗加成',
+        group: 'GoldExp',
+        suffixes: ['的智慧', '的學識', '的啟迪'],
+        getValue: (level, rarity) => Math.floor((5 + level * 0.5) * RARITIES[rarity].multiplier),
+        format: (val) => `+${val}% 經驗加成`
     }
 };
 
@@ -569,7 +830,7 @@ export function getRandomRarity(bonus = 0) {
 }
 
 // ==========================================
-// 6. 生成词缀
+// 6. 生成词缀 (使用群組限制)
 // ==========================================
 function generateAffixes(type, rarity, level) {
     const rarityData = RARITIES[rarity];
@@ -580,15 +841,32 @@ function generateAffixes(type, rarity, level) {
     
     const possibleAffixes = EQUIPMENT_TYPES[type].possibleAffixes;
     const usedAffixes = new Set();
+    const groupCounts = {};
     
     for (let i = 0; i < numAffixes; i++) {
-        const available = possibleAffixes.filter(a => !usedAffixes.has(a));
+        const available = possibleAffixes.filter(a => {
+            if (usedAffixes.has(a)) return false;
+            
+            const affix = AFFIXES[a];
+            if (!affix || !affix.group) return true;
+            
+            const group = AFFIX_GROUPS[affix.group];
+            if (!group) return true;
+            
+            const currentCount = groupCounts[affix.group] || 0;
+            return currentCount < group.max;
+        });
+        
         if (available.length === 0) break;
         
         const affixKey = available[Math.floor(Math.random() * available.length)];
         usedAffixes.add(affixKey);
         
         const affix = AFFIXES[affixKey];
+        if (affix.group) {
+            groupCounts[affix.group] = (groupCounts[affix.group] || 0) + 1;
+        }
+        
         const value = affix.getValue(level, rarity);
         
         affixList.push({
@@ -596,6 +874,7 @@ function generateAffixes(type, rarity, level) {
             name: affix.name,
             value: value,
             display: affix.format(value),
+            group: affix.group,
             suffix: affix.suffixes[Math.floor(Math.random() * affix.suffixes.length)]
         });
     }

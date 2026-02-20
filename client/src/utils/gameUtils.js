@@ -19,7 +19,8 @@ export function checkEnemyDeath(enemy) {
         addFloatingNumber,
         addToInventory,
         playerExpBonus,
-        playerGoldFind
+        playerGoldFind,
+        addDroppedItem
     } = state;
 
     const isBoss = enemy.type === 'boss';
@@ -34,7 +35,7 @@ export function checkEnemyDeath(enemy) {
     expGain = Math.floor(expGain * (1 + playerExpBonus / 100));
     goldGain = Math.floor(goldGain * (1 + playerGoldFind / 100));
 
-    // 更新經驗與金幣
+    // 更新經驗與金幣（金幣直接添加）
     updatePlayer({
         playerExp: playerExp + expGain,
         playerGold: playerGold + goldGain
@@ -58,22 +59,29 @@ export function checkEnemyDeath(enemy) {
         isBoss ? 'boss' : isElite ? 'elite' : 'normal'
     );
 
-    // 將掉落添加到背包或創建地面物品
+    // 生成視覺化掉落物品
     loot.forEach((item, index) => {
-        // 直接添加到背包
-        addToInventory(item);
+        const offsetX = (Math.random() - 0.5) * 2;
+        const offsetZ = (Math.random() - 0.5) * 2;
+        const dropPosition = enemy.position.clone().add(new THREE.Vector3(offsetX, 0, offsetZ));
         
-        // 顯示掉落提示
-        if (item.type === 'gold') {
-            addEvent(`拾取 ${item.amount} 金幣`, '#ffdd00', 'drop_gold');
-        } else if (item.type === 'hp_potion' || item.type === 'mana_potion') {
-            const potionName = item.type === 'hp_potion' ? '生命藥水' : '魔力藥水';
-            addEvent(`獲得 ${potionName}`, '#00ff88', 'drop_potion');
+        // 添加到視覺化掉落物品
+        if (addDroppedItem) {
+            addDroppedItem({
+                id: Date.now() + Math.random() + index,
+                item: item,
+                position: dropPosition
+            });
         } else {
+            // 備用：直接添加到背包
+            addToInventory(item);
+        }
+        
+        // 顯示掉落提示（裝備類）
+        if (item.type !== 'gold' && item.type !== 'hp_potion' && item.type !== 'mana_potion') {
             const rarityColor = item.rarityData?.color || '#ffffff';
-            addEvent(`獲得 ${item.name}`, rarityColor, 'drop_equip');
+            addEvent(`掉落 ${item.name}`, rarityColor, 'drop_equip');
             
-            // 傳說裝備特殊提示
             if (item.rarity === 'legendary') {
                 addEvent(`✨ 傳說裝備！${item.name}！`, '#ff8000', 'legendary_drop');
             }

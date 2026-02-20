@@ -11,6 +11,7 @@ import Projectiles from './Projectiles';
 import Particles from './Particles';
 import SkillsManager from './SkillsManager';
 import LevelManager from './LevelManager';
+import LootDropManager from './LootDropManager';
 import useGameState from '../hooks/useGameState';
 
 const MAP_HALF_SIZE = 450;
@@ -205,7 +206,8 @@ function GameScene() {
             <Chests />
             <Projectiles />
             <SkillsManager />
-            <Particles />           
+            <Particles />
+            <LootDropManager />
             <LevelManager />
         </>
     );

@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Divine Loot - Refined Pillars</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #020204;
+            --fg: #e0e0e0;
+            --accent: #ffdd00;
+        }
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            background: var(--bg);
+            color: var(--fg);
+            overflow: hidden;
+        }
+        
+        .font-display { font-family: 'Cinzel', serif; }
+        
+        #canvas-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+        }
+        
+        .ui-panel {
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 0 30px rgba(0,0,0,0.8);
+        }
+        
+        .item-nameplate {
+            position: absolute;
+            pointer-events: none;
+            transform: translateX(-50%);
+            white-space: nowrap;
+            font-weight: 700;
+            letter-spacing: 1px;
+            font-size: 14px;
+            text-shadow: 0 0 10px currentColor, 0 0 20px currentColor, 0 2px 4px #000;
+            transition: opacity 0.3s;
+        }
+        
+        @keyframes textGlow {
+            0%, 100% { filter: drop-shadow(0 0 5px currentColor); }
+            50% { filter: drop-shadow(0 0 15px currentColor); }
+        }
+        
+        .glow-text { animation: textGlow 2s infinite; }
+
+        .btn {
+            transition: all 0.2s;
+            border: 1px solid rgba(255,255,255,0.2);
+            text-shadow: 0 0 5px currentColor;
+        }
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 0 15px currentColor;
+            border-color: currentColor;
+        }
+        
+        ::-webkit-scrollbar { width: 4px; }
+    </style>
+    
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+        }
+    }
+    </script>
+</head>
+<body>
+    <div id="canvas-container"></div>
+    <div id="nameplates-container" class="fixed inset-0 pointer-events-none z-10"></div>
+    
+    <!-- Header Controls -->
+    <header class="fixed top-0 left-0 right-0 z-20 p-4 pointer-events-none">
+        <div class="flex justify-center items-start gap-4">
+            <div class="ui-panel rounded-xl px-6 py-3 pointer-events-auto">
+                <h1 class="font-display text-xl font-bold tracking-widest text-amber-400 glow-text">DIVINE LOOT</h1>
+                <p class="text-[10px] text-gray-500 text-center tracking-wider">Refined Visuals</p>
+            </div>
+            
+            <div class="ui-panel rounded-xl px-6 py-4 pointer-events-auto">
+                <div class="flex gap-3 items-center">
+                    <div class="flex gap-2">
+                        <button class="btn px-3 py-1.5 rounded text-xs font-display bg-black/50 rarity-magic" data-rarity="magic" style="color: #6888ff">Magic</button>
+                        <button class="btn px-3 py-1.5 rounded text-xs font-display bg-black/50 rarity-rare" data-rarity="rare" style="color: #ffcc00">Rare</button>
+                        <button class="btn px-3 py-1.5 rounded text-xs font-display bg-black/50 rarity-legendary" data-rarity="legendary" style="color: #ff8000">Legendary</button>
+                        <button class="btn px-3 py-1.5 rounded text-xs font-display bg-black/50 rarity-mythic" data-rarity="mythic" style="color: #a335ee">Mythic</button>
+                    </div>
+                    <div class="w-px h-6 bg-white/10"></div>
+                    <button id="drop-random" class="btn px-4 py-1.5 rounded text-xs font-display text-white border-white/30 bg-white/10">Drop Random</button>
+                    <button id="drop-burst" class="btn px-4 py-1.5 rounded text-xs font-display text-red-400 border-red-900/50 bg-red-900/20">Burst x5</button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Item Detail -->
+    <aside id="item-panel" class="fixed left-4 top-1/2 -translate-y-1/2 z-20 ui-panel rounded-xl p-5 w-80 opacity-0 pointer-events-none transition-all duration-300 border-l-4">
+        <div class="flex items-start gap-3 mb-3 pb-3 border-b border-white/10">
+            <div id="item-icon" class="w-12 h-12 rounded flex items-center justify-center text-3xl bg-black/60"></div>
+            <div>
+                <h3 id="item-name" class="font-display text-lg font-bold leading-tight glow-text"></h3>
+                <p id="item-type" class="text-[10px] text-gray-500 uppercase tracking-wider"></p>
+            </div>
+        </div>
+        <div id="item-stats" class="space-y-1.5 text-sm mb-3"></div>
+        <button id="pickup-btn" class="w-full mt-3 py-2 rounded bg-amber-900/40 border border-amber-700/30 text-amber-100 font-display text-xs tracking-wide hover:bg-amber-900/60 transition-colors">
+            Pick Up [E]
+        </button>
+    </aside>
+
+    <footer class="fixed bottom-4 left-1/2 -translate-x-1/2 z-20 ui-panel rounded-full px-4 py-1.5 text-[10px] text-gray-500 tracking-wide">
+        Drag to Rotate | Scroll to Zoom | Click to Inspect
+    </footer>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+        import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+        import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+
+        // ==================== CONFIG ====================
+        
+        const RARITY_CONFIG = {
+            magic: { name: '魔法', color: new THREE.Color(0x6888ff), intensity: 1.0, pillar: true },
+            rare: { name: '稀有', color: new THREE.Color(0xffcc00), intensity: 1.2, pillar: true },
+            legendary: { name: '傳奇', color: new THREE.Color(0xff8000), intensity: 1.5, pillar: true },
+            mythic: { name: '神話', color: new THREE.Color(0xa335ee), intensity: 2.0, pillar: true, rainbow: true }
+        };
+
+        const ITEM_TYPES = [
+            { name: '聖劍', icon: '🗡️', geo: 'sword' },
+            { name: '權杖', icon: '🪄', geo: 'staff' },
+            { name: '聖冠', icon: '👑', geo: 'helmet' },
+            { name: '護盾', icon: '🛡️', geo: 'shield' },
+            { name: '魔導書', icon: '📖', geo: 'box' }
+        ];
+
+        // ==================== THREE.JS CORE ====================
+
+        let scene, camera, renderer, controls, composer, bloomPass;
+        let droppedItems = [];
+        let selectedItem = null;
+        let clock = new THREE.Clock();
+
+        function init() {
+            const container = document.getElementById('canvas-container');
+
+            // Scene
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x020204);
+
+            // Camera
+            camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
+            camera.position.set(0, 8, 14);
+
+            // Renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            renderer.toneMappingExposure = 1.0;
+            container.appendChild(renderer.domElement);
+
+            // Post Processing
+            composer = new EffectComposer(renderer);
+            composer.addPass(new RenderPass(scene, camera));
+
+            // Strong Bloom
+            bloomPass = new UnrealBloomPass(
+                new THREE.Vector2(window.innerWidth, window.innerHeight),
+                2.0,  // strength: Adjusted slightly down to accommodate darker pillars
+                0.5,  // radius
+                0.1   // threshold
+            );
+            composer.addPass(bloomPass);
+
+            // Controls
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.maxPolarAngle = Math.PI / 2.1;
+            controls.minDistance = 5;
+            controls.maxDistance = 25;
+
+            // Environment
+            scene.add(new THREE.AmbientLight(0x111111));
+            createGround();
+            
+            window.addEventListener('resize', onResize);
+            renderer.domElement.addEventListener('click', onClick);
+            
+            animate();
+        }
+
+        function createGround() {
+            const grid = new THREE.GridHelper(40, 40, 0x111111, 0x0a0a0a);
+            scene.add(grid);
+            
+            const geo = new THREE.PlaneGeometry(50, 50);
+            const mat = new THREE.MeshStandardMaterial({ color: 0x030303, roughness: 1 });
+            const ground = new THREE.Mesh(geo, mat);
+            ground.rotation.x = -Math.PI / 2;
+            ground.position.y = -0.01;
+            scene.add(ground);
+        }
+
+        function onResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            composer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        // ==================== ITEM CLASS ====================
+
+        class DroppedItem {
+            constructor(data, pos) {
+                this.data = data;
+                this.group = new THREE.Group();
+                this.lifetime = 0;
+                this.state = 'falling';
+                this.velocity = new THREE.Vector3((Math.random()-0.5)*2, 6, (Math.random()-0.5)*2);
+
+                // Core Components
+                this.createMesh();
+                this.createHaloSprite();
+                this.createGroundRune();
+                this.createParticles();
+                
+                if (data.config.pillar) {
+                    this.createDivinePillar();
+                }
+
+                this.group.position.copy(pos);
+                this.group.position.y = 6;
+                scene.add(this.group);
+
+                // HTML Nameplate
+                this.nameplate = document.createElement('div');
+                this.nameplate.className = 'item-nameplate font-display';
+                this.nameplate.style.color = `#${data.config.color.getHexString()}`;
+                this.nameplate.textContent = data.name;
+                document.getElementById('nameplates-container').appendChild(this.nameplate);
+            }
+
+            createMesh() {
+                let geo;
+                switch(this.data.geoType) {
+                    case 'sword': geo = new THREE.BoxGeometry(0.1, 1, 0.02); break;
+                    case 'staff': geo = new THREE.CylinderGeometry(0.05, 0.05, 1.2, 8); break;
+                    case 'helmet': geo = new THREE.SphereGeometry(0.3, 16, 16); break;
+                    case 'shield': geo = new THREE.BoxGeometry(0.6, 0.8, 0.1); break;
+                    default: geo = new THREE.BoxGeometry(0.4, 0.4, 0.05);
+                }
+
+                const mat = new THREE.MeshStandardMaterial({
+                    color: this.data.config.color,
+                    emissive: this.data.config.color,
+                    emissiveIntensity: 2.0,
+                    metalness: 0.8,
+                    roughness: 0.2
+                });
+
+                this.mesh = new THREE.Mesh(geo, mat);
+                this.group.add(this.mesh);
+                
+                this.light = new THREE.PointLight(this.data.config.color, 2, 8);
+                this.group.add(this.light);
+            }
+
+            createHaloSprite() {
+                const canvas = document.createElement('canvas');
+                canvas.width = 128;
+                canvas.height = 128;
+                const ctx = canvas.getContext('2d');
+                
+                const gradient = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+                const col = `#${this.data.config.color.getHexString()}`;
+                gradient.addColorStop(0, col);
+                gradient.addColorStop(0.2, col);
+                gradient.addColorStop(0.4, col + '44');
+                gradient.addColorStop(1, 'rgba(0,0,0,0)');
+                
+                ctx.fillStyle = gradient;
+                ctx.fillRect(0, 0, 128, 128);
+                
+                const texture = new THREE.CanvasTexture(canvas);
+                const mat = new THREE.SpriteMaterial({ 
+                    map: texture, 
+                    blending: THREE.AdditiveBlending, 
+                    transparent: true,
+                    opacity: 0.5
+                });
+                
+                this.halo = new THREE.Sprite(mat);
+                this.halo.scale.set(2.5, 2.5, 1);
+                this.halo.position.y = 0;
+                this.group.add(this.halo);
+            }
+
+            createGroundRune() {
+                const geo = new THREE.RingGeometry(0.4, 0.45, 32);
+                const mat = new THREE.MeshBasicMaterial({
+                    color: this.data.config.color,
+                    transparent: true,
+                    opacity: 0.6,
+                    side: THREE.DoubleSide,
+                    blending: THREE.AdditiveBlending
+                });
+                this.rune = new THREE.Mesh(geo, mat);
+                this.rune.rotation.x = -Math.PI / 2;
+                this.rune.position.y = 0.01;
+                this.group.add(this.rune);
+                
+                const innerGeo = new THREE.RingGeometry(0.2, 0.25, 32);
+                const innerRune = new THREE.Mesh(innerGeo, mat.clone());
+                innerRune.rotation.x = -Math.PI / 2;
+                innerRune.position.y = 0.01;
+                innerRune.userData.speed = -2;
+                this.rune.add(innerRune);
+            }
+
+            createDivinePillar() {
+                // MODIFIED: Thinner geometry
+                // Radius top: 0.5 -> 0.15, Radius bottom: 0.2 -> 0.05
+                const pillarGeo = new THREE.CylinderGeometry(0.05, 0.15, 15, 32, 32, true);
+                
+                const pillarMat = new THREE.ShaderMaterial({
+                    uniforms: {
+                        uTime: { value: 0 },
+                        uColor: { value: this.data.config.color },
+                        uIntensity: { value: this.data.config.intensity }
+                    },
+                    vertexShader: `
+                        varying vec2 vUv;
+                        varying vec3 vPos;
+                        void main() {
+                            vUv = uv;
+                            vPos = position;
+                            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                        }
+                    `,
+                    fragmentShader: `
+                        uniform float uTime;
+                        uniform vec3 uColor;
+                        uniform float uIntensity;
+                        varying vec2 vUv;
+                        varying vec3 vPos;
+                        
+                        float noise(vec2 p) {
+                            return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453);
+                        }
+                        
+                        void main() {
+                            float fade = 1.0 - smoothstep(0.0, 1.0, vUv.y);
+                            
+                            // MODIFIED: Darker noise influence
+                            float n = noise(vec2(vPos.x * 2.0 + uTime * 2.0, vPos.y * 5.0 - uTime * 10.0));
+                            
+                            float edge = 1.0 - abs(vUv.x - 0.5) * 2.0;
+                            edge = pow(edge, 1.5);
+                            
+                            // MODIFIED: Reduced base alpha for darker result
+                            // Old: 0.5 + n * 0.5
+                            // New: 0.2 + n * 0.3
+                            float alpha = fade * edge * (0.2 + n * 0.3);
+                            
+                            // MODIFIED: Color is just uColor, no extra boost
+                            vec3 finalColor = uColor;
+                            
+                            gl_FragColor = vec4(finalColor, alpha * uIntensity * 0.5); // Multiplied by 0.5 to darken further
+                        }
+                    `,
+                    transparent: true,
+                    side: THREE.DoubleSide,
+                    blending: THREE.AdditiveBlending,
+                    depthWrite: false
+                });
+
+                this.pillar = new THREE.Mesh(pillarGeo, pillarMat);
+                this.pillar.position.y = 7.5;
+                this.group.add(this.pillar);
+                
+                // MODIFIED: Inner core follows rarity color and is transparent
+                // Removed the solid white core to ensure it's not too bright
+                // Replaced with a simple transparent colored core
+                const coreGeo = new THREE.CylinderGeometry(0.02, 0.05, 15, 16);
+                const coreMat = new THREE.MeshBasicMaterial({ 
+                    color: this.data.config.color, // Use rarity color
+                    transparent: true, 
+                    opacity: 0.3, // Low opacity
+                    blending: THREE.AdditiveBlending
+                });
+                const core = new THREE.Mesh(coreGeo, coreMat);
+                this.pillar.add(core);
+            }
+
+            createParticles() {
+                const count = 60;
+                const geo = new THREE.BufferGeometry();
+                const pos = new Float32Array(count * 3);
+                const vel = new Float32Array(count * 3);
+                
+                for(let i=0; i<count; i++) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const r = 0.3 + Math.random() * 0.8; // Slightly tighter to match thin pillar
+                    pos[i*3] = r * Math.cos(angle);
+                    pos[i*3+1] = Math.random() * 2;
+                    pos[i*3+2] = r * Math.sin(angle);
+                    
+                    vel[i*3] = (Math.random() - 0.5) * 0.1;
+                    vel[i*3+1] = 0.5 + Math.random() * 1.0;
+                    vel[i*3+2] = (Math.random() - 0.5) * 0.1;
+                }
+                
+                geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+                geo.setAttribute('velocity', new THREE.BufferAttribute(vel, 3));
+                
+                const mat = new THREE.PointsMaterial({
+                    color: this.data.config.color,
+                    size: 0.08, // Slightly smaller particles
+                    transparent: true,
+                    opacity: 0.8,
+                    blending: THREE.AdditiveBlending
+                });
+                
+                this.particles = new THREE.Points(geo, mat);
+                this.group.add(this.particles);
+            }
+
+            update(delta) {
+                this.lifetime += delta;
+                
+                if (this.state === 'falling') {
+                    this.velocity.y -= 15 * delta;
+                    this.group.position.add(this.velocity.clone().multiplyScalar(delta));
+                    this.group.rotation.x += delta * 5;
+                    this.group.rotation.z += delta * 3;
+                    
+                    if (this.group.position.y <= 0.5) {
+                        this.group.position.y = 0.5;
+                        if (Math.abs(this.velocity.y) > 1) {
+                            this.velocity.y *= -0.3;
+                        } else {
+                            this.state = 'idle';
+                            this.group.rotation.set(0,0,0);
+                        }
+                    }
+                } else {
+                    const t = this.lifetime;
+                    
+                    this.group.position.y = 0.5 + Math.sin(t * 2) * 0.15;
+                    this.group.rotation.y = t * 0.5;
+                    
+                    const pulse = 1 + Math.sin(t * 5) * 0.3;
+                    this.halo.scale.set(2.5 * pulse, 2.5 * pulse, 1);
+                    this.light.intensity = 2 * pulse;
+                    
+                    if (this.rune) {
+                        this.rune.rotation.z = t * 0.5;
+                        this.rune.children[0].rotation.z = -t * 1.5;
+                        const runeScale = 1 + Math.sin(t * 3) * 0.1;
+                        this.rune.scale.set(runeScale, runeScale, 1);
+                    }
+                    
+                    if (this.pillar) {
+                        this.pillar.material.uniforms.uTime.value = t;
+                    }
+                    
+                    const positions = this.particles.geometry.attributes.position.array;
+                    const velocities = this.particles.geometry.attributes.velocity.array;
+                    for(let i=0; i<positions.length; i+=3) {
+                        positions[i] += velocities[i] * delta;
+                        positions[i+1] += velocities[i+1] * delta;
+                        positions[i+2] += velocities[i+2] * delta;
+                        
+                        if (positions[i+1] > 5.0) {
+                            positions[i+1] = 0;
+                            const angle = Math.random() * Math.PI * 2;
+                            const r = 0.3 + Math.random() * 0.8;
+                            positions[i] = r * Math.cos(angle);
+                            positions[i+2] = r * Math.sin(angle);
+                        }
+                    }
+                    this.particles.geometry.attributes.position.needsUpdate = true;
+                    
+                    if (this.data.config.rainbow) {
+                        const h = (t * 0.2) % 1;
+                        const c = new THREE.Color().setHSL(h, 1, 0.6);
+                        this.mesh.material.emissive = c;
+                        this.mesh.material.color = c;
+                        this.light.color = c;
+                        this.pillar.material.uniforms.uColor.value = c;
+                    }
+                }
+                
+                this.updateNameplate();
+            }
+
+            updateNameplate() {
+                const pos = this.group.position.clone();
+                pos.y += 1.5;
+                pos.project(camera);
+                
+                if (pos.z > 1) { this.nameplate.style.opacity = 0; return; }
+                
+                const x = (pos.x * 0.5 + 0.5) * window.innerWidth;
+                const y = (-pos.y * 0.5 + 0.5) * window.innerHeight;
+                
+                this.nameplate.style.opacity = 1;
+                this.nameplate.style.left = `${x}px`;
+                this.nameplate.style.top = `${y}px`;
+            }
+
+            select() {
+                this.mesh.material.emissiveIntensity = 3.0;
+                bloomPass.strength = 2.5;
+                
+                const panel = document.getElementById('item-panel');
+                document.getElementById('item-icon').textContent = this.data.icon;
+                const nameEl = document.getElementById('item-name');
+                nameEl.textContent = this.data.name;
+                nameEl.style.color = `#${this.data.config.color.getHexString()}`;
+                document.getElementById('item-type').textContent = `${this.data.config.name} ${this.data.type}`;
+                
+                panel.style.opacity = '1';
+                panel.style.pointerEvents = 'auto';
+                panel.style.borderLeftColor = `#${this.data.config.color.getHexString()}`;
+            }
+
+            deselect() {
+                this.mesh.material.emissiveIntensity = 2.0;
+                bloomPass.strength = 2.0;
+            }
+
+            dispose() {
+                scene.remove(this.group);
+                this.nameplate.remove();
+                this.group.traverse(child => {
+                    if(child.geometry) child.geometry.dispose();
+                    if(child.material) {
+                        if(child.material.map) child.material.map.dispose();
+                        child.material.dispose();
+                    }
+                });
+            }
+        }
+
+        // ==================== INTERACTION ====================
+
+        function onClick(e) {
+            const mouse = new THREE.Vector2(
+                (e.clientX / window.innerWidth) * 2 - 1,
+                -(e.clientY / window.innerHeight) * 2 + 1
+            );
+            const raycaster = new THREE.Raycaster();
+            raycaster.setFromCamera(mouse, camera);
+            
+            const meshes = droppedItems.map(i => i.mesh);
+            const intersects = raycaster.intersectObjects(meshes);
+            
+            if (intersects.length > 0) {
+                const item = droppedItems.find(i => i.mesh === intersects[0].object);
+                if (item) {
+                    if (selectedItem) selectedItem.deselect();
+                    selectedItem = item;
+                    item.select();
+                }
+            } else {
+                if (selectedItem) {
+                    selectedItem.deselect();
+                    selectedItem = null;
+                    document.getElementById('item-panel').style.opacity = '0';
+                }
+            }
+        }
+
+        function dropItem(rarityKey) {
+            if (!rarityKey) {
+                const r = Math.random();
+                if (r > 0.95) rarityKey = 'mythic';
+                else if (r > 0.8) rarityKey = 'legendary';
+                else if (r > 0.5) rarityKey = 'rare';
+                else rarityKey = 'magic';
+            }
+            
+            const type = ITEM_TYPES[Math.floor(Math.random() * ITEM_TYPES.length)];
+            const data = {
+                name: `神聖的${type.name}`,
+                type: type.name,
+                icon: type.icon,
+                geoType: type.geo,
+                rarity: rarityKey,
+                config: RARITY_CONFIG[rarityKey]
+            };
+            
+            const pos = new THREE.Vector3((Math.random()-0.5)*8, 0, (Math.random()-0.5)*8);
+            const item = new DroppedItem(data, pos);
+            droppedItems.push(item);
+            
+            if (droppedItems.length > 20) droppedItems.shift().dispose();
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const delta = clock.getDelta();
+            controls.update();
+            droppedItems.forEach(i => i.update(delta));
+            composer.render();
+        }
+
+        // ==================== STARTUP ====================
+        
+        init();
+        
+        document.querySelectorAll('[data-rarity]').forEach(btn => {
+            btn.addEventListener('click', () => dropItem(btn.dataset.rarity));
+        });
+        document.getElementById('drop-random').addEventListener('click', () => dropItem());
+        document.getElementById('drop-burst').addEventListener('click', () => {
+            for(let i=0; i<5; i++) setTimeout(() => dropItem(), i * 100);
+        });
+        document.getElementById('pickup-btn').addEventListener('click', () => {
+            if(selectedItem) {
+                const idx = droppedItems.indexOf(selectedItem);
+                if(idx > -1) droppedItems.splice(idx, 1);
+                selectedItem.dispose();
+                document.getElementById('item-panel').style.opacity = '0';
+                selectedItem = null;
+            }
+        });
+        
+        document.addEventListener('keydown', e => {
+            if (e.code === 'Space') dropItem();
+        });
+        
+        setTimeout(() => dropItem('legendary'), 300);
+        setTimeout(() => dropItem('mythic'), 600);
+
+    </script>
+</body>
+</html>

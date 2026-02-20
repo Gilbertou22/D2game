@@ -173,6 +173,9 @@ const useGameState = create((set, get) => ({
     projectiles: [],
     particleSystems: [],
     particles: [],
+    
+    // 掉落物品
+    droppedItems: [],
 
     // 目標與 UI
     targetPosition: null,
@@ -1329,6 +1332,15 @@ const useGameState = create((set, get) => ({
 
     showLootNotification: (loot) => set({ lootNotification: loot }),
     clearLootNotification: () => set({ lootNotification: null }),
+    
+    // 掉落物品管理
+    addDroppedItem: (item) => set((state) => ({
+        droppedItems: [...(state.droppedItems || []), item].slice(-30)
+    })),
+    removeDroppedItem: (id) => set((state) => ({
+        droppedItems: (state.droppedItems || []).filter(item => item.id !== id)
+    })),
+    clearDroppedItems: () => set({ droppedItems: [] }),
     
     // 連擊系統函數
     incrementCombo: () => set((state) => {

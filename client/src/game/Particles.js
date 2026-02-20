@@ -199,7 +199,7 @@ export const createParticles = (position, color, count, speed, size, type) => {
     const particles = state.particles || [];
     
     // Debug: log ALL particle creation
-    console.log('Creating particles:', type, 'at', position, 'count:', count, 'currentTotal:', particles.length);
+    //console.log('Creating particles:', type, 'at', position, 'count:', count, 'currentTotal:', particles.length);
     
     const currentCount = particles.length;
     if (currentCount >= MAX_TOTAL_PARTICLES) return;
