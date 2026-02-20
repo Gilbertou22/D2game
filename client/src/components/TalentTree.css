@@ -1,0 +1,280 @@
+/* src/components/TalentTree.css */
+.talent-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.9);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.talent-container {
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+    border-radius: 16px;
+    padding: 20px;
+    max-width: 1200px;
+    width: 95%;
+    max-height: 90vh;
+    overflow-y: auto;
+    border: 2px solid #ffd700;
+    box-shadow: 0 0 30px rgba(255, 215, 0, 0.3);
+}
+
+.talent-header {
+    text-align: center;
+    position: relative;
+    margin-bottom: 20px;
+}
+
+.talent-header h2 {
+    font-size: 2rem;
+    color: #ffd700;
+    margin: 0 0 10px;
+    text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+}
+
+.talent-points-display {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(255, 215, 0, 0.1);
+    padding: 8px 20px;
+    border-radius: 20px;
+    border: 1px solid #ffd700;
+}
+
+.points-icon {
+    font-size: 1.5rem;
+}
+
+.points-amount {
+    font-size: 1.8rem;
+    font-weight: bold;
+    color: #ffd700;
+}
+
+.points-label {
+    color: #aaa;
+    font-size: 0.9rem;
+}
+
+.level-hint {
+    color: #888;
+    font-size: 0.85rem;
+    margin: 5px 0 0;
+}
+
+.close-btn {
+    position: absolute;
+    top: 0;
+    right: 0;
+    background: none;
+    border: none;
+    color: #fff;
+    font-size: 1.5rem;
+    cursor: pointer;
+    padding: 5px 10px;
+    opacity: 0.7;
+    transition: opacity 0.2s;
+}
+
+.close-btn:hover {
+    opacity: 1;
+}
+
+.talent-bonuses-summary {
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+.talent-bonuses-summary h4 {
+    margin: 0 0 10px;
+    color: #ccc;
+    font-size: 0.9rem;
+}
+
+.bonuses-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+}
+
+.bonus-tag {
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    border: 1px solid #666;
+    background: rgba(255, 255, 255, 0.05);
+    color: #ccc;
+}
+
+.bonus-tag.unlocked {
+    border-color: #ffd700;
+    color: #ffd700;
+}
+
+.talent-schools {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    justify-content: center;
+}
+
+.school-column {
+    flex: 1;
+    min-width: 150px;
+    max-width: 200px;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 8px;
+    padding: 10px;
+}
+
+.school-title {
+    text-align: center;
+    font-weight: bold;
+    font-size: 0.95rem;
+    padding-bottom: 8px;
+    margin-bottom: 10px;
+    border-bottom: 2px solid;
+}
+
+.school-talents {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.talent-row {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.talent-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 2px solid;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: left;
+}
+
+.talent-btn:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.1);
+    transform: translateX(3px);
+}
+
+.talent-btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.talent-btn.locked {
+    opacity: 0.4;
+}
+
+.talent-btn .talent-icon {
+    font-size: 1.3rem;
+    flex-shrink: 0;
+}
+
+.talent-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.talent-name {
+    display: block;
+    color: #fff;
+    font-size: 0.8rem;
+    font-weight: bold;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.talent-desc {
+    display: block;
+    color: #888;
+    font-size: 0.65rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.talent-status {
+    font-size: 0.7rem;
+    padding: 2px 6px;
+    border-radius: 4px;
+    flex-shrink: 0;
+}
+
+.talent-status.max {
+    background: #ffd700;
+    color: #000;
+    font-weight: bold;
+}
+
+.talent-status.locked {
+    background: #333;
+    color: #666;
+}
+
+.talent-status.cost {
+    background: rgba(255, 215, 0, 0.2);
+    color: #ffd700;
+}
+
+.talent-progress {
+    display: flex;
+    gap: 3px;
+    justify-content: center;
+    padding: 2px 0;
+}
+
+.progress-pip {
+    width: 20px;
+    height: 4px;
+    border-radius: 2px;
+}
+
+.progress-pip.filled {
+    box-shadow: 0 0 5px currentColor;
+}
+
+/* 滾動條樣式 */
+.talent-container::-webkit-scrollbar {
+    width: 8px;
+}
+
+.talent-container::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 4px;
+}
+
+.talent-container::-webkit-scrollbar-thumb {
+    background: #ffd700;
+    border-radius: 4px;
+}
+
+.talent-container::-webkit-scrollbar-thumb:hover {
+    background: #ffed4a;
+}

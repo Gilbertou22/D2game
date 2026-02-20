@@ -16,7 +16,7 @@ function SkillsManager() {
         skills, playerMana, playerPos, playerRotation, targetEnemy, enemies,
         playerHP, playerMaxHP, castSkill, updateEnemy, setTargetEnemy,
         updatePlayer, updateSkillsCooldown, addFloatingNumber,
-        skillKeybinds
+        skillKeybinds, talentUnlocks
     } = useGameState();
 
     const effectsRef = useRef([]);
@@ -599,24 +599,27 @@ function SkillsManager() {
             }}>
                 {skillList.map(({ key, icon, name, hotkey }) => {
                     const skill = skills[key] || { unlocked: false, cooldown: 0, maxCooldown: 1, manaCost: 0 };
-                    const canUse = skill.unlocked && skill.cooldown <= 0 && playerMana >= skill.manaCost;
+                    // 天賦解鎖的技能視為已解鎖
+                    const talentUnlocked = talentUnlocks && talentUnlocks[key];
+                    const isUnlocked = skill.unlocked || talentUnlocked;
+                    const canUse = isUnlocked && skill.cooldown <= 0 && playerMana >= skill.manaCost;
                     return (
                         <div key={key} onClick={() => handleSkillCast(key)} style={{
                             width: '65px', 
                             height: '65px', 
                             background: canUse ? '#004400' : '#222222',
-                            border: `3px solid ${skill.unlocked ? '#00ff00' : '#666666'}`, 
+                            border: `3px solid ${isUnlocked ? '#00ff00' : '#666666'}`, 
                             borderRadius: '12px',
                             position: 'relative', 
-                            cursor: 'pointer', 
+                            cursor: canUse ? 'pointer' : 'not-allowed', 
                             display: 'flex', 
                             flexDirection: 'column',
                             justifyContent: 'center', 
                             alignItems: 'center', 
                             transition: 'all 0.2s', 
-                            opacity: skill.unlocked ? 1 : 0.5,
+                            opacity: isUnlocked ? 1 : 0.5,
                             userSelect: 'none'
-                        }} title={`${name} (Mana: ${skill.manaCost})`}>
+                        }} title={`${name} (Mana: ${skill.manaCost})${talentUnlocked ? ' [天賦解鎖]' : ''}`}>
                             <div style={{ fontSize: '28px' }}>{icon}</div>
                             <div style={{ 
                                 position: 'absolute', 

@@ -166,8 +166,9 @@ function Minimap() {
             style={{
                 position: 'absolute',
                 top: isMobile ? 10 : 20,
-                left: isMobile ? '50%' : 20,
-                transform: isMobile ? 'translateX(-50%)' : 'none',
+                right: isMobile ? 10 : 20,
+                left: 'auto',
+                transform: 'none',
                 width: isMobile ? '160px' : '220px',
                 height: isMobile ? '160px' : '220px',
                 border: isMobile ? '4px solid #888' : '6px solid #888',

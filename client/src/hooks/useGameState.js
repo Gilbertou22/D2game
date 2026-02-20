@@ -1,9 +1,44 @@
 import { create } from 'zustand';
 import * as THREE from 'three';
 import { calculateTotalStats, stackItems, RARITIES, generateLevelUpRewards, applyLevelUpReward } from '../utils/itemSystem';
+import { calculateTalentBonuses } from '../utils/talentTree';
 
 // 經驗值需求公式：指數成長
 const expPerLevel = (level) => Math.floor(100 * Math.pow(1.15, level - 1));
+
+// 重新計算屬性並返回狀態更新對象
+const recalculateStats = (state, { backpack, equipped }) => {
+    const totalStats = calculateTotalStats(equipped);
+    const baseAttack = 50 + state.playerLevel * 10;
+    const baseHP = 300 + state.playerLevel * 20;
+    const baseMana = 300 + state.playerLevel * 20;
+    const allStatsBonus = totalStats.allStats || 0;
+
+    return {
+        backpack,
+        equipped,
+        playerAttackPower: baseAttack + (totalStats.attack || 0) + allStatsBonus * 2,
+        playerDefense: (totalStats.defense || 0) + allStatsBonus,
+        playerMaxHPBonus: (totalStats.hp || 0) + allStatsBonus * 10,
+        playerMaxManaBonus: (totalStats.mana || 0) + allStatsBonus * 5,
+        playerManaRegen: 3 + (totalStats.manaRegen || 0) + allStatsBonus * 0.1,
+        playerMoveSpeedBonus: totalStats.movementSpeed || 0,
+        playerCritChance: 0.15 + (totalStats.critChance || 0) / 100,
+        playerCritDamage: 50 + (totalStats.critDamage || 0),
+        playerAttackSpeed: totalStats.attackSpeed || 0,
+        playerLifeSteal: totalStats.lifeSteal || 0,
+        playerDamageReduction: totalStats.damageReduction || 0,
+        playerResistance: totalStats.resistance || 0,
+        playerCooldownReduction: totalStats.cooldownReduction || 0,
+        playerGoldFind: totalStats.goldFind || 0,
+        playerExpBonus: totalStats.expBonus || 0,
+        playerAllStats: allStatsBonus,
+        playerMaxHP: baseHP + (totalStats.hp || 0) + allStatsBonus * 10,
+        playerMaxMana: baseMana + (totalStats.mana || 0) + allStatsBonus * 5,
+        playerHP: Math.min(state.playerHP, baseHP + (totalStats.hp || 0) + allStatsBonus * 10),
+        playerMana: Math.min(state.playerMana, baseMana + (totalStats.mana || 0) + allStatsBonus * 5)
+    };
+};
 
 const useGameState = create((set, get) => ({
 
@@ -17,6 +52,9 @@ const useGameState = create((set, get) => ({
     playerLevel: 1,
     playerExp: 0,
     playerGold: 0,
+
+    // 視角模式: 'isometric' | 'third' | 'first'
+    cameraMode: 'isometric',
     currentLevel: 1,
     isDead: false,
     playerAttackPower: 250,
@@ -26,10 +64,18 @@ const useGameState = create((set, get) => ({
     playerMaxManaBonus: 0,      // 新增：魔力上限加成
     playerManaRegen: 3,         // 新增：每秒魔力回復
     playerMoveSpeedBonus: 0,    // 新增：移動速度加成（%）
+    
+    // 天賦屬性加成
+    talentBonuses: {},
 
     // 升級獎勵系統
     pendingLevelUpRewards: null,  // 待選擇的獎勵
     levelUpQueue: 0,  // 累積的升級次數
+
+    // 天賦系統
+    talentPoints: 0,  // 可用天賦點數
+    talentTree: {},  // 已解鎖的天賦: { skillId: tier }
+    talentUnlocks: {},  // 已解鎖的技能: { skillId: true }
 
     // 關卡狀態
     isBossLevel: false,
@@ -493,6 +539,42 @@ const useGameState = create((set, get) => ({
                 fontSize: '28px',
                 glowColor: 'rgba(0, 255, 170, 0.8)',
                 animation: 'dodge'
+            },
+            // Elemental damage types (from UI.html)
+            fire: {
+                color: '#ff6b2b',
+                prefix: '-',
+                fontSize: '32px',
+                glowColor: 'rgba(255, 107, 43, 0.8)',
+                animation: 'elemental'
+            },
+            lightning: {
+                color: '#4fc3f7',
+                prefix: '-',
+                fontSize: '32px',
+                glowColor: 'rgba(79, 195, 247, 0.8)',
+                animation: 'elemental'
+            },
+            ice: {
+                color: '#80deea',
+                prefix: '-',
+                fontSize: '32px',
+                glowColor: 'rgba(128, 222, 234, 0.8)',
+                animation: 'elemental'
+            },
+            poison: {
+                color: '#2ecc71',
+                prefix: '-',
+                fontSize: '32px',
+                glowColor: 'rgba(46, 204, 113, 0.8)',
+                animation: 'dot'
+            },
+            wind: {
+                color: '#a9a9a9',
+                prefix: '-',
+                fontSize: '32px',
+                glowColor: 'rgba(169, 169, 169, 0.8)',
+                animation: 'elemental'
             }
         };
 
@@ -514,6 +596,14 @@ const useGameState = create((set, get) => ({
             horizOffset = (Math.random() - 0.5) * 6;
             startY = -3 - Math.random() * 2;
         }
+
+        // 計算現有相同位置/類型的數字數量，用於堆疊
+        const existingCount = state.floatingNumbers.filter(n => 
+            n.position.distanceTo(position) < 2 && n.type === type
+        ).length;
+        
+        // 根據堆疊數量調整 Y 偏移
+        startY -= existingCount * 0.8;
 
         const startPos = position.clone().add(new THREE.Vector3(
             horizOffset, 
@@ -563,7 +653,8 @@ const useGameState = create((set, get) => ({
             opacity: 1,
             scale: scale,
             rotation,
-            shake: config.shake || false
+            shake: config.shake || false,
+            type: type
         }].slice(-40);
 
         return { floatingNumbers: newNumbers };
@@ -645,6 +736,65 @@ const useGameState = create((set, get) => ({
         get().selectLevelUpReward(randomReward);
     },
     
+    // 天賦系統
+    spendTalentPoint: (talentId) => {
+        const state = get();
+        const talent = require('../utils/talentTree').TALENT_TREE[talentId];
+        if (!talent) return;
+        
+        const currentTier = state.talentTree[talentId] || 0;
+        if (currentTier >= talent.maxTier) return;
+        
+        const cost = talent.bonuses[currentTier]?.cost || talent.cost || 1;
+        if (state.talentPoints < cost) return;
+        
+        // 檢查父天賦
+        if (talent.parent) {
+            const parentTier = state.talentTree[talent.parent] || 0;
+            if (parentTier < 1) return;
+        }
+        
+        set((state) => {
+            const newTalentTree = { ...state.talentTree, [talentId]: currentTier + 1 };
+            const newTalentUnlocks = { ...state.talentUnlocks };
+            
+            // 檢查是否有技能解鎖
+            const bonus = talent.bonuses[currentTier];
+            if (bonus?.skillUnlock) {
+                newTalentUnlocks[bonus.skillUnlock] = true;
+            }
+            
+            // 計算新的天賦加成
+            const talentBonuses = calculateTalentBonuses(newTalentTree);
+            
+            // 計算新的玩家屬性加成
+            const newPlayerMaxHPBonus = state.playerMaxHPBonus + (bonus?.maxHP || 0);
+            const newPlayerAttackPower = state.playerAttackPower + (bonus?.attackPower || 0);
+            const newPlayerDefense = state.playerDefense + (bonus?.defense || 0);
+            const newPlayerManaRegen = state.playerManaRegen + (bonus?.manaRegen ? state.playerManaRegen * (bonus.manaRegen / 100) : 0);
+            
+            return {
+                talentPoints: state.talentPoints - cost,
+                talentTree: newTalentTree,
+                talentUnlocks: newTalentUnlocks,
+                talentBonuses: talentBonuses,
+                // 套用屬性加成
+                playerMaxHPBonus: newPlayerMaxHPBonus,
+                playerAttackPower: newPlayerAttackPower,
+                playerDefense: newPlayerDefense,
+                playerManaRegen: newPlayerManaRegen
+            };
+        });
+    },
+    
+    resetTalents: () => {
+        set((state) => ({
+            talentPoints: state.playerLevel - 1,
+            talentTree: {},
+            talentUnlocks: {}
+        }));
+    },
+    
     updatePlayer: (updates) => set((state) => {
         // 如果有待選擇的獎勵，先不處理升級
         if (state.pendingLevelUpRewards) {
@@ -692,14 +842,10 @@ const useGameState = create((set, get) => ({
                 playerHP: 100 + (lvl * 20),
                 playerMana: 100 + (lvl * 20),
                 pendingLevelUpRewards: rewards,
-                levelUpQueue: levelUps - 1
+                levelUpQueue: levelUps - 1,
+                // 天賦點數：每級獲得1點
+                talentPoints: state.talentPoints + levelUps
             };
-
-            // 技能解鎖
-            if (lvl >= 2) newState.skills.icebolt.unlocked = true;
-            if (lvl >= 3) newState.skills.nova.unlocked = true;
-            if (lvl >= 4) newState.skills.chainlightning.unlocked = true;
-            if (lvl >= 5) newState.skills.teleport.unlocked = true;
         }
 
         return newState;
@@ -718,6 +864,9 @@ const useGameState = create((set, get) => ({
 
     setTargetPosition: (pos) => set({ targetPosition: pos }),
     setTargetEnemy: (enemy) => set({ targetEnemy: enemy }),
+
+    // 切換視角
+    setCameraMode: (mode) => set({ cameraMode: mode }),
 
     // 添加物品到背包（改進版：支援堆疊和容量限制）
     addToInventory: (item) => set((state) => {
@@ -950,6 +1099,139 @@ const useGameState = create((set, get) => ({
             return (a.type || '').localeCompare(b.type || '');
         });
         return { backpack: sorted };
+    }),
+
+    // 移動背包物品（交換位置）
+    moveBackpackItem: (fromIndex, toIndex) => set((state) => {
+        if (fromIndex === toIndex) return state;
+        if (fromIndex < 0 || fromIndex >= state.backpack.length) return state;
+        if (toIndex < 0 || toIndex >= state.backpack.length) return state;
+
+        const newBackpack = [...state.backpack];
+        const [movedItem] = newBackpack.splice(fromIndex, 1);
+        newBackpack.splice(toIndex, 0, movedItem);
+        
+        return { backpack: newBackpack };
+    }),
+
+    // 合併堆疊物品
+    mergeStackItem: (fromIndex, toIndex) => set((state) => {
+        if (fromIndex === toIndex) return state;
+        const fromItem = state.backpack[fromIndex];
+        const toItem = state.backpack[toIndex];
+
+        if (!fromItem || !toItem) return state;
+        if (!fromItem.stackable || !toItem.stackable) return state;
+        if (fromItem.type !== toItem.type) return state;
+        if (fromItem.rarity !== toItem.rarity) return state;
+
+        const maxStack = fromItem.maxStack || 99;
+        const canMerge = toItem.quantity < maxStack;
+        if (!canMerge) return state;
+
+        const mergeQty = Math.min(fromItem.quantity, maxStack - toItem.quantity);
+        
+        const newBackpack = [...state.backpack];
+        newBackpack[toIndex] = {
+            ...toItem,
+            quantity: toItem.quantity + mergeQty
+        };
+        newBackpack[fromIndex] = {
+            ...fromItem,
+            quantity: fromItem.quantity - mergeQty
+        };
+
+        // 如果來源物品數量為0，移除它
+        if (newBackpack[fromIndex].quantity <= 0) {
+            newBackpack.splice(fromIndex, 1);
+        }
+
+        return { backpack: newBackpack };
+    }),
+
+    // 分割堆疊物品
+    splitStackItem: (fromIndex, splitQty) => set((state) => {
+        const item = state.backpack[fromIndex];
+        if (!item || !item.stackable || item.quantity <= 1) return state;
+        if (splitQty <= 0 || splitQty >= item.quantity) return state;
+
+        // 檢查背包是否有空位
+        const nonStackableCount = state.backpack.filter(i => !i.stackable || i.quantity <= 0).length;
+        const emptySlots = state.backpackMaxSize - nonStackableCount - 1;
+        if (emptySlots < 0) return state;
+
+        const newBackpack = [...state.backpack];
+        newBackpack[fromIndex] = {
+            ...item,
+            quantity: item.quantity - splitQty
+        };
+        
+        // 插入分割出的物品
+        const newItem = { ...item, quantity: splitQty };
+        newBackpack.push(newItem);
+
+        return { backpack: newBackpack };
+    }),
+
+    // 從背包拖到裝備槽
+    dragToEquip: (fromIndex, slot) => set((state) => {
+        const item = state.backpack[fromIndex];
+        if (!item) return state;
+        
+        const validSlots = ['weapon', 'armor', 'helmet', 'ring', 'amulet'];
+        if (!validSlots.includes(slot)) return state;
+        if (item.type !== slot) return state; // 類型不匹配
+
+        const oldItem = state.equipped[slot];
+        const newBackpack = [...state.backpack];
+        newBackpack.splice(fromIndex, 1);
+        if (oldItem) newBackpack.push(oldItem);
+
+        const newEquipped = { ...state.equipped, [slot]: item };
+        const totalStats = calculateTotalStats(newEquipped);
+        
+        // 計算屬性...
+        return recalculateStats(state, { backpack: newBackpack, equipped: newEquipped });
+    }),
+
+    // 從裝備槽拖到背包
+    dragFromEquip: (toIndex, slot) => set((state) => {
+        const item = state.equipped[slot];
+        if (!item) return state;
+
+        // 檢查背包空間
+        const nonStackableCount = state.backpack.filter(i => !i.stackable).length;
+        if (nonStackableCount >= state.backpackMaxSize) {
+            return {
+                eventLog: [...state.eventLog, {
+                    message: '背包已滿！',
+                    color: '#ff4444',
+                    type: 'warning',
+                    time: Date.now()
+                }].slice(-50)
+            };
+        }
+
+        const newEquipped = { ...state.equipped, [slot]: null };
+        
+        // 如果目標位置有效，交換物品
+        let newBackpack = [...state.backpack];
+        if (toIndex >= 0 && toIndex < newBackpack.length) {
+            const targetItem = newBackpack[toIndex];
+            if (targetItem && targetItem.type === slot) {
+                // 類型匹配，交換
+                newBackpack[toIndex] = item;
+                newEquipped[slot] = targetItem;
+            } else {
+                // 類型不匹配，插入並移動原有物品
+                newBackpack.splice(toIndex, 0, item);
+            }
+        } else {
+            // 放到背包末尾
+            newBackpack.push(item);
+        }
+
+        return recalculateStats(state, { backpack: newBackpack, equipped: newEquipped });
     }),
     // 使用藥水
     consumePotion: (type) => {

@@ -567,3 +567,227 @@
 .backpack-grid::-webkit-scrollbar-thumb:hover {
     background: #777;
 }
+
+/* ==================== 拖拽樣式 ==================== */
+
+/* 拖拽時的源格子 */
+.backpack-item.dragging {
+    opacity: 0.4;
+    border-style: dashed;
+}
+
+/* 拖拽時的目標格子高亮 */
+.backpack-item.drag-over {
+    border-color: #ffdd00 !important;
+    background: rgba(255, 221, 0, 0.15);
+    box-shadow: 0 0 15px rgba(255, 221, 0, 0.3);
+    transform: scale(1.05);
+}
+
+/* 裝備槽拖拽高亮 */
+.equipment-slot.drag-over {
+    border-color: #ffdd00 !important;
+    background: rgba(255, 221, 0, 0.15);
+    box-shadow: 0 0 15px rgba(255, 221, 0, 0.3);
+}
+
+/* 拖拽影子元素 */
+.drag-ghost {
+    position: fixed;
+    pointer-events: none;
+    z-index: 10000;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 70px;
+    height: 70px;
+    background: rgba(30, 30, 50, 0.95);
+    border: 2px solid #ffd700;
+    border-radius: 10px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6), 0 0 20px rgba(255, 215, 0, 0.3);
+    transform: translate(-50%, -50%);
+    animation: dragPulse 0.8s ease-in-out infinite;
+}
+
+@keyframes dragPulse {
+    0%, 100% { transform: translate(-50%, -50%) scale(1); }
+    50% { transform: translate(-50%, -50%) scale(1.05); }
+}
+
+.drag-icon {
+    font-size: 32px;
+    border: 2px solid;
+    border-radius: 8px;
+    padding: 5px;
+    background: rgba(0, 0, 0, 0.3);
+}
+
+.drag-quantity {
+    position: absolute;
+    bottom: 2px;
+    right: 2px;
+    background: #333;
+    color: #fff;
+    font-size: 11px;
+    font-weight: bold;
+    padding: 2px 5px;
+    border-radius: 4px;
+    border: 1px solid #555;
+}
+
+/* 分割數量輸入框 */
+.split-dialog {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.8);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 2000;
+}
+
+.split-content {
+    background: linear-gradient(135deg, #2d2d44 0%, #1f1f35 100%);
+    border: 2px solid #4a4a6a;
+    border-radius: 12px;
+    padding: 25px;
+    text-align: center;
+    min-width: 280px;
+}
+
+.split-content h3 {
+    margin: 0 0 15px 0;
+    color: #ffdd00;
+    font-size: 18px;
+}
+
+.split-content .item-info {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin-bottom: 20px;
+    color: #ccc;
+}
+
+.split-content .item-icon {
+    font-size: 28px;
+}
+
+.split-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.split-controls button {
+    width: 40px;
+    height: 40px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 2px solid #555;
+    border-radius: 8px;
+    color: #fff;
+    font-size: 20px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.split-controls button:hover {
+    background: rgba(255, 255, 255, 0.2);
+    border-color: #777;
+}
+
+.split-controls .split-value {
+    font-size: 24px;
+    font-weight: bold;
+    color: #ffd700;
+    min-width: 60px;
+    text-align: center;
+}
+
+.split-buttons {
+    display: flex;
+    gap: 15px;
+    justify-content: center;
+}
+
+.split-buttons button {
+    padding: 10px 25px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.2s;
+}
+
+.split-buttons .confirm {
+    background: linear-gradient(135deg, #2a8a2a, #1a6a1a);
+    border: 1px solid #5a5;
+    color: #fff;
+}
+
+.split-buttons .confirm:hover {
+    background: linear-gradient(135deg, #3a9a3a, #2a8a2a);
+}
+
+.split-buttons .cancel {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid #666;
+    color: #aaa;
+}
+
+.split-buttons .cancel:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+/* 觸控長按提示 */
+.touch-hint {
+    position: absolute;
+    bottom: -30px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.8);
+    color: #aaa;
+    font-size: 11px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    white-space: nowrap;
+    pointer-events: none;
+}
+
+/* 移動端優化 */
+@media (max-width: 768px) {
+    .inventory-container {
+        width: 95%;
+        height: 90%;
+    }
+    
+    .inventory-content {
+        flex-direction: column;
+    }
+    
+    .equipment-panel {
+        width: 100%;
+        flex-direction: row;
+        flex-wrap: wrap;
+    }
+    
+    .equipment-slots {
+        flex-direction: row;
+        flex-wrap: wrap;
+    }
+    
+    .equipment-slot {
+        min-width: 80px;
+        flex: 1;
+    }
+    
+    .backpack-grid {
+        grid-template-columns: repeat(5, 1fr);
+    }
+}

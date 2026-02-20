@@ -1,0 +1,422 @@
+<!doctype html>
+<html lang="zh-TW">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>暗黑風格天賦樹 - 毒系專精</title>
+    <style>
+      :root {
+        --bg-color: #0b0b0b;
+        --node-locked: #2a2a2a;
+        --node-available: #3cb371;
+        --node-active: #45ff45;
+        --line-color: #444;
+        --line-active: #3cb371;
+        --text-color: #ccc;
+        --tooltip-bg: #111;
+      }
+
+      body {
+        margin: 0;
+        background-color: var(--bg-color);
+        color: var(--text-color);
+        font-family: "Segoe UI", sans-serif;
+        overflow: hidden; /* 防止滾動條 */
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+      }
+
+      /* 容器 */
+      #tree-container {
+        position: relative;
+        width: 800px;
+        height: 600px;
+        border: 1px solid #333;
+        background: radial-gradient(circle at center, #1a1a1a 0%, #000 100%);
+        box-shadow: 0 0 50px rgba(0, 0, 0, 0.8);
+      }
+
+      /* 連線層 (SVG) */
+      #svg-lines {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        z-index: 1;
+      }
+
+      path {
+        stroke: var(--line-color);
+        stroke-width: 2;
+        fill: none;
+        transition:
+          stroke 0.3s,
+          filter 0.3s;
+      }
+
+      path.active {
+        stroke: var(--line-active);
+        filter: drop-shadow(0 0 5px var(--node-active));
+      }
+
+      /* 節點樣式 */
+      .node {
+        position: absolute;
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        border: 2px solid var(--line-color);
+        background-color: var(--node-locked);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        cursor: pointer;
+        z-index: 10;
+        transition: all 0.3s;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+      }
+
+      /* 狀態樣式 */
+      .node.available {
+        border-color: var(--node-available);
+        box-shadow: 0 0 15px rgba(60, 179, 113, 0.3);
+        animation: pulse 2s infinite;
+      }
+
+      .node.active {
+        border-color: var(--node-active);
+        background-color: #003300;
+        box-shadow: 0 0 20px var(--node-active);
+        transform: scale(1.1);
+      }
+
+      .node-icon {
+        font-size: 24px;
+        color: #555;
+        transition: color 0.3s;
+      }
+
+      .node.available .node-icon {
+        color: #8fbc8f;
+      }
+      .node.active .node-icon {
+        color: #fff;
+      }
+
+      /* 巔峰節點 */
+      .node.ultimate {
+        width: 80px;
+        height: 80px;
+        border-width: 3px;
+      }
+
+      @keyframes pulse {
+        0% {
+          box-shadow: 0 0 10px rgba(60, 179, 113, 0.2);
+        }
+        50% {
+          box-shadow: 0 0 25px rgba(60, 179, 113, 0.6);
+        }
+        100% {
+          box-shadow: 0 0 10px rgba(60, 179, 113, 0.2);
+        }
+      }
+
+      /* 提示框 */
+      #tooltip {
+        position: absolute;
+        top: 20px;
+        right: 20px;
+        width: 280px;
+        background: var(--tooltip-bg);
+        border: 1px solid var(--node-available);
+        padding: 15px;
+        display: none; /* 預設隱藏 */
+        z-index: 100;
+        box-shadow: 0 0 20px rgba(0, 0, 0, 0.8);
+      }
+
+      #tooltip h3 {
+        margin: 0 0 10px 0;
+        color: var(--node-active);
+      }
+      #tooltip p {
+        margin: 0;
+        font-size: 0.9rem;
+        line-height: 1.4;
+        color: #aaa;
+      }
+      #tooltip .status {
+        margin-top: 10px;
+        font-weight: bold;
+        color: var(--node-available);
+      }
+
+      /* 點數顯示 */
+      #points-panel {
+        position: absolute;
+        top: 20px;
+        left: 20px;
+        background: rgba(0, 0, 0, 0.8);
+        padding: 10px 20px;
+        border: 1px solid #444;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="tree-container">
+      <svg id="svg-lines"></svg>
+
+      <!-- 點數面板 -->
+      <div id="points-panel">技能點數: <span id="points-count">5</span></div>
+
+      <!-- 資訊面板 -->
+      <div id="tooltip">
+        <h3 id="tip-title">技能名稱</h3>
+        <p id="tip-desc">技能描述...</p>
+        <div class="status" id="tip-status">狀態</div>
+      </div>
+    </div>
+
+    <script>
+      // --- 天賦數據配置 ---
+      const talents = [
+        // 第一層 (入門)
+        {
+          id: 1,
+          x: 370,
+          y: 500,
+          icon: "💀",
+          name: "劇毒 essences",
+          desc: "毒性傷害提高 10%。",
+          requires: [],
+          type: "core",
+        },
+
+        // 第二層 (分支)
+        {
+          id: 2,
+          x: 250,
+          y: 380,
+          icon: "🦴",
+          name: "骨之釘",
+          desc: "瘟疫釘刺的穿透機率提高 15%。",
+          requires: [1],
+          type: "skill",
+        },
+        {
+          id: 3,
+          x: 490,
+          y: 380,
+          icon: "☁️",
+          name: "濃縮瘴氣",
+          desc: "腐敗瘴氣的範圍擴大 20%。",
+          requires: [1],
+          type: "skill",
+        },
+
+        // 第三層 (深化)
+        {
+          id: 4,
+          x: 150,
+          y: 260,
+          icon: "🩸",
+          name: "血毒轉化",
+          desc: "對處於流血狀態的敵人，毒素傷害提高 25%。",
+          requires: [2],
+          type: "core",
+        },
+        {
+          id: 5,
+          x: 370,
+          y: 300,
+          icon: "🐍",
+          name: "蛇信連擊",
+          desc: "蛇信橫掃有 30% 機率施放兩次。",
+          requires: [2, 3],
+          type: "skill",
+        }, // 或邏輯：滿足一個前置即可
+        {
+          id: 6,
+          x: 590,
+          y: 260,
+          icon: "🧪",
+          name: "劇毒蔓延",
+          desc: "敵人死於毒素時，有 50% 機率將毒素傳播給附近敵人。",
+          requires: [3],
+          type: "core",
+        },
+
+        // 第四層 (巔峰)
+        {
+          id: 7,
+          x: 370,
+          y: 140,
+          icon: "☠️",
+          name: "死亡擁抱",
+          desc: "終極被動：當你對敵人造成毒素傷害時，獲得護盾，吸收等同於傷害 15% 的生命值。",
+          requires: [4, 5, 6],
+          type: "ultimate",
+        },
+      ];
+
+      // --- 遊戲狀態 ---
+      let playerPoints = 5;
+      let activeNodes = new Set(); // 儲存已啟用節點 ID
+
+      const container = document.getElementById("tree-container");
+      const svg = document.getElementById("svg-lines");
+      const tooltip = document.getElementById("tooltip");
+      const pointsDisplay = document.getElementById("points-count");
+
+      // --- 初始化渲染 ---
+      function init() {
+        renderNodes();
+        renderLines();
+        updateUI();
+      }
+
+      // --- 渲染節點 ---
+      function renderNodes() {
+        talents.forEach((t) => {
+          const div = document.createElement("div");
+          div.className = `node ${t.type === "ultimate" ? "ultimate" : ""}`;
+          div.id = `node-${t.id}`;
+          div.style.left = `${t.x}px`;
+          div.style.top = `${t.y}px`;
+          div.style.transform = "translate(-50%, -50%)"; // 居中定位
+
+          div.innerHTML = `<span class="node-icon">${t.icon}</span>`;
+
+          // 綁定事件
+          div.onmouseenter = () => showTooltip(t);
+          div.onmouseleave = () => hideTooltip();
+          div.onclick = () => tryActivate(t);
+
+          container.appendChild(div);
+        });
+      }
+
+      // --- 渲染連線 (SVG) ---
+      function renderLines() {
+        talents.forEach((t) => {
+          t.requires.forEach((parentId) => {
+            const parent = talents.find((x) => x.id === parentId);
+            if (parent) {
+              const path = document.createElementNS(
+                "http://www.w3.org/2000/svg",
+                "path",
+              );
+
+              // 計算貝塞爾曲線 (讓線條有彎曲度)
+              const startY = parent.y;
+              const endY = t.y;
+              const midY = (startY + endY) / 2;
+
+              const d = `M ${parent.x} ${parent.y} C ${parent.x} ${midY}, ${t.x} ${midY}, ${t.x} ${t.y}`;
+
+              path.setAttribute("d", d);
+              path.setAttribute("id", `line-${parent.id}-${t.id}`);
+              svg.appendChild(path);
+            }
+          });
+        });
+      }
+
+      // --- 邏輯：嘗試啟動節點 ---
+      function tryActivate(talent) {
+        // 1. 已經啟動了，忽略
+        if (activeNodes.has(talent.id)) return;
+
+        // 2. 沒點數了
+        if (playerPoints <= 0) {
+          alert("點數不足！");
+          return;
+        }
+
+        // 3. 檢查前置 (所有前置節點都必須啟動)
+        const canUnlock = talent.requires.every((reqId) =>
+          activeNodes.has(reqId),
+        );
+
+        if (canUnlock) {
+          activeNodes.add(talent.id);
+          playerPoints--;
+          updateUI();
+          playEffect(talent);
+        } else {
+          // 視覺反饋：紅色閃爍提示前置未滿足
+          const nodeEl = document.getElementById(`node-${talent.id}`);
+          nodeEl.style.borderColor = "red";
+          setTimeout(() => (nodeEl.style.borderColor = ""), 300);
+        }
+      }
+
+      // --- 更新 UI 狀態 ---
+      function updateUI() {
+        pointsDisplay.innerText = playerPoints;
+
+        talents.forEach((t) => {
+          const nodeEl = document.getElementById(`node-${t.id}`);
+          const isActive = activeNodes.has(t.id);
+          const isAvailable =
+            !isActive &&
+            (t.requires.length === 0 ||
+              t.requires.every((reqId) => activeNodes.has(reqId)));
+
+          // 重置 Class
+          nodeEl.classList.remove("active", "available");
+
+          if (isActive) {
+            nodeEl.classList.add("active");
+          } else if (isAvailable && playerPoints > 0) {
+            nodeEl.classList.add("available");
+          }
+
+          // 更新連線顏色
+          t.requires.forEach((pId) => {
+            const line = document.getElementById(`line-${pId}-${t.id}`);
+            if (line && activeNodes.has(pId) && activeNodes.has(t.id)) {
+              line.classList.add("active");
+            }
+          });
+        });
+      }
+
+      // --- 提示框 ---
+      function showTooltip(t) {
+        document.getElementById("tip-title").innerText = t.name;
+        document.getElementById("tip-desc").innerText = t.desc;
+
+        let status = "鎖定";
+        if (activeNodes.has(t.id)) status = "已習得";
+        else if (t.requires.every((reqId) => activeNodes.has(reqId)))
+          status = "可習得";
+        else status = "需要前置天賦";
+
+        document.getElementById("tip-status").innerText = status;
+        tooltip.style.display = "block";
+      }
+
+      function hideTooltip() {
+        tooltip.style.display = "none";
+      }
+
+      // --- 簡單特效 ---
+      function playEffect(t) {
+        // 這裡可以接入之前的 Three.js 法術效果，這裡做簡單的 DOM 動畫
+        const nodeEl = document.getElementById(`node-${t.id}`);
+        nodeEl.style.transform = "translate(-50%, -50%) scale(1.5)";
+        setTimeout(() => {
+          nodeEl.style.transform = "translate(-50%, -50%) scale(1.1)";
+        }, 200);
+      }
+
+      init();
+    </script>
+  </body>
+</html>

@@ -1,7 +1,8 @@
-// src/components/Inventory.js - 優化版：完整的物品裝備系統
-import React, { useState, useCallback } from 'react';
+// src/components/Inventory.js - 優化版：完整的物品裝備系統 + 拖拽支援
+import React, { useState, useCallback, useEffect } from 'react';
 import useGameState from '../hooks/useGameState';
 import { RARITIES, EQUIPMENT_TYPES, compareItems } from '../utils/itemSystem';
+import { DragManager } from '../utils/DragManager';
 import ItemTooltip from './ItemTooltip';
 import './Inventory.css';
 
@@ -28,7 +29,12 @@ function Inventory({ open, onClose }) {
         dropItem,
         sellItem,
         sortBackpack,
-        playerGold
+        playerGold,
+        moveBackpackItem,
+        mergeStackItem,
+        splitStackItem,
+        dragToEquip,
+        dragFromEquip
     } = useGameState();
 
     // UI 狀態
@@ -38,6 +44,10 @@ function Inventory({ open, onClose }) {
     const [currentPage, setCurrentPage] = useState(0);
     const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
     const [showSellConfirm, setShowSellConfirm] = useState(false);
+    const [dragOverIndex, setDragOverIndex] = useState(null);
+    const [dragOverSlot, setDragOverSlot] = useState(null);
+    const [showSplitDialog, setShowSplitDialog] = useState(false);
+    const [splitInfo, setSplitInfo] = useState({ index: 0, quantity: 1 });
 
     // 計算背包分頁
     const totalPages = Math.ceil(backpack.length / BACKPACK_PAGE_SIZE);
@@ -72,19 +82,190 @@ function Inventory({ open, onClose }) {
     const handleMouseLeave = () => {
         setHoveredItem(null);
         setCompareItem(null);
+        setDragOverIndex(null);
+        setDragOverSlot(null);
+    };
+
+    // ========== 拖拽處理 ==========
+    
+    // 開始拖拽
+    const handleDragStart = (item, index, sourceContainer, e) => {
+        if (e.button === 2) return; // 右鍵不拖拽
+        e.preventDefault();
+        DragManager.startDrag(item, index, sourceContainer, e);
+    };
+
+    // 拖拽移動
+    const handleDragMove = useCallback((e) => {
+        if (!DragManager.getDragState().isDragging) return;
+        DragManager.moveDrag(e);
+    }, []);
+
+    // 拖拽結束
+    const handleDragEnd = useCallback((e) => {
+        if (!DragManager.getDragState().isDragging) return;
+        
+        // 獲取目標元素
+        const clientX = e.changedTouches ? e.changedTouches[0].clientX : e.clientX;
+        const clientY = e.changedTouches ? e.changedTouches[0].clientY : e.clientY;
+        
+        // 隱藏拖拽元素以進行元素檢測
+        const ghost = document.querySelector('.drag-ghost');
+        if (ghost) ghost.style.display = 'none';
+        
+        // 檢測目標格子
+        const elementUnder = document.elementFromPoint(clientX, clientY);
+        if (ghost) ghost.style.display = 'flex';
+        
+        const targetSlot = elementUnder?.closest('.equipment-slot');
+        const targetBackpack = elementUnder?.closest('.backpack-item');
+        const targetIndex = targetBackpack?.dataset.index ? parseInt(targetBackpack.dataset.index) : null;
+        
+        const dragState = DragManager.getDragState();
+        
+        if (targetSlot) {
+            // 拖到裝備槽
+            const slotKey = targetSlot.dataset.slot;
+            if (dragState.sourceContainer === 'backpack' && dragState.item.type === slotKey) {
+                dragToEquip(dragState.index, slotKey);
+            } else if (dragState.sourceContainer === 'equipment' && dragState.item.type === slotKey) {
+                // 從裝備槽拖到同類型裝備槽，不處理
+            }
+        } else if (targetIndex !== null) {
+            // 拖到背包格子
+            const actualIndex = currentPage * BACKPACK_PAGE_SIZE + targetIndex;
+            const targetItem = backpack[actualIndex];
+            
+            if (dragState.sourceContainer === 'backpack') {
+                if (!targetItem) {
+                    // 目標為空，直接移動
+                    moveBackpackItem(dragState.index, actualIndex);
+                } else if (targetItem.stackable && targetItem.type === dragState.item.type && targetItem.rarity === dragState.item.rarity) {
+                    // 可堆疊且類型相同，嘗試合併
+                    mergeStackItem(dragState.index, actualIndex);
+                } else if (targetItem.type === dragState.item.type) {
+                    // 同類型物品，交換
+                    moveBackpackItem(dragState.index, actualIndex);
+                }
+            } else if (dragState.sourceContainer === 'equipment') {
+                // 從裝備槽拖到背包
+                dragFromEquip(actualIndex, dragState.item.type);
+            }
+        }
+        
+        // 拖到背包外部視為丟棄（可選功能）
+        // if (!elementUnder?.closest('.inventory-container')) {
+        //     dropItem(dragState.index);
+        // }
+        
+        DragManager.endDrag(targetIndex, targetSlot?.dataset.slot || 'backpack');
+        setDragOverIndex(null);
+        setDragOverSlot(null);
+    }, [backpack, currentPage, dragToEquip, dragFromEquip, moveBackpackItem, mergeStackItem]);
+
+    // 觸控長按處理
+    const [touchTimer, setTouchTimer] = useState(null);
+    const [longPressedItem, setLongPressedItem] = useState(null);
+
+    const handleTouchStart = (item, index, sourceContainer, e) => {
+        const touch = e.touches[0];
+        
+        // 設定長按計時器 (500ms)
+        const timer = setTimeout(() => {
+            setLongPressedItem({ item, index, sourceContainer });
+            handleDragStart(item, index, sourceContainer, { 
+                touches: [touch], 
+                preventDefault: () => {},
+                target: e.target 
+            });
+        }, 300);
+        
+        setTouchTimer(timer);
+    };
+
+    const handleTouchEnd = (e) => {
+        if (touchTimer) {
+            clearTimeout(touchTimer);
+            setTouchTimer(null);
+        }
+        
+        if (DragManager.getDragState().isDragging) {
+            handleDragEnd(e);
+        }
+        
+        setLongPressedItem(null);
+    };
+
+    const handleTouchMove = (e) => {
+        // 移動時取消長按
+        if (touchTimer) {
+            clearTimeout(touchTimer);
+            setTouchTimer(null);
+        }
+        
+        // 如果正在拖拽，移動拖拽元素
+        if (DragManager.getDragState().isDragging) {
+            e.preventDefault();
+            handleDragMove(e);
+        }
+    };
+
+    // 綁定全局事件
+    useEffect(() => {
+        const onMouseMove = (e) => handleDragMove(e);
+        const onMouseUp = (e) => {
+            if (DragManager.getDragState().isDragging) {
+                handleDragEnd(e);
+            }
+        };
+        const onTouchMove = (e) => handleTouchMove(e);
+        const onTouchEnd = (e) => handleTouchEnd(e);
+
+        window.addEventListener('mousemove', onMouseMove);
+        window.addEventListener('mouseup', onMouseUp);
+        window.addEventListener('touchmove', onTouchMove, { passive: false });
+        window.addEventListener('touchend', onTouchEnd);
+
+        return () => {
+            window.removeEventListener('mousemove', onMouseMove);
+            window.removeEventListener('mouseup', onMouseUp);
+            window.removeEventListener('touchmove', onTouchMove);
+            window.removeEventListener('touchend', onTouchEnd);
+        };
+    }, [handleDragMove, handleDragEnd]);
+
+    // 處理拖拽進入目標格子
+    const handleDragEnter = (index) => {
+        setDragOverIndex(index);
+    };
+
+    const handleSlotDragEnter = (slotKey) => {
+        setDragOverSlot(slotKey);
+    };
+
+    // 分割堆疊
+    const handleSplitStack = (item, index) => {
+        if (!item.stackable || item.quantity <= 1) return;
+        setSplitInfo({ index, quantity: Math.floor(item.quantity / 2) });
+        setShowSplitDialog(true);
+    };
+
+    const confirmSplit = () => {
+        splitStackItem(splitInfo.index, splitInfo.quantity);
+        setShowSplitDialog(false);
     };
 
     // 處理物品點擊
     const handleItemClick = (item, index) => {
+        // 如果正在拖拽，不處理點擊
+        if (DragManager.getDragState().isDragging) return;
+        
         if (EQUIPMENT_TYPES[item.type]) {
-            // 可裝備物品
             const currentEquipped = equipped[item.type];
             if (currentEquipped) {
-                // 有裝備時顯示比較
                 setSelectedItem({ item, index });
                 setCompareItem(currentEquipped);
             } else {
-                // 直接裝備
                 equipItem(item.type, index);
             }
         }
@@ -118,6 +299,9 @@ function Inventory({ open, onClose }) {
         return EQUIPMENT_TYPES[item.type]?.icon || '📦';
     };
 
+    // 獲取拖拽狀態
+    const dragState = DragManager.getDragState();
+
     if (!open) return null;
 
     return (
@@ -142,13 +326,18 @@ function Inventory({ open, onClose }) {
                         <div className="equipment-slots">
                             {EQUIPMENT_SLOTS.map(slot => {
                                 const item = equipped[slot.key];
+                                const isDragOver = dragOverSlot === slot.key;
+                                const canAccept = dragState.isDragging && dragState.item?.type === slot.key;
+                                
                                 return (
                                     <div
                                         key={slot.key}
-                                        className={`equipment-slot ${getRarityClass(item?.rarity)} ${!item ? 'empty' : ''}`}
-                                        onMouseEnter={(e) => handleSlotHover(slot, e)}
+                                        data-slot={slot.key}
+                                        className={`equipment-slot ${getRarityClass(item?.rarity)} ${!item ? 'empty' : ''} ${isDragOver && canAccept ? 'drag-over' : ''}`}
+                                        onMouseEnter={(e) => { handleSlotHover(slot, e); handleSlotDragEnter(slot.key); }}
                                         onMouseLeave={handleMouseLeave}
                                         onClick={() => item && unequipItem(slot.key)}
+                                        onDragOver={(e) => { e.preventDefault(); handleSlotDragEnter(slot.key); }}
                                     >
                                         {!item ? (
                                             <div className="slot-placeholder">
@@ -157,7 +346,10 @@ function Inventory({ open, onClose }) {
                                                 <span className="slot-desc">{slot.description}</span>
                                             </div>
                                         ) : (
-                                            <div className="equipped-item">
+                                            <div 
+                                                className="equipped-item"
+                                                onMouseDown={(e) => handleDragStart(item, slot.key, 'equipment', e)}
+                                            >
                                                 <span className="item-icon">{item.icon}</span>
                                                 <div className="item-info">
                                                     <span className="item-name" style={{ color: item.rarityColor }}>
@@ -209,7 +401,7 @@ function Inventory({ open, onClose }) {
                             <h3>背包物品</h3>
                             <div className="backpack-actions">
                                 <button className="sort-btn" onClick={sortBackpack} title="整理背包">
-                    🔃 整理
+                                    🔃 整理
                                 </button>
                             </div>
                         </div>
@@ -217,26 +409,42 @@ function Inventory({ open, onClose }) {
                         <div className="backpack-grid">
                             {currentItems.map((item, idx) => {
                                 const actualIndex = currentPage * BACKPACK_PAGE_SIZE + idx;
+                                const isDragging = dragState.isDragging && dragState.index === actualIndex && dragState.sourceContainer === 'backpack';
+                                const isDragOver = dragOverIndex === idx && dragState.isDragging;
+                                const canAccept = dragState.isDragging && dragState.sourceContainer === 'backpack';
+                                
                                 return (
                                     <div
-                                        key={`${item.id}-${idx}`}
-                                        className={`backpack-item ${getRarityClass(item.rarity)} ${selectedItem?.index === actualIndex ? 'selected' : ''}`}
-                                        onMouseEnter={(e) => handleItemHover(item, e)}
+                                        key={`${item?.id || 'empty'}-${idx}`}
+                                        data-index={idx}
+                                        className={`backpack-item ${item ? getRarityClass(item.rarity) : 'empty'} ${selectedItem?.index === actualIndex ? 'selected' : ''} ${isDragging ? 'dragging' : ''} ${isDragOver && canAccept ? 'drag-over' : ''}`}
+                                        onMouseEnter={(e) => { 
+                                            if (item) handleItemHover(item, e);
+                                            handleDragEnter(idx);
+                                        }}
                                         onMouseLeave={handleMouseLeave}
-                                        onClick={() => handleItemClick(item, actualIndex)}
-                                        onContextMenu={(e) => handleItemRightClick(e, item, actualIndex)}
+                                        onClick={() => item && handleItemClick(item, actualIndex)}
+                                        onContextMenu={(e) => item && handleItemRightClick(e, item, actualIndex)}
+                                        onMouseDown={(e) => item && handleDragStart(item, actualIndex, 'backpack', e)}
+                                        onTouchStart={(e) => item && handleTouchStart(item, actualIndex, 'backpack', e)}
                                     >
-                                        <div className="item-icon-container">
-                                            <span className="item-icon">{getItemIcon(item)}</span>
-                                            {item.quantity > 1 && (
-                                                <span className="item-quantity">{item.quantity}</span>
-                                            )}
-                                        </div>
-                                        <span className="item-name-small" style={{ color: item.rarityColor }}>
-                                            {item.name?.length > 8 ? item.name?.slice(0, 8) + '...' : (item.name || '未命名')}
-                                        </span>
-                                        {EQUIPMENT_TYPES[item.type] && compareItems(equipped[item.type], item).better && (
-                                            <div className="upgrade-indicator">⬆️</div>
+                                        {item && (
+                                            <>
+                                                <div className="item-icon-container">
+                                                    <span className="item-icon">{getItemIcon(item)}</span>
+                                                    {item.quantity > 1 && (
+                                                        <span className="item-quantity">{item.quantity}</span>
+                                                    )}
+                                                </div>
+                                                <span className="item-name-small" style={{ color: item.rarityColor }}>
+                                                    {item.name?.length > 8 ? item.name?.slice(0, 8) + '...' : (item.name || '未命名')}
+                                                </span>
+                                                {EQUIPMENT_TYPES[item.type] && compareItems(equipped[item.type], item).better && (
+                                                    <div className="upgrade-indicator">⬆️</div>
+                                                )}
+                                                {/* 觸控提示 */}
+                                                <div className="touch-hint">長按拖拽</div>
+                                            </>
                                         )}
                                     </div>
                                 );
@@ -244,7 +452,13 @@ function Inventory({ open, onClose }) {
                             
                             {/* 空白格子 */}
                             {Array.from({ length: BACKPACK_PAGE_SIZE - currentItems.length }).map((_, i) => (
-                                <div key={`empty-${i}`} className="backpack-item empty" />
+                                <div 
+                                    key={`empty-${i}`} 
+                                    data-index={BACKPACK_PAGE_SIZE - currentItems.length + i}
+                                    className={`backpack-item empty ${dragOverIndex === currentItems.length + i && dragState.isDragging ? 'drag-over' : ''}`}
+                                    onMouseEnter={() => handleDragEnter(currentItems.length + i)}
+                                    onMouseLeave={handleMouseLeave}
+                                />
                             ))}
                         </div>
 
@@ -286,6 +500,14 @@ function Inventory({ open, onClose }) {
                                 🎽 裝備
                             </button>
                         )}
+                        {selectedItem.item.stackable && selectedItem.item.quantity > 1 && (
+                            <button onClick={() => {
+                                handleSplitStack(selectedItem.item, selectedItem.index);
+                                setSelectedItem(null);
+                            }}>
+                                ✂️ 分割
+                            </button>
+                        )}
                         <button onClick={() => {
                             setShowSellConfirm(true);
                             setSelectedItem({ ...selectedItem, showMenu: false });
@@ -313,6 +535,28 @@ function Inventory({ open, onClose }) {
                             <div className="confirm-buttons">
                                 <button onClick={handleSellConfirm} className="confirm">確定</button>
                                 <button onClick={() => setShowSellConfirm(false)} className="cancel">取消</button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* 分割數量對話框 */}
+                {showSplitDialog && (
+                    <div className="split-dialog">
+                        <div className="split-content">
+                            <h3>分割堆疊</h3>
+                            <div className="item-info">
+                                <span className="item-icon">{getItemIcon(backpack[splitInfo.index])}</span>
+                                <span>{backpack[splitInfo.index]?.name}</span>
+                            </div>
+                            <div className="split-controls">
+                                <button onClick={() => setSplitInfo(s => ({ ...s, quantity: Math.max(1, s.quantity - 1) }))}>-</button>
+                                <span className="split-value">{splitInfo.quantity}</span>
+                                <button onClick={() => setSplitInfo(s => ({ ...s, quantity: Math.min((backpack[splitInfo.index]?.quantity || 1) - 1, s.quantity + 1) }))}>+</button>
+                            </div>
+                            <div className="split-buttons">
+                                <button className="confirm" onClick={confirmSplit}>確認</button>
+                                <button className="cancel" onClick={() => setShowSplitDialog(false)}>取消</button>
                             </div>
                         </div>
                     </div>

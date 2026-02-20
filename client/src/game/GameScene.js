@@ -22,24 +22,79 @@ const mouse = new THREE.Vector2();
 function GameScene() {
     const { camera } = useThree();
     const ground = useRef();
-    const { playerPos, setTargetPosition, setTargetEnemy, enemies } = useGameState();
+    const { playerPos, playerRotation, setTargetPosition, setTargetEnemy, enemies, cameraMode } = useGameState();
     
-    // 初始化 isometric 視角
-    useEffect(() => {
-        camera.position.set(0, 120, 120);
-        camera.rotation.order = 'YXZ';
-        camera.rotation.y = Math.PI / 4;
-        camera.rotation.x = -Math.PI / 6;
-        camera.zoom = 5.0;
-        camera.updateProjectionMatrix();
-    }, [camera]);
+    // 視角配置
+    const cameraConfigs = {
+        // 等軸視角 (預設)
+        isometric: {
+            offset: new THREE.Vector3(0, 120, 120),
+            rotation: { x: -Math.PI / 6, y: Math.PI / 4 },
+            zoom: 5.0,
+            fov: 60
+        },
+        // 第三人稱
+        third: {
+            offset: new THREE.Vector3(0, 25, 35),
+            rotation: { x: -Math.PI / 8, y: 0 },
+            zoom: 1.0,
+            fov: 75
+        },
+        // 第一人稱
+        first: {
+            offset: new THREE.Vector3(0, 8, 2),
+            rotation: { x: 0, y: 0 },
+            zoom: 1.0,
+            fov: 90
+        }
+    };
 
-    // 相機跟隨 - 使用 useCallback 優化
+    // 初始化相機
+    useEffect(() => {
+        const config = cameraConfigs[cameraMode] || cameraConfigs.isometric;
+        
+        camera.position.set(
+            playerPos.x + config.offset.x,
+            playerPos.y + config.offset.y,
+            playerPos.z + config.offset.z
+        );
+        camera.rotation.order = 'YXZ';
+        camera.rotation.x = config.rotation.x;
+        camera.rotation.y = config.rotation.y;
+        camera.zoom = config.zoom;
+        camera.fov = config.fov;
+        camera.updateProjectionMatrix();
+    }, [camera, cameraMode]);
+
+    // 相機跟隨
     useFrame(() => {
-        const offset = new THREE.Vector3(0, 120, 120);
+        const config = cameraConfigs[cameraMode] || cameraConfigs.isometric;
+        const offset = config.offset.clone();
+        
+        // 根據視角模式調整偏移
+        if (cameraMode === 'third') {
+            // 第三人稱：跟隨玩家旋轉
+            offset.applyEuler(playerRotation);
+        } else if (cameraMode === 'first') {
+            // 第一人稱：在玩家位置
+            camera.rotation.order = 'YXZ';
+            camera.rotation.y = playerRotation.y;
+            camera.rotation.x = 0;
+        }
+        
         const desired = playerPos.clone().add(offset);
-        camera.position.lerp(desired, 0.1);
-        camera.lookAt(playerPos);
+        
+        if (cameraMode === 'first') {
+            // 第一人稱直接設定位置
+            camera.position.set(
+                playerPos.x,
+                playerPos.y + config.offset.y,
+                playerPos.z
+            );
+        } else {
+            camera.position.lerp(desired, 0.1);
+            camera.lookAt(playerPos);
+        }
     });
 
     // 點擊移動 + 怪物選擇 - 優化版
@@ -178,11 +233,8 @@ function GameScene() {
             <EnemiesContainer />
             <Chests />
             <Projectiles />
-            <Particles />
-            <SkillsManager />
+            <Particles />           
             <LevelManager />
-
-
         </>
     );
 }

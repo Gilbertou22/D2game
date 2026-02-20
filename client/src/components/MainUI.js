@@ -1,4 +1,4 @@
-// src/components/MainUI.js (美化版：現代化血條與魔力條設計 + 性能優化)
+// src/components/MainUI.js - Dark Fantasy ARPG Style (Inspired by UI.html)
 import useGameState from '../hooks/useGameState';
 import React from 'react';
 
@@ -18,79 +18,78 @@ function MainUI() {
     const nextExp = expPerLevel(playerLevel + 1);
     const expPercent = nextExp > 0 ? (playerExp / nextExp) * 100 : 0;
 
-    const isLowHP = hpPercent < 25;
-    const isLowMana = manaPercent < 20;
-
     return (
         <>
-            {/* 左上：血量與魔力橫條 - 現代化設計 */}
-            <div className="main-ui-container">
-                {/* 玩家資訊卡 */}
-                <div className="player-info-card">
-                    <div className="player-header">
-                        <div className="level-badge">
-                            <span className="level-icon">⚔️</span>
-                            <span className="level-number">{playerLevel}</span>
-                        </div>
-                        <div className="gold-display">
-                            <span className="gold-icon">💰</span>
-                            <span className="gold-amount">{playerGold.toLocaleString()}</span>
-                        </div>
+            {/* Left Panel - Status Cards */}
+            <div className="status-panel-left">
+                {/* Life Card */}
+                <div className="status-card life">
+                    <div className="status-label">
+                        <svg className="status-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+                        </svg>
+                        <span>Life</span>
                     </div>
-
-                    {/* 血量條 */}
-                    <div className={`bar-container hp-container ${isLowHP ? 'critical' : ''}`}>
-                        <div className="bar-icon">❤️</div>
-                        <div className="bar-wrapper">
-                            <div className="bar-bg">
-                                <div 
-                                    className="bar-fill hp-fill"
-                                    style={{ width: `${hpPercent}%` }}
-                                >
-                                    <div className="bar-shine" />
-                                    <div className="bar-pattern" />
-                                </div>
-                                <div className="bar-text">
-                                    <span className="current">{Math.floor(playerHP).toLocaleString()}</span>
-                                    <span className="separator">/</span>
-                                    <span className="max">{playerMaxHP.toLocaleString()}</span>
-                                </div>
-                            </div>
-                            {isLowHP && <div className="warning-pulse" />}
-                        </div>
-                        <div className="bar-percentage" style={{ color: '#ff4757' }}>
-                            {Math.round(hpPercent)}%
-                        </div>
+                    <div className="status-bar-bg">
+                        <div className="status-bar-fill life-fill" style={{ width: `${hpPercent}%` }} />
                     </div>
+                    <div className="status-values">
+                        <span className="current">{Math.floor(playerHP).toLocaleString()}</span>
+                        <span className="max">/ {playerMaxHP.toLocaleString()}</span>
+                    </div>
+                </div>
 
-                    {/* 魔力條 */}
-                    <div className={`bar-container mana-container ${isLowMana ? 'low' : ''}`}>
-                        <div className="bar-icon">💧</div>
-                        <div className="bar-wrapper">
-                            <div className="bar-bg">
-                                <div 
-                                    className="bar-fill mana-fill"
-                                    style={{ width: `${manaPercent}%` }}
-                                >
-                                    <div className="bar-shine" />
-                                    <div className="bar-pattern" />
-                                </div>
-                                <div className="bar-text">
-                                    <span className="current">{Math.floor(playerMana).toLocaleString()}</span>
-                                    <span className="separator">/</span>
-                                    <span className="max">{playerMaxMana.toLocaleString()}</span>
-                                </div>
-                            </div>
-                            {isLowMana && <div className="warning-pulse blue" />}
-                        </div>
-                        <div className="bar-percentage" style={{ color: '#3498db' }}>
-                            {Math.round(manaPercent)}%
-                        </div>
+                {/* Shield Card */}
+                <div className="status-card shield">
+                    <div className="status-label">
+                        <svg className="status-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                        </svg>
+                        <span>Shield</span>
+                    </div>
+                    <div className="status-bar-bg">
+                        <div className="status-bar-fill shield-fill" style={{ width: '0%' }} />
+                    </div>
+                    <div className="status-values">
+                        <span className="current">0</span>
+                        <span className="max">/ 0</span>
                     </div>
                 </div>
             </div>
 
-            {/* 底部經驗條（現代化設計） */}
+            {/* Right Panel - Mana & Level Info */}
+            <div className="status-panel-right">
+                {/* Mana Card */}
+                <div className="status-card mana">
+                    <div className="status-label">
+                        <svg className="status-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+                        </svg>
+                        <span>Mana</span>
+                    </div>
+                    <div className="status-bar-bg">
+                        <div className="status-bar-fill mana-fill" style={{ width: `${manaPercent}%` }} />
+                    </div>
+                    <div className="status-values">
+                        <span className="current">{Math.floor(playerMana).toLocaleString()}</span>
+                        <span className="max">/ {playerMaxMana.toLocaleString()}</span>
+                    </div>
+                </div>
+
+                {/* Level & Gold Info */}
+                <div className="info-card">
+                    <div className="level-badge">
+                        <span className="level-icon">⚔️</span>
+                        <span className="level-number">Lv.{playerLevel}</span>
+                    </div>
+                    <div className="gold-display">
+                        <span className="gold-icon">💰</span>
+                        <span className="gold-amount">{playerGold.toLocaleString()}</span>
+                    </div>
+                </div>
+            </div>
+
+            {/* Bottom - Experience Bar */}
             <div className="exp-bar-container">
                 <div className="exp-bar-wrapper">
                     <div className="exp-fill" style={{ width: `${expPercent}%` }}>
@@ -105,35 +104,140 @@ function MainUI() {
             </div>
 
             <style jsx>{`
-                /* 主容器 */
-                .main-ui-container {
+                /* CSS Variables - Dark Fantasy Theme */
+                :global(:root) {
+                    --bg-deep: #0a0806;
+                    --bg-cave: #1a1410;
+                    --fg: #e8dcc8;
+                    --muted: #6b5c4a;
+                    --accent-fire: #ff6b2b;
+                    --accent-mana: #9c6bff;
+                    --life: #d32f2f;
+                    --card: rgba(26, 20, 16, 0.85);
+                    --border: #3d3229;
+                }
+
+                /* Left Status Panel */
+                .status-panel-left {
                     position: fixed;
-                    top: 20px;
-                    left: 20px;
+                    bottom: 32px;
+                    left: 32px;
                     z-index: 50;
+                    display: flex;
+                    flex-direction: column;
+                    gap: 12px;
                 }
 
-                /* 玩家資訊卡 */
-                .player-info-card {
-                    background: linear-gradient(145deg, rgba(20, 25, 35, 0.95), rgba(10, 15, 25, 0.98));
-                    border-radius: 16px;
-                    padding: 16px 20px;
-                    border: 1px solid rgba(100, 120, 140, 0.3);
-                    box-shadow: 
-                        0 10px 40px rgba(0, 0, 0, 0.5),
-                        inset 0 1px 1px rgba(255, 255, 255, 0.05);
+                .status-panel-right {
+                    position: fixed;
+                    bottom: 32px;
+                    right: 32px;
+                    z-index: 50;
+                    display: flex;
+                    flex-direction: column;
+                    gap: 12px;
+                }
+
+                /* Status Card */
+                .status-card {
+                    background: linear-gradient(135deg, var(--card) 0%, rgba(15, 12, 10, 0.95) 100%);
+                    border: 1px solid var(--border);
+                    border-radius: 8px;
+                    padding: 12px 16px;
+                    min-width: 220px;
                     backdrop-filter: blur(10px);
-                    min-width: 320px;
+                    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.03);
                 }
 
-                /* 頭部資訊 */
-                .player-header {
+                .status-label {
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    margin-bottom: 8px;
+                    font-size: 0.75rem;
+                    font-weight: 500;
+                    text-transform: uppercase;
+                    letter-spacing: 0.15em;
+                    color: var(--fg);
+                }
+
+                .life .status-label { color: #ff6b6b; }
+                .shield .status-label { color: #4dd0e1; }
+                .mana .status-label { color: #b388ff; }
+
+                .status-icon {
+                    width: 16px;
+                    height: 16px;
+                }
+
+                /* Status Bar */
+                .status-bar-bg {
+                    height: 8px;
+                    background: rgba(0, 0, 0, 0.6);
+                    border-radius: 4px;
+                    overflow: hidden;
+                    position: relative;
+                }
+
+                .status-bar-fill {
+                    height: 100%;
+                    border-radius: 4px;
+                    transition: width 0.5s ease-out;
+                    position: relative;
+                }
+
+                .status-bar-fill::after {
+                    content: '';
+                    position: absolute;
+                    inset: 0;
+                    background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.3) 50%, transparent 100%);
+                    animation: shimmer 2s infinite;
+                }
+
+                @keyframes shimmer {
+                    0% { transform: translateX(-100%); }
+                    100% { transform: translateX(100%); }
+                }
+
+                /* Life Bar */
+                .life-fill {
+                    background: linear-gradient(90deg, #8b0000 0%, #d32f2f 50%, #ff4444 100%);
+                    box-shadow: 0 0 12px rgba(211, 47, 47, 0.6);
+                }
+
+                /* Shield Bar */
+                .shield-fill {
+                    background: linear-gradient(90deg, #006064 0%, #00bcd4 50%, #26c6da 100%);
+                    box-shadow: 0 0 12px rgba(0, 188, 212, 0.6);
+                }
+
+                /* Mana Bar */
+                .mana-fill {
+                    background: linear-gradient(90deg, #4a148c 0%, #9c6bff 50%, #b388ff 100%);
+                    box-shadow: 0 0 12px rgba(156, 107, 255, 0.6);
+                }
+
+                /* Status Values */
+                .status-values {
                     display: flex;
                     justify-content: space-between;
-                    align-items: center;
-                    margin-bottom: 12px;
-                    padding-bottom: 10px;
-                    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+                    margin-top: 6px;
+                    font-size: 0.875rem;
+                    font-weight: 500;
+                }
+
+                .current { color: var(--fg); }
+                .max { color: var(--muted); }
+
+                /* Info Card */
+                .info-card {
+                    display: flex;
+                    gap: 12px;
+                    background: linear-gradient(135deg, var(--card) 0%, rgba(15, 12, 10, 0.95) 100%);
+                    border: 1px solid var(--border);
+                    border-radius: 8px;
+                    padding: 12px 16px;
+                    backdrop-filter: blur(10px);
                 }
 
                 .level-badge {
@@ -147,11 +251,11 @@ function MainUI() {
                 }
 
                 .level-icon {
-                    font-size: 16px;
+                    font-size: 14px;
                 }
 
                 .level-number {
-                    font-size: 18px;
+                    font-size: 14px;
                     font-weight: bold;
                     color: white;
                     text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
@@ -168,189 +272,17 @@ function MainUI() {
                 }
 
                 .gold-icon {
-                    font-size: 16px;
+                    font-size: 14px;
                 }
 
                 .gold-amount {
-                    font-size: 16px;
+                    font-size: 14px;
                     font-weight: 600;
                     color: #ffd700;
                     text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
                 }
 
-                /* 條形容器 */
-                .bar-container {
-                    display: flex;
-                    align-items: center;
-                    gap: 10px;
-                    margin-bottom: 10px;
-                }
-
-                .bar-container:last-child {
-                    margin-bottom: 0;
-                }
-
-                .bar-icon {
-                    font-size: 22px;
-                    width: 30px;
-                    text-align: center;
-                    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
-                }
-
-                .bar-wrapper {
-                    flex: 1;
-                    position: relative;
-                    height: 32px;
-                }
-
-                .bar-bg {
-                    position: relative;
-                    width: 100%;
-                    height: 100%;
-                    background: linear-gradient(180deg, #1a1e1f 0%, #0d1112 100%);
-                    border-radius: 10px;
-                    overflow: hidden;
-                    box-shadow: 
-                        inset 0 2px 8px rgba(0, 0, 0, 0.6),
-                        0 1px 2px rgba(255, 255, 255, 0.1);
-                }
-
-                /* 血量條樣式 */
-                .hp-container .bar-bg {
-                    border: 2px solid rgba(255, 71, 87, 0.4);
-                }
-
-                .hp-fill {
-                    height: 100%;
-                    background: linear-gradient(
-                        90deg,
-                        #c0392b 0%,
-                        #e74c3c 30%,
-                        #ff6b6b 50%,
-                        #e74c3c 70%,
-                        #c0392b 100%
-                    );
-                    border-radius: 8px;
-                    transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-                    position: relative;
-                    overflow: hidden;
-                    box-shadow: 
-                        0 0 20px rgba(231, 76, 60, 0.5),
-                        inset 0 1px 1px rgba(255, 255, 255, 0.3);
-                }
-
-                .hp-container.critical .bar-bg {
-                    border-color: #ff0000;
-                    animation: borderFlash 1s ease-in-out infinite;
-                }
-
-                /* 魔力條樣式 */
-                .mana-container .bar-bg {
-                    border: 2px solid rgba(52, 152, 219, 0.4);
-                }
-
-                .mana-fill {
-                    height: 100%;
-                    background: linear-gradient(
-                        90deg,
-                        #2980b9 0%,
-                        #3498db 30%,
-                        #5dade2 50%,
-                        #3498db 70%,
-                        #2980b9 100%
-                    );
-                    border-radius: 8px;
-                    transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-                    position: relative;
-                    overflow: hidden;
-                    box-shadow: 
-                        0 0 20px rgba(52, 152, 219, 0.5),
-                        inset 0 1px 1px rgba(255, 255, 255, 0.3);
-                }
-
-                .mana-container.low .bar-bg {
-                    border-color: #3498db;
-                }
-
-                /* 光澤效果 */
-                .bar-shine {
-                    position: absolute;
-                    top: 0;
-                    left: -100%;
-                    width: 50%;
-                    height: 100%;
-                    background: linear-gradient(
-                        90deg,
-                        transparent,
-                        rgba(255, 255, 255, 0.4),
-                        transparent
-                    );
-                    animation: shine 3s ease-in-out infinite;
-                }
-
-                /* 網格紋理 */
-                .bar-pattern {
-                    position: absolute;
-                    inset: 0;
-                    background-image: 
-                        linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px);
-                    background-size: 10px 100%;
-                    pointer-events: none;
-                }
-
-                /* 條內文字 */
-                .bar-text {
-                    position: absolute;
-                    inset: 0;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    gap: 6px;
-                    font-family: 'Segoe UI', 'Arial', sans-serif;
-                    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8);
-                    z-index: 10;
-                }
-
-                .bar-text .current {
-                    font-size: 16px;
-                    font-weight: bold;
-                    color: #ffffff;
-                }
-
-                .bar-text .separator {
-                    font-size: 14px;
-                    color: rgba(255, 255, 255, 0.6);
-                }
-
-                .bar-text .max {
-                    font-size: 14px;
-                    color: rgba(255, 255, 255, 0.7);
-                }
-
-                /* 百分比顯示 */
-                .bar-percentage {
-                    font-size: 14px;
-                    font-weight: bold;
-                    min-width: 40px;
-                    text-align: right;
-                    text-shadow: 0 0 10px currentColor;
-                }
-
-                /* 警告脈動 */
-                .warning-pulse {
-                    position: absolute;
-                    inset: -2px;
-                    border: 2px solid #ff0000;
-                    border-radius: 12px;
-                    animation: pulse 1.5s ease-in-out infinite;
-                    pointer-events: none;
-                }
-
-                .warning-pulse.blue {
-                    border-color: #3498db;
-                }
-
-                /* 經驗條容器 */
+                /* Experience Bar */
                 .exp-bar-container {
                     position: fixed;
                     bottom: 0;
@@ -375,18 +307,9 @@ function MainUI() {
                     top: 0;
                     left: 0;
                     height: 100%;
-                    background: linear-gradient(
-                        90deg,
-                        #27ae60 0%,
-                        #2ecc71 30%,
-                        #58d68d 50%,
-                        #2ecc71 70%,
-                        #27ae60 100%
-                    );
+                    background: linear-gradient(90deg, #27ae60 0%, #2ecc71 30%, #58d68d 50%, #2ecc71 70%, #27ae60 100%);
                     transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-                    box-shadow: 
-                        0 0 20px rgba(46, 204, 113, 0.4),
-                        inset 0 1px 1px rgba(255, 255, 255, 0.3);
+                    box-shadow: 0 0 20px rgba(46, 204, 113, 0.4), inset 0 1px 1px rgba(255, 255, 255, 0.3);
                 }
 
                 .exp-shine {
@@ -395,13 +318,13 @@ function MainUI() {
                     left: -100%;
                     width: 50%;
                     height: 100%;
-                    background: linear-gradient(
-                        90deg,
-                        transparent,
-                        rgba(255, 255, 255, 0.3),
-                        transparent
-                    );
+                    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
                     animation: shine 4s ease-in-out infinite;
+                }
+
+                @keyframes shine {
+                    0%, 100% { transform: translateX(-100%); }
+                    50% { transform: translateX(200%); }
                 }
 
                 .exp-text {
@@ -411,7 +334,6 @@ function MainUI() {
                     align-items: center;
                     justify-content: center;
                     gap: 15px;
-                    font-family: 'Segoe UI', 'Arial', sans-serif;
                     text-shadow: 0 2px 8px rgba(0, 0, 0, 0.9);
                     z-index: 10;
                 }
@@ -434,31 +356,21 @@ function MainUI() {
                     color: rgba(255, 255, 255, 0.7);
                 }
 
-                /* 動畫 */
-                @keyframes shine {
-                    0%, 100% { transform: translateX(-100%); }
-                    50% { transform: translateX(200%); }
-                }
-
-                @keyframes pulse {
-                    0%, 100% { 
-                        opacity: 0.6;
-                        transform: scale(1);
+                /* Mobile Responsive */
+                @media (max-width: 768px) {
+                    .status-panel-left, .status-panel-right {
+                        left: 12px;
+                        right: 12px;
+                        bottom: 12px;
                     }
-                    50% { 
-                        opacity: 1;
-                        transform: scale(1.02);
+                    
+                    .status-panel-right {
+                        bottom: auto;
+                        top: 80px;
                     }
-                }
-
-                @keyframes borderFlash {
-                    0%, 100% { 
-                        border-color: rgba(255, 0, 0, 0.4);
-                        box-shadow: 0 0 10px rgba(255, 0, 0, 0.3);
-                    }
-                    50% { 
-                        border-color: rgba(255, 0, 0, 0.8);
-                        box-shadow: 0 0 20px rgba(255, 0, 0, 0.6);
+                    
+                    .status-card {
+                        min-width: auto;
                     }
                 }
             `}</style>

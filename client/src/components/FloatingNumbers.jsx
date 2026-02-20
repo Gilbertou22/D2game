@@ -1,4 +1,4 @@
-// src/components/FloatingNumbers.jsx - 優化美化版：浮動傷害數字
+// src/components/FloatingNumbers.jsx - 優化美化版：浮動傷害數字 (Unity 風格)
 import { Html } from '@react-three/drei';
 import { useRef, useState, useEffect, useCallback } from 'react';
 import useGameState from '../hooks/useGameState';
@@ -38,6 +38,15 @@ const animationStyles = `
     10%, 30%, 50%, 70%, 90% { transform: translateX(-3px); }
     20%, 40%, 60%, 80% { transform: translateX(3px); }
   }
+  @keyframes popIn {
+    0% { transform: scale(0.3); opacity: 0; }
+    50% { transform: scale(1.4); }
+    100% { transform: scale(1); opacity: 1; }
+  }
+  @keyframes driftRight {
+    0% { transform: translateX(0); }
+    100% { transform: translateX(40px); }
+  }
 `;
 
 // 單個浮動數字組件
@@ -51,38 +60,86 @@ function FloatingNumberItem({ initialData, onComplete }) {
         onCompleteRef.current = onComplete;
     }, [onComplete]);
 
-    // 根據動畫類型計算位置
+    // 根據動畫類型計算位置 (Unity 風格：Pop + Drift + Fade)
     const getAnimationStyle = useCallback((progress) => {
         const { animation } = data;
+        
+        // 根據時間段計算動畫
+        const punchPhase = 0.15; // 前 15% 時間為彈出效果
+        const flyPhase = 0.6;    // 中間 60% 時間為飛翔
+        const fadePhase = 0.25;  // 後 25% 時間為消失
+        
+        let translateY = 0;
+        let translateX = 0;
+        let scale = 1;
+        
+        if (progress < punchPhase) {
+            // 彈出階段 (Pop!)
+            const punchProgress = progress / punchPhase;
+            scale = 1 + 0.4 * Math.sin(punchProgress * Math.PI);
+            translateY = -10 * punchProgress;
+        } else if (progress < punchPhase + flyPhase) {
+            // 飛翔階段 (Fly up + drift right)
+            const flyProgress = (progress - punchPhase) / flyPhase;
+            translateY = -10 - (80 * flyProgress);
+            translateX = 40 * flyProgress; // 向右飄動
+            scale = 1.4 - 0.4 * flyProgress;
+        } else {
+            // 消失階段 (Fade out)
+            const fadeProgress = (progress - punchPhase - flyPhase) / fadePhase;
+            translateY = -90 - (30 * fadeProgress);
+            translateX = 40;
+            scale = 1 - fadeProgress;
+        }
         
         switch (animation) {
             case 'crit':
                 return {
-                    translateY: -80 * progress,
-                    scale: 1 + 0.3 * Math.sin(progress * Math.PI * 3),
-                    rotate: Math.sin(progress * Math.PI * 4) * 8
+                    translateY: translateY * 1.2,
+                    translateX: translateX * 1.1,
+                    scale: scale * (1 + 0.2 * Math.sin(progress * Math.PI * 4)),
+                    rotate: Math.sin(progress * Math.PI * 6) * 6 * (1 - progress)
+                };
+            case 'elemental':
+                // Elemental damage: fire/lightning/ice - faster float with slight wobble
+                return {
+                    translateY: translateY * 0.9,
+                    translateX: translateX * 1.3,
+                    scale: scale * (1 + 0.15 * Math.sin(progress * Math.PI * 5)),
+                    rotate: Math.sin(progress * Math.PI * 8) * 4 * (1 - progress)
+                };
+            case 'dot':
+                // Damage over time - slower float, lingering
+                return {
+                    translateY: translateY * 0.7,
+                    translateX: translateX * 0.8,
+                    scale: scale * (1 - 0.05 * progress)
                 };
             case 'heal':
                 return {
-                    translateY: -60 * progress,
-                    scale: 1 + 0.1 * Math.sin(progress * Math.PI * 2)
+                    translateY: translateY * 0.9,
+                    translateX: translateX * 0.8,
+                    scale: scale * (1 + 0.08 * Math.sin(progress * Math.PI * 3))
                 };
             case 'gold':
             case 'exp':
                 return {
-                    translateY: -50 * progress,
-                    scale: 1 - 0.15 * progress
+                    translateY: translateY * 0.75,
+                    translateX: translateX * 0.7,
+                    scale: scale * (1 - 0.1 * progress)
                 };
             case 'miss':
             case 'dodge':
                 return {
-                    translateY: -30 * progress,
+                    translateY: -50 * progress,
+                    translateX: translateX * 0.5,
                     scale: progress < 0.3 ? 0.5 + 0.7 * (progress / 0.3) : 1 - 0.2 * ((progress - 0.3) / 0.7)
                 };
             default: // damage
                 return {
-                    translateY: -70 * progress,
-                    scale: 1 - 0.2 * progress
+                    translateY,
+                    translateX,
+                    scale
                 };
         }
     }, [data.animation, data.life]);
@@ -111,6 +168,7 @@ function FloatingNumberItem({ initialData, onComplete }) {
                 progress,
                 opacity: 1 - progress * 0.7,
                 translateY: animStyle.translateY,
+                translateX: animStyle.translateX || 0,
                 scale: (initialData.scale || 1) * animStyle.scale,
                 rotation: (prev.rotation || 0) + (data.shake ? Math.sin(currentTime * 0.05) * 3 : 0)
             }));
@@ -185,6 +243,7 @@ function FloatingNumberItem({ initialData, onComplete }) {
                 fontFamily: data.animation === 'crit' ? '"Impact", "Arial Black", sans-serif' : '"Patrick Hand", "Comic Sans MS", sans-serif',
                 transform: `
                     translateY(${data.translateY || 0}px) 
+                    translateX(${data.translateX || 0}px)
                     scale(${data.scale || 1})
                     rotate(${data.rotation || 0}deg)
                 `,

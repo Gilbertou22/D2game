@@ -1,0 +1,780 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Battle Arena - Combat UI</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&family=Rajdhani:wght@300;500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-deep: #0a0806;
+      --bg-cave: #1a1410;
+      --fg: #e8dcc8;
+      --muted: #6b5c4a;
+      --accent-fire: #ff6b2b;
+      --accent-lightning: #4fc3f7;
+      --accent-mana: #9c6bff;
+      --accent-shield: #00bcd4;
+      --life: #d32f2f;
+      --card: rgba(26, 20, 16, 0.85);
+      --border: #3d3229;
+      --glow-fire: rgba(255, 107, 43, 0.6);
+      --glow-lightning: rgba(79, 195, 247, 0.5);
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Rajdhani', sans-serif;
+      background: var(--bg-deep);
+      color: var(--fg);
+      overflow: hidden;
+      height: 100vh;
+    }
+
+    .cinzel { font-family: 'Cinzel', serif; }
+
+    /* Cave Background */
+    .arena-bg {
+      position: fixed;
+      inset: 0;
+      background: 
+        radial-gradient(ellipse 120% 80% at 50% 120%, rgba(139, 69, 19, 0.15) 0%, transparent 50%),
+        radial-gradient(ellipse 80% 60% at 20% 80%, rgba(255, 107, 43, 0.08) 0%, transparent 40%),
+        radial-gradient(ellipse 60% 50% at 80% 70%, rgba(79, 195, 247, 0.06) 0%, transparent 40%),
+        linear-gradient(180deg, #0a0806 0%, #1a1410 50%, #0d0a08 100%);
+    }
+
+    .cave-texture {
+      position: fixed;
+      inset: 0;
+      opacity: 0.4;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+      mix-blend-mode: overlay;
+      pointer-events: none;
+    }
+
+    /* Particles Container */
+    .particles {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      overflow: hidden;
+    }
+
+    .particle {
+      position: absolute;
+      border-radius: 50%;
+      animation: float-up linear forwards;
+    }
+
+    @keyframes float-up {
+      0% { transform: translateY(0) translateX(0) scale(1); opacity: 1; }
+      100% { transform: translateY(-100vh) translateX(var(--drift)) scale(0); opacity: 0; }
+    }
+
+    /* Lightning Effect */
+    .lightning-flash {
+      position: fixed;
+      inset: 0;
+      background: radial-gradient(ellipse at var(--x, 50%) var(--y, 30%), rgba(79, 195, 247, 0.3) 0%, transparent 50%);
+      opacity: 0;
+      pointer-events: none;
+      z-index: 100;
+    }
+
+    .lightning-flash.active {
+      animation: flash 0.15s ease-out;
+    }
+
+    @keyframes flash {
+      0%, 100% { opacity: 0; }
+      20%, 60% { opacity: 1; }
+      40%, 80% { opacity: 0.5; }
+    }
+
+    /* Timer */
+    .timer-container {
+      position: fixed;
+      top: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 50;
+    }
+
+    .timer {
+      background: linear-gradient(180deg, rgba(30, 24, 18, 0.95) 0%, rgba(20, 16, 12, 0.98) 100%);
+      border: 1px solid var(--border);
+      padding: 8px 32px;
+      border-radius: 4px;
+      box-shadow: 
+        0 0 30px rgba(0, 0, 0, 0.5),
+        inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    }
+
+    .timer-value {
+      font-size: 2rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      color: var(--fg);
+      text-shadow: 0 0 20px rgba(255, 107, 43, 0.5);
+    }
+
+    /* Status Bars */
+    .status-panel {
+      position: fixed;
+      bottom: 32px;
+      z-index: 50;
+    }
+
+    .status-panel.left { left: 32px; }
+    .status-panel.right { right: 32px; }
+
+    .status-card {
+      background: linear-gradient(135deg, var(--card) 0%, rgba(15, 12, 10, 0.95) 100%);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px 20px;
+      backdrop-filter: blur(10px);
+      box-shadow: 
+        0 8px 32px rgba(0, 0, 0, 0.5),
+        inset 0 1px 0 rgba(255, 255, 255, 0.03);
+      min-width: 220px;
+    }
+
+    .status-card + .status-card { margin-top: 12px; }
+
+    .status-label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+      font-size: 0.75rem;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+    }
+
+    .status-icon {
+      width: 16px;
+      height: 16px;
+    }
+
+    .status-bar-bg {
+      height: 8px;
+      background: rgba(0, 0, 0, 0.6);
+      border-radius: 4px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .status-bar-fill {
+      height: 100%;
+      border-radius: 4px;
+      transition: width 0.5s ease-out;
+      position: relative;
+    }
+
+    .status-bar-fill::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.3) 50%, transparent 100%);
+      animation: shimmer 2s infinite;
+    }
+
+    @keyframes shimmer {
+      0% { transform: translateX(-100%); }
+      100% { transform: translateX(100%); }
+    }
+
+    .life .status-bar-fill {
+      background: linear-gradient(90deg, #8b0000 0%, #d32f2f 50%, #ff4444 100%);
+      box-shadow: 0 0 12px rgba(211, 47, 47, 0.6);
+    }
+
+    .shield .status-bar-fill {
+      background: linear-gradient(90deg, #006064 0%, #00bcd4 50%, #26c6da 100%);
+      box-shadow: 0 0 12px rgba(0, 188, 212, 0.6);
+    }
+
+    .mana .status-bar-fill {
+      background: linear-gradient(90deg, #4a148c 0%, #9c6bff 50%, #b388ff 100%);
+      box-shadow: 0 0 12px rgba(156, 107, 255, 0.6);
+    }
+
+    .status-values {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 6px;
+      font-size: 0.875rem;
+      font-weight: 500;
+    }
+
+    .current { color: var(--fg); }
+    .max { color: var(--muted); }
+
+    /* Dialogue Box */
+    .dialogue-container {
+      position: fixed;
+      bottom: 140px;
+      left: 32px;
+      z-index: 50;
+      max-width: 400px;
+    }
+
+    .dialogue-box {
+      background: linear-gradient(135deg, rgba(20, 16, 12, 0.95) 0%, rgba(30, 24, 18, 0.9) 100%);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--accent-fire);
+      border-radius: 4px;
+      padding: 16px 20px;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+      animation: dialogue-appear 0.5s ease-out;
+    }
+
+    @keyframes dialogue-appear {
+      0% { opacity: 0; transform: translateY(20px); }
+      100% { opacity: 1; transform: translateY(0); }
+    }
+
+    .speaker {
+      color: var(--accent-fire);
+      font-weight: 700;
+      font-size: 0.875rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 4px;
+    }
+
+    .dialogue-text {
+      font-size: 1rem;
+      line-height: 1.5;
+      color: var(--fg);
+      font-style: italic;
+    }
+
+    /* Skills Panel */
+    .skills-panel {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .skill-slot {
+      width: 56px;
+      height: 56px;
+      background: linear-gradient(135deg, rgba(40, 32, 24, 0.9) 0%, rgba(25, 20, 15, 0.95) 100%);
+      border: 2px solid var(--border);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .skill-slot:hover {
+      border-color: var(--accent-fire);
+      box-shadow: 0 0 20px var(--glow-fire);
+      transform: translateY(-2px);
+    }
+
+    .skill-slot:active {
+      transform: scale(0.95);
+    }
+
+    .skill-slot svg {
+      width: 28px;
+      height: 28px;
+      opacity: 0.9;
+    }
+
+    .skill-slot.fire:hover svg { color: #ff6b2b; }
+    .skill-slot.lightning:hover svg { color: #4fc3f7; }
+    .skill-slot.ice:hover svg { color: #80deea; }
+
+    .skill-key {
+      position: absolute;
+      bottom: 2px;
+      right: 4px;
+      font-size: 0.625rem;
+      color: var(--muted);
+      font-weight: 700;
+    }
+
+    /* Combat Center */
+    .combat-center {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+      z-index: 30;
+      pointer-events: none;
+    }
+
+    .combat-title {
+      font-size: 0.875rem;
+      text-transform: uppercase;
+      letter-spacing: 0.3em;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+
+    /* Floating Damage Numbers */
+    .damage-number {
+      position: fixed;
+      font-family: 'Cinzel', serif;
+      font-weight: 900;
+      font-size: 1.5rem;
+      pointer-events: none;
+      z-index: 200;
+      animation: damage-float 1s ease-out forwards;
+    }
+
+    .damage-number.fire { color: #ff6b2b; text-shadow: 0 0 20px rgba(255, 107, 43, 0.8); }
+    .damage-number.lightning { color: #4fc3f7; text-shadow: 0 0 20px rgba(79, 195, 247, 0.8); }
+
+    @keyframes damage-float {
+      0% { opacity: 1; transform: translateY(0) scale(1); }
+      50% { opacity: 1; transform: translateY(-30px) scale(1.2); }
+      100% { opacity: 0; transform: translateY(-60px) scale(0.8); }
+    }
+
+    /* Enemy Silhouette */
+    .enemy-area {
+      position: fixed;
+      top: 25%;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 20;
+    }
+
+    .enemy-silhouette {
+      width: 200px;
+      height: 280px;
+      background: radial-gradient(ellipse at center, rgba(139, 69, 19, 0.3) 0%, transparent 70%);
+      position: relative;
+      animation: enemy-idle 3s ease-in-out infinite;
+    }
+
+    @keyframes enemy-idle {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-8px); }
+    }
+
+    .enemy-glow {
+      position: absolute;
+      inset: -40px;
+      background: radial-gradient(ellipse at center, rgba(255, 107, 43, 0.15) 0%, transparent 60%);
+      animation: pulse-glow 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse-glow {
+      0%, 100% { opacity: 0.5; transform: scale(1); }
+      50% { opacity: 1; transform: scale(1.1); }
+    }
+
+    .enemy-name {
+      position: absolute;
+      bottom: -40px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-family: 'Cinzel', serif;
+      font-size: 1.125rem;
+      font-weight: 700;
+      color: var(--accent-fire);
+      text-shadow: 0 0 20px rgba(255, 107, 43, 0.5);
+      white-space: nowrap;
+    }
+
+    .enemy-hp-bar {
+      position: absolute;
+      bottom: -65px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 180px;
+      height: 6px;
+      background: rgba(0, 0, 0, 0.6);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    .enemy-hp-fill {
+      height: 100%;
+      width: 65%;
+      background: linear-gradient(90deg, #8b0000, #d32f2f);
+      border-radius: 3px;
+      transition: width 0.3s ease;
+    }
+
+    /* Reduced Motion */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .status-panel.left, .status-panel.right {
+        left: 12px;
+        right: 12px;
+        bottom: 12px;
+      }
+      
+      .status-panel.right {
+        bottom: auto;
+        top: 80px;
+      }
+      
+      .dialogue-container {
+        left: 12px;
+        right: 12px;
+        bottom: 200px;
+        max-width: none;
+      }
+      
+      .timer-container { top: 12px; }
+      .timer { padding: 6px 20px; }
+      .timer-value { font-size: 1.5rem; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Background Layers -->
+  <div class="arena-bg"></div>
+  <div class="cave-texture"></div>
+  
+  <!-- Lightning Flash Effect -->
+  <div class="lightning-flash" id="lightningFlash"></div>
+  
+  <!-- Particles -->
+  <div class="particles" id="particles"></div>
+
+  <!-- Timer -->
+  <div class="timer-container">
+    <div class="timer">
+      <div class="timer-value" id="timer">00:56</div>
+    </div>
+  </div>
+
+  <!-- Enemy Area -->
+  <div class="enemy-area">
+    <div class="enemy-silhouette">
+      <div class="enemy-glow"></div>
+    </div>
+    <div class="enemy-name cinzel">Skalzap the Undying</div>
+    <div class="enemy-hp-bar">
+      <div class="enemy-hp-fill" id="enemyHp"></div>
+    </div>
+  </div>
+
+  <!-- Left Status Panel -->
+  <div class="status-panel left">
+    <div class="status-card life">
+      <div class="status-label" style="color: #ff6b6b;">
+        <svg class="status-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+        </svg>
+        Life
+      </div>
+      <div class="status-bar-bg">
+        <div class="status-bar-fill" id="lifeBar" style="width: 100%;"></div>
+      </div>
+      <div class="status-values">
+        <span class="current" id="lifeCurrent">2,357</span>
+        <span class="max">/ <span id="lifeMax">1,361</span></span>
+      </div>
+    </div>
+    
+    <div class="status-card shield">
+      <div class="status-label" style="color: #4dd0e1;">
+        <svg class="status-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+        </svg>
+        Shield
+      </div>
+      <div class="status-bar-bg">
+        <div class="status-bar-fill" id="shieldBar" style="width: 100%;"></div>
+      </div>
+      <div class="status-values">
+        <span class="current" id="shieldCurrent">5,832</span>
+        <span class="max">/ <span id="shieldMax">2,916</span></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right Status Panel -->
+  <div class="status-panel right">
+    <div class="status-card mana">
+      <div class="status-label" style="color: #b388ff;">
+        <svg class="status-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+        </svg>
+        Mana
+      </div>
+      <div class="status-bar-bg">
+        <div class="status-bar-fill" id="manaBar" style="width: 75%;"></div>
+      </div>
+      <div class="status-values">
+        <span class="current" id="manaCurrent">3,439</span>
+        <span class="max">/ <span id="manaMax">1,967</span></span>
+      </div>
+    </div>
+    
+    <!-- Skills -->
+    <div class="skills-panel">
+      <div class="skill-slot fire" onclick="castSpell('fire')" tabindex="0" role="button" aria-label="Fire spell">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 2c-4 4-6 8-6 12a6 6 0 0012 0c0-4-2-8-6-12z"/>
+        </svg>
+        <span class="skill-key">1</span>
+      </div>
+      <div class="skill-slot lightning" onclick="castSpell('lightning')" tabindex="0" role="button" aria-label="Lightning spell">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+        </svg>
+        <span class="skill-key">2</span>
+      </div>
+      <div class="skill-slot ice" onclick="castSpell('ice')" tabindex="0" role="button" aria-label="Ice spell">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="12" y1="2" x2="12" y2="22"/><line x1="2" y1="12" x2="22" y2="12"/>
+          <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/><line x1="19.07" y1="4.93" x2="4.93" y2="19.07"/>
+        </svg>
+        <span class="skill-key">3</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Dialogue -->
+  <div class="dialogue-container">
+    <div class="dialogue-box" id="dialogueBox">
+      <div class="speaker cinzel">Skalzap</div>
+      <div class="dialogue-text" id="dialogueText">Another corpse to serve me.</div>
+    </div>
+  </div>
+
+  <script>
+    // Game State
+    const gameState = {
+      life: { current: 2357, max: 1361 },
+      shield: { current: 5832, max: 2916 },
+      mana: { current: 3439, max: 1967 },
+      enemyHp: 65,
+      timer: 56
+    };
+
+    // DOM Elements - Initialize after DOM is ready
+    let lightningFlash = null;
+    let particlesContainer = null;
+    let timerEl = null;
+    let lifeBar = null;
+    let lifeCurrent = null;
+    let shieldBar = null;
+    let shieldCurrent = null;
+    let manaBar = null;
+    let manaCurrent = null;
+    let enemyHpFill = null;
+    let dialogueBox = null;
+    let dialogueText = null;
+
+    // Dialogues
+    const dialogues = [
+      "Another corpse to serve me.",
+      "Your soul will fuel my army!",
+      "Foolish mortal... you cannot win.",
+      "I sense your fear...",
+      "Death approaches!",
+      "Your magic is pathetic!"
+    ];
+
+    // Initialize DOM elements
+    function initDOMElements() {
+      lightningFlash = document.getElementById('lightningFlash');
+      particlesContainer = document.getElementById('particles');
+      timerEl = document.getElementById('timer');
+      lifeBar = document.getElementById('lifeBar');
+      lifeCurrent = document.getElementById('lifeCurrent');
+      shieldBar = document.getElementById('shieldBar');
+      shieldCurrent = document.getElementById('shieldCurrent');
+      manaBar = document.getElementById('manaBar');
+      manaCurrent = document.getElementById('manaCurrent');
+      enemyHpFill = document.getElementById('enemyHp');
+      dialogueBox = document.getElementById('dialogueBox');
+      dialogueText = document.getElementById('dialogueText');
+    }
+
+    // Particle System
+    function createParticle() {
+      if (!particlesContainer) return;
+      
+      const particle = document.createElement('div');
+      particle.className = 'particle';
+      
+      const isFire = Math.random() > 0.3;
+      const size = Math.max(2, Math.random() * 6);
+      const x = Math.random() * window.innerWidth;
+      const duration = 3 + Math.random() * 4;
+      const drift = (Math.random() - 0.5) * 100;
+      
+      particle.style.cssText = `
+        left: ${x}px;
+        bottom: 0;
+        width: ${size}px;
+        height: ${size}px;
+        background: ${isFire ? 'rgba(255, 107, 43, 0.8)' : 'rgba(79, 195, 247, 0.6)'};
+        box-shadow: 0 0 ${size * 2}px ${isFire ? 'rgba(255, 107, 43, 0.5)' : 'rgba(79, 195, 247, 0.5)'};
+        --drift: ${drift}px;
+        animation-duration: ${duration}s;
+      `;
+      
+      particlesContainer.appendChild(particle);
+      setTimeout(() => particle.remove(), duration * 1000);
+    }
+
+    // Lightning Effect
+    function triggerLightning() {
+      if (!lightningFlash) return;
+      
+      const x = 30 + Math.random() * 40;
+      const y = 10 + Math.random() * 30;
+      lightningFlash.style.setProperty('--x', `${x}%`);
+      lightningFlash.style.setProperty('--y', `${y}%`);
+      lightningFlash.classList.add('active');
+      setTimeout(() => lightningFlash.classList.remove('active'), 150);
+    }
+
+    // Cast Spell
+    function castSpell(type) {
+      if (!enemyHpFill) return;
+      
+      const damage = Math.floor(Math.random() * 500) + 200;
+      showDamageNumber(damage, type);
+      
+      // Update enemy HP
+      gameState.enemyHp = Math.max(0, gameState.enemyHp - (damage / 50));
+      enemyHpFill.style.width = `${gameState.enemyHp}%`;
+      
+      // Mana cost
+      if (gameState.mana.current > 100) {
+        gameState.mana.current -= 150;
+        updateManaBar();
+      }
+      
+      // Effects
+      if (type === 'lightning') {
+        triggerLightning();
+      }
+      
+      // Random dialogue
+      if (Math.random() > 0.6) {
+        updateDialogue();
+      }
+    }
+
+    // Damage Numbers
+    function showDamageNumber(damage, type) {
+      const dmgEl = document.createElement('div');
+      dmgEl.className = `damage-number ${type}`;
+      dmgEl.textContent = `-${damage}`;
+      
+      const x = window.innerWidth / 2 + (Math.random() - 0.5) * 150;
+      const y = window.innerHeight * 0.3;
+      
+      dmgEl.style.left = `${x}px`;
+      dmgEl.style.top = `${y}px`;
+      
+      document.body.appendChild(dmgEl);
+      setTimeout(() => dmgEl.remove(), 1000);
+    }
+
+    // Update Functions
+    function updateManaBar() {
+      if (!manaBar || !manaCurrent) return;
+      
+      const percent = (gameState.mana.current / gameState.mana.max) * 100;
+      manaBar.style.width = `${Math.max(0, percent)}%`;
+      manaCurrent.textContent = Math.max(0, gameState.mana.current).toLocaleString();
+    }
+
+    function updateDialogue() {
+      if (!dialogueBox || !dialogueText) return;
+      
+      const text = dialogues[Math.floor(Math.random() * dialogues.length)];
+      dialogueBox.style.animation = 'none';
+      dialogueBox.offsetHeight; // Trigger reflow
+      dialogueBox.style.animation = 'dialogue-appear 0.5s ease-out';
+      dialogueText.textContent = text;
+    }
+
+    function updateTimer() {
+      if (!timerEl) return;
+      
+      const minutes = Math.floor(gameState.timer / 60);
+      const seconds = gameState.timer % 60;
+      timerEl.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    }
+
+    // Keyboard Controls
+    document.addEventListener('keydown', (e) => {
+      if (e.key === '1') castSpell('fire');
+      if (e.key === '2') castSpell('lightning');
+      if (e.key === '3') castSpell('ice');
+    });
+
+    // Skill button keyboard accessibility
+    document.querySelectorAll('.skill-slot').forEach(slot => {
+      slot.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          slot.click();
+        }
+      });
+    });
+
+    // Initialize when DOM is ready
+    document.addEventListener('DOMContentLoaded', function() {
+      initDOMElements();
+      
+      // Start particle generation
+      setInterval(createParticle, 200);
+      
+      // Random lightning
+      setInterval(() => {
+        if (Math.random() > 0.7) triggerLightning();
+      }, 3000);
+      
+      // Timer countdown
+      setInterval(() => {
+        if (gameState.timer > 0) {
+          gameState.timer--;
+          updateTimer();
+        }
+      }, 1000);
+      
+      // Mana regeneration
+      setInterval(() => {
+        if (gameState.mana.current < gameState.mana.max * 2) {
+          gameState.mana.current += 25;
+          updateManaBar();
+        }
+      }, 500);
+      
+      // Initial UI update
+      updateTimer();
+    });
+  </script>
+</body>
+</html>

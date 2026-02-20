@@ -1,0 +1,1256 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lost Wetlands - Battle Arena</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Philosopher:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-forest: #0a1a0f;
+      --bg-wetland: #0d2818;
+      --fg: #e4f0e8;
+      --fg-muted: #6b8f7a;
+      --accent-gold: #d4a853;
+      --accent-emerald: #2dd4bf;
+      --accent-red: #f87171;
+      --life: #ef4444;
+      --life-glow: rgba(239, 68, 68, 0.4);
+      --mana: #3b82f6;
+      --mana-glow: rgba(59, 130, 246, 0.4);
+      --stamina: #fbbf24;
+      --exp: #a855f7;
+      --panel: rgba(10, 26, 15, 0.92);
+      --panel-border: rgba(45, 212, 191, 0.2);
+      --card: rgba(13, 40, 24, 0.9);
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Outfit', sans-serif;
+      background: var(--bg-forest);
+      color: var(--fg);
+      overflow: hidden;
+      height: 100vh;
+      width: 100vw;
+    }
+
+    .font-philosopher { font-family: 'Philosopher', serif; }
+
+    /* Scene */
+    .game-scene {
+      position: relative;
+      width: 100%;
+      height: 100%;
+    }
+
+    /* Wetland Background */
+    .wetland-bg {
+      position: absolute;
+      inset: 0;
+      background: 
+        radial-gradient(ellipse 120% 80% at 50% 110%, rgba(34, 197, 94, 0.15) 0%, transparent 50%),
+        radial-gradient(ellipse 60% 40% at 20% 90%, rgba(16, 185, 129, 0.1) 0%, transparent 40%),
+        radial-gradient(ellipse 50% 35% at 80% 85%, rgba(45, 212, 191, 0.08) 0%, transparent 40%),
+        linear-gradient(180deg, #061208 0%, #0d2818 40%, #0a1a0f 100%);
+    }
+
+    .mist-layer {
+      position: absolute;
+      inset: 0;
+      background: 
+        radial-gradient(ellipse 100% 50% at 50% 100%, rgba(134, 239, 172, 0.06) 0%, transparent 60%),
+        radial-gradient(ellipse 80% 30% at 30% 95%, rgba(74, 222, 128, 0.04) 0%, transparent 50%);
+      animation: mist-drift 20s ease-in-out infinite;
+    }
+
+    @keyframes mist-drift {
+      0%, 100% { transform: translateX(0); opacity: 1; }
+      50% { transform: translateX(20px); opacity: 0.7; }
+    }
+
+    .ground-pattern {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 30%;
+      background: 
+        repeating-linear-gradient(90deg, transparent 0px, transparent 80px, rgba(34, 197, 94, 0.03) 80px, rgba(34, 197, 94, 0.03) 82px),
+        repeating-linear-gradient(0deg, transparent 0px, transparent 80px, rgba(34, 197, 94, 0.02) 80px, rgba(34, 197, 94, 0.02) 82px);
+      opacity: 0.5;
+    }
+
+    /* Floating Particles */
+    .nature-particles {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      overflow: hidden;
+    }
+
+    .leaf-particle {
+      position: absolute;
+      width: 4px;
+      height: 4px;
+      background: rgba(74, 222, 128, 0.7);
+      border-radius: 50% 0 50% 0;
+      animation: leaf-fall linear infinite;
+    }
+
+    @keyframes leaf-fall {
+      0% { transform: translateY(-10px) translateX(0) rotate(0deg); opacity: 0; }
+      10% { opacity: 1; }
+      90% { opacity: 1; }
+      100% { transform: translateY(100vh) translateX(var(--leaf-drift, 100px)) rotate(720deg); opacity: 0; }
+    }
+
+    .firefly {
+      position: absolute;
+      width: 3px;
+      height: 3px;
+      background: radial-gradient(circle, rgba(250, 204, 21, 0.9) 0%, rgba(250, 204, 21, 0) 70%);
+      border-radius: 50%;
+      animation: firefly-glow 3s ease-in-out infinite;
+    }
+
+    @keyframes firefly-glow {
+      0%, 100% { opacity: 0.2; transform: scale(1); }
+      50% { opacity: 1; transform: scale(1.5); }
+    }
+
+    /* ============ UI PANELS ============ */
+
+    /* Character Info (Top Left) */
+    .char-panel {
+      position: absolute;
+      top: 16px;
+      left: 16px;
+      z-index: 50;
+    }
+
+    .char-card {
+      background: linear-gradient(135deg, var(--panel) 0%, rgba(6, 18, 12, 0.95) 100%);
+      border: 1px solid var(--panel-border);
+      border-radius: 12px;
+      padding: 14px 18px;
+      min-width: 260px;
+      backdrop-filter: blur(12px);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    }
+
+    .char-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .char-avatar {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #134e4a 0%, #0d9488 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 2px solid var(--accent-emerald);
+      box-shadow: 0 0 15px rgba(45, 212, 191, 0.3);
+    }
+
+    .char-info h2 {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--fg);
+      margin-bottom: 2px;
+    }
+
+    .char-info .char-class {
+      font-size: 0.7rem;
+      color: var(--accent-gold);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+
+    .stat-bars { display: flex; flex-direction: column; gap: 8px; }
+
+    .stat-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .stat-icon {
+      width: 18px;
+      height: 18px;
+      flex-shrink: 0;
+    }
+
+    .stat-track {
+      flex: 1;
+      height: 14px;
+      background: rgba(0, 0, 0, 0.5);
+      border-radius: 7px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .stat-fill {
+      height: 100%;
+      border-radius: 7px;
+      transition: width 0.4s ease;
+      position: relative;
+    }
+
+    .stat-fill::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 50%;
+      background: linear-gradient(180deg, rgba(255,255,255,0.2) 0%, transparent 100%);
+      border-radius: 7px 7px 0 0;
+    }
+
+    .stat-fill.hp {
+      background: linear-gradient(90deg, #991b1b, #dc2626, #ef4444);
+      box-shadow: 0 0 10px rgba(239, 68, 68, 0.5);
+    }
+
+    .stat-fill.mp {
+      background: linear-gradient(90deg, #1e40af, #2563eb, #3b82f6);
+      box-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
+    }
+
+    .stat-text {
+      font-size: 0.75rem;
+      font-weight: 600;
+      min-width: 90px;
+      text-align: right;
+    }
+
+    /* Target Info (Top Center) */
+    .target-panel {
+      position: absolute;
+      top: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 50;
+    }
+
+    .target-card {
+      background: linear-gradient(135deg, rgba(30, 10, 10, 0.95) 0%, rgba(50, 15, 15, 0.92) 100%);
+      border: 1px solid rgba(248, 113, 113, 0.3);
+      border-radius: 12px;
+      padding: 12px 24px;
+      min-width: 280px;
+      text-align: center;
+      backdrop-filter: blur(12px);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    }
+
+    .target-name {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--accent-red);
+      margin-bottom: 8px;
+      text-shadow: 0 0 10px rgba(248, 113, 113, 0.5);
+    }
+
+    .target-hp-track {
+      height: 10px;
+      background: rgba(0, 0, 0, 0.5);
+      border-radius: 5px;
+      overflow: hidden;
+    }
+
+    .target-hp-fill {
+      height: 100%;
+      width: 75%;
+      background: linear-gradient(90deg, #7f1d1d, #b91c1c, #dc2626);
+      border-radius: 5px;
+      transition: width 0.3s ease;
+      box-shadow: 0 0 8px rgba(220, 38, 38, 0.5);
+    }
+
+    .target-hp-text {
+      font-size: 0.7rem;
+      margin-top: 4px;
+      color: var(--fg-muted);
+    }
+
+    /* Minimap (Top Right) */
+    .minimap-panel {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      z-index: 50;
+    }
+
+    .minimap-frame {
+      width: 140px;
+      height: 140px;
+      background: linear-gradient(135deg, var(--panel) 0%, rgba(6, 18, 12, 0.95) 100%);
+      border: 2px solid var(--panel-border);
+      border-radius: 50%;
+      overflow: hidden;
+      position: relative;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+    }
+
+    .minimap-content {
+      position: absolute;
+      inset: 8px;
+      border-radius: 50%;
+      background: 
+        radial-gradient(circle at 60% 70%, rgba(74, 222, 128, 0.3) 0%, transparent 30%),
+        radial-gradient(circle at 30% 40%, rgba(34, 197, 94, 0.2) 0%, transparent 25%),
+        linear-gradient(135deg, #0a1a0f 0%, #0d2818 100%);
+    }
+
+    .minimap-player {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 8px;
+      height: 8px;
+      background: var(--accent-emerald);
+      border-radius: 50%;
+      box-shadow: 0 0 10px var(--accent-emerald);
+      animation: player-pulse 1.5s ease-in-out infinite;
+    }
+
+    @keyframes player-pulse {
+      0%, 100% { box-shadow: 0 0 8px var(--accent-emerald); }
+      50% { box-shadow: 0 0 16px var(--accent-emerald), 0 0 24px rgba(45, 212, 191, 0.5); }
+    }
+
+    .minimap-enemy {
+      position: absolute;
+      width: 5px;
+      height: 5px;
+      background: var(--accent-red);
+      border-radius: 50%;
+    }
+
+    .minimap-label {
+      position: absolute;
+      bottom: -24px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 0.65rem;
+      color: var(--fg-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+    }
+
+    /* Quest Panel (Right Side) */
+    .quest-panel {
+      position: absolute;
+      top: 170px;
+      right: 16px;
+      z-index: 50;
+      width: 240px;
+    }
+
+    .quest-card {
+      background: linear-gradient(135deg, var(--panel) 0%, rgba(6, 18, 12, 0.95) 100%);
+      border: 1px solid var(--panel-border);
+      border-radius: 10px;
+      padding: 14px;
+      backdrop-filter: blur(12px);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    }
+
+    .quest-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .quest-badge {
+      background: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%);
+      font-size: 0.55rem;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .quest-title {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--fg);
+      margin-bottom: 6px;
+    }
+
+    .quest-desc {
+      font-size: 0.7rem;
+      color: var(--fg-muted);
+      margin-bottom: 10px;
+      line-height: 1.4;
+    }
+
+    .quest-progress {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .quest-progress-track {
+      flex: 1;
+      height: 6px;
+      background: rgba(0, 0, 0, 0.4);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    .quest-progress-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #7c3aed, #a855f7);
+      border-radius: 3px;
+    }
+
+    .quest-progress-text {
+      font-size: 0.65rem;
+      color: var(--accent-gold);
+      font-weight: 600;
+    }
+
+    /* EXP Bar (Bottom) */
+    .exp-panel {
+      position: absolute;
+      bottom: 110px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 500px;
+      max-width: calc(100% - 40px);
+      z-index: 50;
+    }
+
+    .exp-track {
+      height: 8px;
+      background: rgba(0, 0, 0, 0.5);
+      border-radius: 4px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .exp-fill {
+      height: 100%;
+      width: 72%;
+      background: linear-gradient(90deg, #581c87, #7c3aed, #a855f7);
+      border-radius: 4px;
+      transition: width 0.4s ease;
+      box-shadow: 0 0 12px rgba(168, 85, 247, 0.5);
+    }
+
+    .exp-fill::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+      animation: exp-shine 2s infinite;
+    }
+
+    @keyframes exp-shine {
+      0% { transform: translateX(-100%); }
+      100% { transform: translateX(200%); }
+    }
+
+    .exp-info {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 4px;
+      font-size: 0.65rem;
+      color: var(--fg-muted);
+    }
+
+    .exp-gain {
+      color: var(--accent-gold);
+      font-weight: 600;
+    }
+
+    /* Skill Bar (Bottom Center) */
+    .skillbar-panel {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 50;
+    }
+
+    .skillbar {
+      display: flex;
+      gap: 6px;
+      padding: 10px 14px;
+      background: linear-gradient(135deg, var(--panel) 0%, rgba(6, 18, 12, 0.95) 100%);
+      border: 1px solid var(--panel-border);
+      border-radius: 14px;
+      backdrop-filter: blur(12px);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    }
+
+    .skill-slot {
+      width: 52px;
+      height: 52px;
+      background: linear-gradient(145deg, rgba(20, 40, 25, 0.9) 0%, rgba(10, 26, 15, 0.95) 100%);
+      border: 2px solid rgba(45, 212, 191, 0.2);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      position: relative;
+      transition: all 0.15s ease;
+    }
+
+    .skill-slot:hover {
+      border-color: var(--accent-emerald);
+      transform: translateY(-3px);
+      box-shadow: 0 4px 20px rgba(45, 212, 191, 0.3);
+    }
+
+    .skill-slot:active {
+      transform: scale(0.95);
+    }
+
+    .skill-slot.on-cooldown {
+      opacity: 0.6;
+    }
+
+    .skill-slot.on-cooldown::before {
+      content: '';
+      position: absolute;
+      inset: 4px;
+      background: rgba(0, 0, 0, 0.6);
+      border-radius: 8px;
+    }
+
+    .skill-slot svg {
+      width: 26px;
+      height: 26px;
+      transition: all 0.15s ease;
+    }
+
+    .skill-slot:hover svg {
+      filter: drop-shadow(0 0 6px var(--accent-emerald));
+    }
+
+    .skill-key {
+      position: absolute;
+      bottom: 2px;
+      right: 4px;
+      font-size: 0.55rem;
+      font-weight: 700;
+      color: var(--fg-muted);
+    }
+
+    .skill-cooldown {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: var(--fg);
+      text-shadow: 0 0 10px rgba(0,0,0,0.8);
+      z-index: 5;
+    }
+
+    /* Item Bar */
+    .itembar-panel {
+      position: absolute;
+      bottom: 20px;
+      right: 16px;
+      z-index: 50;
+    }
+
+    .itembar {
+      display: flex;
+      gap: 4px;
+      padding: 8px 10px;
+      background: linear-gradient(135deg, var(--panel) 0%, rgba(6, 18, 12, 0.95) 100%);
+      border: 1px solid var(--panel-border);
+      border-radius: 10px;
+      backdrop-filter: blur(12px);
+    }
+
+    .item-slot {
+      width: 40px;
+      height: 40px;
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid rgba(45, 212, 191, 0.15);
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      position: relative;
+      transition: all 0.15s ease;
+    }
+
+    .item-slot:hover {
+      border-color: var(--accent-gold);
+    }
+
+    .item-slot svg {
+      width: 20px;
+      height: 20px;
+    }
+
+    .item-count {
+      position: absolute;
+      bottom: 1px;
+      right: 3px;
+      font-size: 0.55rem;
+      font-weight: 700;
+      color: var(--fg);
+    }
+
+    /* Combat Area */
+    .combat-zone {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+      z-index: 10;
+      pointer-events: none;
+    }
+
+    .enemy-container {
+      position: relative;
+      width: 200px;
+      height: 200px;
+      margin: 0 auto;
+    }
+
+    .enemy-body {
+      position: absolute;
+      inset: 20%;
+      background: radial-gradient(ellipse at center, 
+        rgba(248, 113, 113, 0.2) 0%, 
+        rgba(127, 29, 29, 0.1) 50%, 
+        transparent 70%);
+      border-radius: 30% 70% 70% 30% / 30% 30% 70% 70%;
+      animation: enemy-morph 4s ease-in-out infinite;
+    }
+
+    @keyframes enemy-morph {
+      0%, 100% { border-radius: 30% 70% 70% 30% / 30% 30% 70% 70%; transform: scale(1); }
+      50% { border-radius: 70% 30% 30% 70% / 70% 70% 30% 30%; transform: scale(1.05); }
+    }
+
+    .enemy-aura {
+      position: absolute;
+      inset: 10%;
+      background: radial-gradient(ellipse at center, rgba(248, 113, 113, 0.1) 0%, transparent 70%);
+      animation: aura-pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes aura-pulse {
+      0%, 100% { opacity: 0.5; transform: scale(1); }
+      50% { opacity: 1; transform: scale(1.1); }
+    }
+
+    /* Damage Numbers */
+    .dmg-number {
+      position: fixed;
+      font-weight: 800;
+      pointer-events: none;
+      z-index: 200;
+      animation: dmg-float 1s ease-out forwards;
+    }
+
+    .dmg-number.physical { color: #fbbf24; text-shadow: 0 0 15px rgba(251, 191, 36, 0.8); }
+    .dmg-number.magic { color: #a78bfa; text-shadow: 0 0 15px rgba(167, 139, 250, 0.8); }
+    .dmg-number.crit { font-size: 1.8rem; color: #f87171; text-shadow: 0 0 20px rgba(248, 113, 113, 0.9); }
+
+    @keyframes dmg-float {
+      0% { opacity: 1; transform: translateY(0) scale(1); }
+      50% { transform: translateY(-40px) scale(1.3); }
+      100% { opacity: 0; transform: translateY(-80px) scale(0.8); }
+    }
+
+    /* Combat Log */
+    .combat-log {
+      position: absolute;
+      bottom: 140px;
+      left: 16px;
+      z-index: 50;
+      width: 280px;
+    }
+
+    .log-frame {
+      background: linear-gradient(135deg, rgba(10, 26, 15, 0.85) 0%, rgba(6, 18, 12, 0.9) 100%);
+      border: 1px solid var(--panel-border);
+      border-radius: 8px;
+      padding: 10px 12px;
+      max-height: 120px;
+      overflow-y: auto;
+      backdrop-filter: blur(8px);
+    }
+
+    .log-entry {
+      font-size: 0.65rem;
+      padding: 3px 0;
+      border-bottom: 1px solid rgba(45, 212, 191, 0.1);
+      animation: log-in 0.3s ease-out;
+    }
+
+    .log-entry:last-child { border-bottom: none; }
+
+    @keyframes log-in {
+      0% { opacity: 0; transform: translateX(-10px); }
+      100% { opacity: 1; transform: translateX(0); }
+    }
+
+    .log-damage { color: var(--accent-red); }
+    .log-heal { color: var(--accent-emerald); }
+    .log-info { color: var(--fg-muted); }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .char-panel, .minimap-panel, .quest-panel, .combat-log {
+        position: relative;
+        top: auto; left: auto; right: auto;
+      }
+      
+      .char-panel { 
+        position: absolute; 
+        top: 10px; 
+        left: 10px; 
+        .char-card { min-width: 200px; padding: 10px; }
+      }
+      
+      .target-panel { top: 80px; }
+      .target-card { min-width: 200px; padding: 8px 16px; }
+      
+      .minimap-panel { display: none; }
+      .quest-panel { display: none; }
+      .combat-log { display: none; }
+      
+      .skillbar-panel { bottom: 10px; }
+      .skillbar { padding: 8px 10px; }
+      .skill-slot { width: 44px; height: 44px; }
+      
+      .exp-panel { width: calc(100% - 20px); bottom: 75px; }
+      .itembar-panel { bottom: 10px; right: 10px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="game-scene">
+    <!-- Background -->
+    <div class="wetland-bg"></div>
+    <div class="mist-layer"></div>
+    <div class="ground-pattern"></div>
+
+    <!-- Particles -->
+    <div class="nature-particles" id="natureParticles"></div>
+
+    <!-- Character Panel -->
+    <div class="char-panel">
+      <div class="char-card">
+        <div class="char-header">
+          <div class="char-avatar">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+              <circle cx="12" cy="7" r="4"/>
+            </svg>
+          </div>
+          <div class="char-info">
+            <h2 class="font-philosopher">瑪莉貓安 (伊奈司03)</h2>
+            <div class="char-class">Lv.85 Assassin</div>
+          </div>
+        </div>
+        <div class="stat-bars">
+          <div class="stat-row">
+            <svg class="stat-icon" style="color: #ef4444;" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+            </svg>
+            <div class="stat-track">
+              <div class="stat-fill hp" id="hpFill" style="width: 99%;"></div>
+            </div>
+            <div class="stat-text" id="hpText">40,387 / 40,620</div>
+          </div>
+          <div class="stat-row">
+            <svg class="stat-icon" style="color: #3b82f6;" viewBox="0 0 24 24" fill="currentColor">
+              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+            </svg>
+            <div class="stat-track">
+              <div class="stat-fill mp" id="mpFill" style="width: 68%;"></div>
+            </div>
+            <div class="stat-text" id="mpText">2,847 / 4,200</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Target Panel -->
+    <div class="target-panel">
+      <div class="target-card">
+        <div class="target-name font-philosopher" id="targetName">激怒的王國士兵</div>
+        <div class="target-hp-track">
+          <div class="target-hp-fill" id="targetHpFill"></div>
+        </div>
+        <div class="target-hp-text" id="targetHpText">28,450 / 38,000</div>
+      </div>
+    </div>
+
+    <!-- Minimap -->
+    <div class="minimap-panel">
+      <div class="minimap-frame">
+        <div class="minimap-content">
+          <div class="minimap-player"></div>
+          <div class="minimap-enemy" style="top: 35%; left: 55%;"></div>
+          <div class="minimap-enemy" style="top: 60%; left: 30%;"></div>
+          <div class="minimap-enemy" style="top: 45%; left: 70%;"></div>
+          <div class="minimap-enemy" style="top: 70%; left: 65%;"></div>
+        </div>
+      </div>
+      <div class="minimap-label">失落的濕地</div>
+    </div>
+
+    <!-- Quest Panel -->
+    <div class="quest-panel">
+      <div class="quest-card">
+        <div class="quest-header">
+          <span class="quest-badge">每週</span>
+          <span style="font-size: 0.7rem; color: var(--fg-muted);">任務</span>
+        </div>
+        <div class="quest-title font-philosopher">勝負終結者</div>
+        <div class="quest-desc">在泰斯托爾擊殺其他玩家</div>
+        <div class="quest-progress">
+          <div class="quest-progress-track">
+            <div class="quest-progress-fill" id="questProgress"></div>
+          </div>
+          <div class="quest-progress-text" id="questText">0 / 5</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Combat Zone -->
+    <div class="combat-zone">
+      <div class="enemy-container" id="enemyContainer">
+        <div class="enemy-aura"></div>
+        <div class="enemy-body"></div>
+      </div>
+    </div>
+
+    <!-- Combat Log -->
+    <div class="combat-log">
+      <div class="log-frame" id="logFrame">
+        <div class="log-entry log-info">戰鬥開始</div>
+      </div>
+    </div>
+
+    <!-- EXP Bar -->
+    <div class="exp-panel">
+      <div class="exp-track">
+        <div class="exp-fill" id="expFill"></div>
+      </div>
+      <div class="exp-info">
+        <span>Lv.85</span>
+        <span class="exp-gain" id="expGain">EXP +70,553,924</span>
+        <span>72%</span>
+      </div>
+    </div>
+
+    <!-- Skill Bar -->
+    <div class="skillbar-panel">
+      <div class="skillbar">
+        <div class="skill-slot" onclick="useSkill(0)" tabindex="0" role="button" aria-label="Skill 1">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#2dd4bf" stroke-width="2">
+            <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/>
+            <circle cx="12" cy="13" r="3"/>
+          </svg>
+          <span class="skill-key">1</span>
+        </div>
+        <div class="skill-slot" onclick="useSkill(1)" tabindex="0" role="button" aria-label="Skill 2">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#a78bfa" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M12 2a10 10 0 0 0 0 20"/>
+            <path d="M12 2a10 10 0 0 1 0 20"/>
+            <path d="M2 12h20"/>
+          </svg>
+          <span class="skill-key">2</span>
+        </div>
+        <div class="skill-slot" onclick="useSkill(2)" tabindex="0" role="button" aria-label="Skill 3">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#fbbf24" stroke-width="2">
+            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+          </svg>
+          <span class="skill-key">3</span>
+        </div>
+        <div class="skill-slot" onclick="useSkill(3)" tabindex="0" role="button" aria-label="Skill 4">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#f87171" stroke-width="2">
+            <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+            <path d="M2 17l10 5 10-5"/>
+            <path d="M2 12l10 5 10-5"/>
+          </svg>
+          <span class="skill-key">4</span>
+        </div>
+        <div class="skill-slot" onclick="useSkill(4)" tabindex="0" role="button" aria-label="Skill 5">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#34d399" stroke-width="2">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            <path d="M12 8v4"/>
+            <path d="M12 16h.01"/>
+          </svg>
+          <span class="skill-key">5</span>
+        </div>
+        <div class="skill-slot" onclick="useSkill(5)" tabindex="0" role="button" aria-label="Ultimate">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#f472b6" stroke-width="2">
+            <path d="M12 3l1.912 5.813a2 2 0 0 0 1.275 1.275L21 12l-5.813 1.912a2 2 0 0 0-1.275 1.275L12 21l-1.912-5.813a2 2 0 0 0-1.275-1.275L3 12l5.813-1.912a2 2 0 0 0 1.275-1.275L12 3z"/>
+          </svg>
+          <span class="skill-key">R</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Item Bar -->
+    <div class="itembar-panel">
+      <div class="itembar">
+        <div class="item-slot" onclick="useItem(0)" tabindex="0" role="button" aria-label="Health Potion">
+          <svg viewBox="0 0 24 24" fill="#ef4444">
+            <path d="M6.3 5C5.9 5 5.5 5.2 5.3 5.5L3.3 8.5C3 8.9 3 9.4 3.2 9.8L5 12l-1.8 2.2c-.3.4-.3.9.1 1.3l2 3c.2.3.6.5 1 .5h12.8c.4 0 .8-.2 1-.5l2-3c.3-.4.3-.9-.1-1.3L19 12l1.8-2.2c.3-.4.3-.9-.1-1.3l-2-3c-.2-.3-.6-.5-1-.5H6.3z"/>
+          </svg>
+          <span class="item-count">x12</span>
+        </div>
+        <div class="item-slot" onclick="useItem(1)" tabindex="0" role="button" aria-label="Mana Potion">
+          <svg viewBox="0 0 24 24" fill="#3b82f6">
+            <path d="M6.3 5C5.9 5 5.5 5.2 5.3 5.5L3.3 8.5C3 8.9 3 9.4 3.2 9.8L5 12l-1.8 2.2c-.3.4-.3.9.1 1.3l2 3c.2.3.6.5 1 .5h12.8c.4 0 .8-.2 1-.5l2-3c.3-.4.3-.9-.1-1.3L19 12l1.8-2.2c.3-.4.3-.9-.1-1.3l-2-3c-.2-.3-.6-.5-1-.5H6.3z"/>
+          </svg>
+          <span class="item-count">x8</span>
+        </div>
+        <div class="item-slot" onclick="useItem(2)" tabindex="0" role="button" aria-label="Antidote">
+          <svg viewBox="0 0 24 24" fill="#34d399">
+            <path d="M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2z"/>
+            <path d="M12 8v8"/>
+            <path d="M8 12h8"/>
+          </svg>
+          <span class="item-count">x5</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Game State
+    const state = {
+      hp: { current: 40387, max: 40620 },
+      mp: { current: 2847, max: 4200 },
+      exp: 72,
+      targetHp: { current: 28450, max: 38000 },
+      questKills: 0,
+      questMax: 5,
+      cooldowns: [0, 0, 0, 0, 0, 0],
+      items: [12, 8, 5]
+    };
+
+    // DOM Elements
+    const elements = {};
+
+    function initElements() {
+      elements.hpFill = document.getElementById('hpFill');
+      elements.hpText = document.getElementById('hpText');
+      elements.mpFill = document.getElementById('mpFill');
+      elements.mpText = document.getElementById('mpText');
+      elements.targetHpFill = document.getElementById('targetHpFill');
+      elements.targetHpText = document.getElementById('targetHpText');
+      elements.expFill = document.getElementById('expFill');
+      elements.expGain = document.getElementById('expGain');
+      elements.questProgress = document.getElementById('questProgress');
+      elements.questText = document.getElementById('questText');
+      elements.logFrame = document.getElementById('logFrame');
+      elements.natureParticles = document.getElementById('natureParticles');
+      elements.enemyContainer = document.getElementById('enemyContainer');
+    }
+
+    // Particle System
+    function createLeafParticle() {
+      if (!elements.natureParticles) return;
+      
+      const particle = document.createElement('div');
+      const isFirefly = Math.random() > 0.7;
+      
+      particle.className = isFirefly ? 'firefly' : 'leaf-particle';
+      
+      const x = Math.random() * window.innerWidth;
+      const duration = 8 + Math.random() * 8;
+      const drift = (Math.random() - 0.5) * 200;
+      
+      particle.style.left = `${x}px`;
+      particle.style.animationDuration = `${duration}s`;
+      if (!isFirefly) {
+        particle.style.setProperty('--leaf-drift', `${drift}px`);
+      } else {
+        particle.style.top = `${20 + Math.random() * 60}%`;
+        particle.style.animationDelay = `${Math.random() * 3}s`;
+      }
+      
+      elements.natureParticles.appendChild(particle);
+      
+      setTimeout(() => particle.remove(), duration * 1000);
+    }
+
+    // Damage Numbers
+    function showDamage(amount, type) {
+      const dmgEl = document.createElement('div');
+      dmgEl.className = `dmg-number ${type}`;
+      dmgEl.textContent = amount.toLocaleString();
+      dmgEl.style.fontSize = type === 'crit' ? '1.8rem' : '1.2rem';
+      
+      const centerX = window.innerWidth / 2;
+      const centerY = window.innerHeight * 0.4;
+      
+      dmgEl.style.left = `${centerX + (Math.random() - 0.5) * 120}px`;
+      dmgEl.style.top = `${centerY}px`;
+      
+      document.body.appendChild(dmgEl);
+      setTimeout(() => dmgEl.remove(), 1000);
+    }
+
+    // Combat Log
+    function addLog(message, type) {
+      if (!elements.logFrame) return;
+      
+      const entry = document.createElement('div');
+      entry.className = `log-entry log-${type}`;
+      entry.textContent = message;
+      
+      elements.logFrame.insertBefore(entry, elements.logFrame.firstChild);
+      
+      if (elements.logFrame.children.length > 15) {
+        elements.logFrame.removeChild(elements.logFrame.lastChild);
+      }
+    }
+
+    // Skill System
+    function useSkill(index) {
+      if (state.cooldowns[index] > 0) return;
+      
+      const damages = [
+        { min: 2800, max: 4200, type: 'physical', name: '暗影斬擊' },
+        { min: 3500, max: 5000, type: 'magic', name: '魔力漩渦' },
+        { min: 4500, max: 6000, type: 'physical', name: '雷電突襲' },
+        { min: 2000, max: 3000, type: 'magic', name: '烈焰風暴' },
+        { min: 500, max: 800, type: 'physical', name: '防禦姿態', heal: true },
+        { min: 12000, max: 18000, type: 'crit', name: '終極一擊' }
+      ];
+      
+      const skill = damages[index];
+      const damage = Math.floor(Math.random() * (skill.max - skill.min)) + skill.min;
+      
+      // Cooldown
+      const cdTimes = [2, 3, 4, 5, 1, 15];
+      state.cooldowns[index] = cdTimes[index];
+      
+      // MP cost
+      const mpCosts = [50, 120, 80, 150, 0, 300];
+      if (state.mp.current >= mpCosts[index]) {
+        state.mp.current -= mpCosts[index];
+        updateMpDisplay();
+      }
+      
+      if (skill.heal) {
+        // Buff skill
+        addLog(`使用 ${skill.name}，防禦提升!`, 'info');
+      } else {
+        // Damage
+        const isCrit = Math.random() > 0.85;
+        showDamage(isCrit ? Math.floor(damage * 2.5) : damage, isCrit ? 'crit' : skill.type);
+        
+        // Update target HP
+        const totalDamage = isCrit ? Math.floor(damage * 2.5) : damage;
+        state.targetHp.current = Math.max(0, state.targetHp.current - totalDamage);
+        updateTargetDisplay();
+        
+        addLog(`${skill.name} 造成 ${totalDamage.toLocaleString()} 傷害${isCrit ? ' (暴擊!)' : ''}`, 'damage');
+        
+        // Enemy death check
+        if (state.targetHp.current <= 0) {
+          addLog('擊敗 激怒的王國士兵!', 'heal');
+          state.exp += 5;
+          updateExpDisplay();
+          
+          // Quest progress
+          if (state.questKills < state.questMax) {
+            state.questKills++;
+            updateQuestDisplay();
+          }
+          
+          // Respawn enemy
+          setTimeout(() => {
+            state.targetHp.current = state.targetHp.max;
+            updateTargetDisplay();
+            addLog('新的敵人出現!', 'info');
+          }, 2000);
+        }
+      }
+      
+      updateCooldownDisplay();
+    }
+
+    // Item System
+    function useItem(index) {
+      if (state.items[index] <= 0) return;
+      
+      state.items[index]--;
+      
+      const itemEffects = [
+        { name: '生命藥水', heal: 5000, type: 'hp' },
+        { name: '魔力藥水', heal: 2000, type: 'mp' },
+        { name: '解毒劑', heal: 0, type: 'cure' }
+      ];
+      
+      const item = itemEffects[index];
+      
+      if (item.type === 'hp') {
+        state.hp.current = Math.min(state.hp.max, state.hp.current + item.heal);
+        updateHpDisplay();
+        addLog(`使用 ${item.name}，恢復 ${item.heal.toLocaleString()} HP`, 'heal');
+      } else if (item.type === 'mp') {
+        state.mp.current = Math.min(state.mp.max, state.mp.current + item.heal);
+        updateMpDisplay();
+        addLog(`使用 ${item.name}，恢復 ${item.heal.toLocaleString()} MP`, 'heal');
+      } else {
+        addLog(`使用 ${item.name}，清除異常狀態`, 'info');
+      }
+      
+      // Update item count display
+      const itemSlots = document.querySelectorAll('.item-count');
+      if (itemSlots[index]) {
+        itemSlots[index].textContent = `x${state.items[index]}`;
+      }
+    }
+
+    // Display Updates
+    function updateHpDisplay() {
+      if (!elements.hpFill || !elements.hpText) return;
+      const percent = (state.hp.current / state.hp.max) * 100;
+      elements.hpFill.style.width = `${percent}%`;
+      elements.hpText.textContent = `${state.hp.current.toLocaleString()} / ${state.hp.max.toLocaleString()}`;
+    }
+
+    function updateMpDisplay() {
+      if (!elements.mpFill || !elements.mpText) return;
+      const percent = (state.mp.current / state.mp.max) * 100;
+      elements.mpFill.style.width = `${percent}%`;
+      elements.mpText.textContent = `${state.mp.current.toLocaleString()} / ${state.mp.max.toLocaleString()}`;
+    }
+
+    function updateTargetDisplay() {
+      if (!elements.targetHpFill || !elements.targetHpText) return;
+      const percent = (state.targetHp.current / state.targetHp.max) * 100;
+      elements.targetHpFill.style.width = `${percent}%`;
+      elements.targetHpText.textContent = `${state.targetHp.current.toLocaleString()} / ${state.targetHp.max.toLocaleString()}`;
+    }
+
+    function updateExpDisplay() {
+      if (!elements.expFill) return;
+      elements.expFill.style.width = `${state.exp}%`;
+    }
+
+    function updateQuestDisplay() {
+      if (!elements.questProgress || !elements.questText) return;
+      const percent = (state.questKills / state.questMax) * 100;
+      elements.questProgress.style.width = `${percent}%`;
+      elements.questText.textContent = `${state.questKills} / ${state.questMax}`;
+    }
+
+    function updateCooldownDisplay() {
+      const slots = document.querySelectorAll('.skill-slot');
+      slots.forEach((slot, i) => {
+        if (state.cooldowns[i] > 0) {
+          slot.classList.add('on-cooldown');
+          let cdEl = slot.querySelector('.skill-cooldown');
+          if (!cdEl) {
+            cdEl = document.createElement('div');
+            cdEl.className = 'skill-cooldown';
+            slot.appendChild(cdEl);
+          }
+          cdEl.textContent = state.cooldowns[i];
+        } else {
+          slot.classList.remove('on-cooldown');
+          const cdEl = slot.querySelector('.skill-cooldown');
+          if (cdEl) cdEl.remove();
+        }
+      });
+    }
+
+    // Keyboard Controls
+    document.addEventListener('keydown', (e) => {
+      const keyMap = { '1': 0, '2': 1, '3': 2, '4': 3, '5': 4, 'r': 5, 'R': 5 };
+      if (keyMap.hasOwnProperty(e.key)) {
+        useSkill(keyMap[e.key]);
+      }
+      
+      // Items with Q, W, E
+      const itemMap = { 'q': 0, 'Q': 0, 'w': 1, 'W': 1, 'e': 2, 'E': 2 };
+      if (itemMap.hasOwnProperty(e.key)) {
+        useItem(itemMap[e.key]);
+      }
+    });
+
+    // Skill button accessibility
+    document.querySelectorAll('.skill-slot').forEach(slot => {
+      slot.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          slot.click();
+        }
+      });
+    });
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', () => {
+      initElements();
+      
+      // Initial display
+      updateHpDisplay();
+      updateMpDisplay();
+      updateTargetDisplay();
+      updateExpDisplay();
+      updateQuestDisplay();
+      
+      // Particle generation
+      setInterval(createLeafParticle, 400);
+      
+      // Cooldown timer
+      setInterval(() => {
+        state.cooldowns = state.cooldowns.map(cd => Math.max(0, cd - 1));
+        updateCooldownDisplay();
+      }, 1000);
+      
+      // MP regeneration
+      setInterval(() => {
+        if (state.mp.current < state.mp.max) {
+          state.mp.current = Math.min(state.mp.max, state.mp.current + 25);
+          updateMpDisplay();
+        }
+      }, 500);
+      
+      // Initial log
+      addLog('進入失落的濕地...', 'info');
+      addLog('發現敵人: 激怒的王國士兵', 'info');
+    });
+  </script>
+</body>
+</html>

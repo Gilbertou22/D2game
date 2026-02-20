@@ -1,10 +1,10 @@
-// src/components/ClassicUI.jsx
+// src/components/ClassicUI.jsx - Classic Orb UI with Dark Fantasy Style
 import useGameState from '../hooks/useGameState';
-import { expPerLevel } from '../utils/levelUtils';  // ← 新增這行
+import { expPerLevel } from '../utils/levelUtils';
 import { useEffect, useState, useRef } from 'react';
 import { createParticles } from '../game/Particles';
 
-function ClassicUI() {
+function ClassicUI({ onOpenCharacterPanel }) {
     const playerHP = useGameState((state) => state.playerHP);
     const playerMaxHP = useGameState((state) => state.playerMaxHP);
     const playerMana = useGameState((state) => state.playerMana);
@@ -18,16 +18,13 @@ function ClassicUI() {
     const [showLevelUp, setShowLevelUp] = useState(false);
     const previousLevel = useRef(playerLevel);
 
-    const time = Date.now() / 1000; // 動態時間
+    const time = Date.now() / 1000;
 
-    // 監聽升級
+    // Level up effect
     useEffect(() => {
         if (playerLevel > previousLevel.current) {
             setShowLevelUp(true);
             createParticles(playerPos, 0xffffff, 200, 20, 4, 'levelup');
-            // 可加音效
-            // new Audio('/sounds/level_up.mp3').play();
-
             setTimeout(() => setShowLevelUp(false), 4000);
             previousLevel.current = playerLevel;
         }
@@ -35,11 +32,247 @@ function ClassicUI() {
 
     const hpPercent = (playerHP / playerMaxHP) * 100;
     const manaPercent = (playerMana / playerMaxMana) * 100;
-    const expPercent = (playerExp / 100) * 100; // 假設每級 100 exp
+    const expPercent = (playerExp / 100) * 100;
 
     return (
         <div id="classicUI">
-            {/* 血量球 - 極致細膩波動 */}
+            {/* Character Avatar Button */}
+            <button
+                onClick={onOpenCharacterPanel}
+                style={{
+                    position: 'absolute',
+                    left: '10px',
+                    bottom: '70px',
+                    width: '110px',
+                    height: '110px',
+                    borderRadius: '50%',
+                    background: 'linear-gradient(145deg, #4a4a6a, #2a2a4a)',
+                    border: '8px solid #8b7355',
+                    boxShadow: '0 0 20px rgba(0,0,0,0.8), inset 0 0 15px rgba(255,255,255,0.1)',
+                    cursor: 'pointer',
+                    fontSize: '50px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    transition: 'all 0.2s ease',
+                    zIndex: 10
+                }}
+                onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = 'scale(1.1)';
+                    e.currentTarget.style.boxShadow = '0 0 30px rgba(255,215,0,0.5), inset 0 0 15px rgba(255,255,255,0.2)';
+                }}
+                onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'scale(1)';
+                    e.currentTarget.style.boxShadow = '0 0 20px rgba(0,0,0,0.8), inset 0 0 15px rgba(255,255,255,0.1)';
+                }}
+            >
+                👤
+            </button>
+
+            {/* HP Orb - Dark Fantasy Style with Shimmer */}
+            <div
+                style={{
+                    position: 'absolute',
+                    left: '140px',
+                    bottom: '70px',
+                    width: '140px',
+                    height: '140px',
+                    borderRadius: '50%',
+                    overflow: 'hidden',
+                    border: '16px solid #3a1a0a',
+                    boxShadow: `
+                        0 0 60px rgba(200,0,0,0.8),
+                        inset 0 0 60px rgba(120,0,0,0.9),
+                        inset 0 0 100px rgba(255,80,80,0.5)
+                    `,
+                    background: '#0a0000'
+                }}
+            >
+                <svg width="100%" height="100%">
+                    <defs>
+                        <clipPath id="hpClip">
+                            <circle cx="70" cy="70" r="70" />
+                        </clipPath>
+                        <radialGradient id="hpShine" cx="30%" cy="30%" r="100%">
+                            <stop offset="0%" stopColor="rgba(255,255,255,0.7)" />
+                            <stop offset="40%" stopColor="rgba(255,180,180,0.4)" />
+                            <stop offset="70%" stopColor="rgba(255,100,100,0.2)" />
+                            <stop offset="100%" stopColor="transparent" />
+                        </radialGradient>
+                        <linearGradient id="hpLiquid" x1="0%" y1="0%" x2="0%" y2="100%">
+                            <stop offset="0%" stopColor="#ff9999" />
+                            <stop offset="30%" stopColor="#ff4444" />
+                            <stop offset="60%" stopColor="#ee0000" />
+                            <stop offset="90%" stopColor="#aa0000" />
+                            <stop offset="100%" stopColor="#660000" />
+                        </linearGradient>
+                        {/* Shimmer gradient */}
+                        <linearGradient id="hpShimmer" x1="0%" y1="0%" x2="100%" y2="0%">
+                            <stop offset="0%" stopColor="transparent" />
+                            <stop offset="50%" stopColor="rgba(255,255,255,0.3)" />
+                            <stop offset="100%" stopColor="transparent" />
+                        </linearGradient>
+                    </defs>
+
+                    <g clipPath="url(#hpClip)">
+                        <rect
+                            x="0"
+                            y={`${100 - hpPercent}%`}
+                            width="140"
+                            height={`${hpPercent}%`}
+                            fill="url(#hpLiquid)"
+                        />
+                    </g>
+
+                    {/* Wave layers */}
+                    <g clipPath="url(#hpClip)" opacity="0.8">
+                        <ellipse cx="70" cy={`${100 - hpPercent + 5 + Math.sin(time * 0.8) * 10}%`} rx="90" ry="32" fill="rgba(255,80,80,0.4)" />
+                        <ellipse cx="70" cy={`${100 - hpPercent + 10 + Math.cos(time * 1.0) * 12}%`} rx="85" ry="28" fill="rgba(255,100,100,0.35)" />
+                        <ellipse cx="70" cy={`${100 - hpPercent + 14 + Math.sin(time * 1.3) * 9}%`} rx="78" ry="24" fill="rgba(255,130,130,0.3)" />
+                        <ellipse cx="70" cy={`${100 - hpPercent + 18 + Math.cos(time * 1.6) * 7}%`} rx="72" ry="20" fill="rgba(255,160,160,0.28)" />
+                    </g>
+
+                    {/* Shimmer effect */}
+                    <g clipPath="url(#hpClip)">
+                        <rect
+                            x={`${(time * 50) % 200 - 100}%`}
+                            y="0"
+                            width="50%"
+                            height="100%"
+                            fill="url(#hpShimmer)"
+                            style={{ animation: 'shimmer 2s infinite linear' }}
+                        />
+                    </g>
+
+                    <ellipse cx="45" cy="40" rx="60" ry="40" fill="url(#hpShine)" opacity="0.7" />
+
+                    {/* Bubbles */}
+                    <g clipPath="url(#hpClip)">
+                        {[0, 1, 2, 3, 4].map(i => (
+                            <circle
+                                key={i}
+                                cx={30 + i * 20}
+                                cy={`${100 - hpPercent + 20 + (time * 8 + i * 20) % 80}%`}
+                                r={3 + i}
+                                fill="rgba(255,255,255,0.4)"
+                                opacity="0.6"
+                            />
+                        ))}
+                    </g>
+                </svg>
+
+                <div style={{
+                    position: 'absolute',
+                    inset: 0,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#fff',
+                    fontSize: '28px',
+                    fontWeight: 'bold',
+                    textShadow: '4px 4px 12px #000, 0 0 25px #ff6666',
+                    zIndex: 2
+                }}>
+                    {Math.floor(playerHP)} / {playerMaxHP}
+                </div>
+            </div>
+
+            {/* Mana Orb - Same Style */}
+            <div
+                style={{
+                    position: 'absolute',
+                    right: '140px',
+                    bottom: '70px',
+                    width: '140px',
+                    height: '140px',
+                    borderRadius: '50%',
+                    overflow: 'hidden',
+                    border: '16px solid #0a0a3a',
+                    boxShadow: '0 0 60px rgba(0,100,255,0.8), inset 0 0 60px rgba(0,0,150,0.9)',
+                    background: '#000'
+                }}
+            >
+                <svg width="100%" height="100%">
+                    <defs>
+                        <clipPath id="manaClip">
+                            <circle cx="70" cy="70" r="70" />
+                        </clipPath>
+                        <radialGradient id="manaShine" cx="30%" cy="30%" r="100%">
+                            <stop offset="0%" stopColor="rgba(255,255,255,0.7)" />
+                            <stop offset="40%" stopColor="rgba(180,180,255,0.4)" />
+                            <stop offset="70%" stopColor="rgba(100,100,255,0.2)" />
+                            <stop offset="100%" stopColor="transparent" />
+                        </radialGradient>
+                        <linearGradient id="manaLiquid" x1="0%" y1="0%" x2="0%" y2="100%">
+                            <stop offset="0%" stopColor="#99aaff" />
+                            <stop offset="30%" stopColor="#6666ff" />
+                            <stop offset="60%" stopColor="#4444ee" />
+                            <stop offset="90%" stopColor="#2222aa" />
+                            <stop offset="100%" stopColor="#000066" />
+                        </linearGradient>
+                        <linearGradient id="manaShimmer" x1="0%" y1="0%" x2="100%" y2="0%">
+                            <stop offset="0%" stopColor="transparent" />
+                            <stop offset="50%" stopColor="rgba(255,255,255,0.3)" />
+                            <stop offset="100%" stopColor="transparent" />
+                        </linearGradient>
+                    </defs>
+
+                    <g clipPath="url(#manaClip)">
+                        <rect x="0" y={`${100 - manaPercent}%`} width="140" height={`${manaPercent}%`} fill="url(#manaLiquid)" />
+                    </g>
+
+                    <g clipPath="url(#manaClip)" opacity="0.8">
+                        <ellipse cx="70" cy={`${100 - manaPercent + 5 + Math.sin(time * 0.9) * 11}%`} rx="92" ry="34" fill="rgba(100,120,255,0.4)" />
+                        <ellipse cx="70" cy={`${100 - manaPercent + 11 + Math.cos(time * 1.1) * 13}%`} rx="87" ry="30" fill="rgba(130,150,255,0.35)" />
+                        <ellipse cx="70" cy={`${100 - manaPercent + 15 + Math.sin(time * 1.4) * 10}%`} rx="80" ry="26" fill="rgba(160,180,255,0.3)" />
+                        <ellipse cx="70" cy={`${100 - manaPercent + 19 + Math.cos(time * 1.7) * 8}%`} rx="73" ry="22" fill="rgba(190,200,255,0.28)" />
+                    </g>
+
+                    {/* Shimmer effect */}
+                    <g clipPath="url(#manaClip)">
+                        <rect
+                            x={`${(time * 40) % 200 - 100}%`}
+                            y="0"
+                            width="50%"
+                            height="100%"
+                            fill="url(#manaShimmer)"
+                            style={{ animation: 'shimmer 2.5s infinite linear' }}
+                        />
+                    </g>
+
+                    <ellipse cx="45" cy="40" rx="65" ry="45" fill="url(#manaShine)" opacity="0.7" />
+
+                    <g clipPath="url(#manaClip)">
+                        {[0, 1, 2, 3, 4].map(i => (
+                            <circle
+                                key={i}
+                                cx={30 + i * 20}
+                                cy={`${100 - manaPercent + 20 + (time * 10 + i * 25) % 90}%`}
+                                r={3 + i * 0.8}
+                                fill="rgba(200,220,255,0.5)"
+                                opacity="0.7"
+                            />
+                        ))}
+                    </g>
+                </svg>
+
+                <div style={{
+                    position: 'absolute',
+                    inset: 0,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#fff',
+                    fontSize: '28px',
+                    fontWeight: 'bold',
+                    textShadow: '4px 4px 12px #000, 0 0 25px #6666ff',
+                    zIndex: 2
+                }}>
+                    {Math.floor(playerMana)} / {playerMaxMana}
+                </div>
+            </div>
+
+            {/* HP Orb - Dark Fantasy Style with Shimmer */}
             <div
                 style={{
                     position: 'absolute',
