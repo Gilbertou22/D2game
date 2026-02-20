@@ -1,19 +1,87 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import useGameState from '../hooks/useGameState';
 import { expPerLevel } from '../utils/levelUtils';
-
-const SKILL_SLOTS = [
-    { key: 'fireball', label: '1', color: '#2dd4bf', bindKey: '1' },
-    { key: 'icebolt', label: '2', color: '#a78bfa', bindKey: '2' },
-    { key: 'meteor', label: '3', color: '#fbbf24', bindKey: '3' },
-    { key: 'chainlightning', label: '4', color: '#f87171', bindKey: '4' },
-    { key: 'heal', label: '5', color: '#34d399', bindKey: '5' },
-    { key: 'nova', label: 'R', color: '#f472b6', bindKey: 'r' },
-];
+import classConfigs from '../configs/classConfigs';
 
 const ITEM_KEYS = ['q', 'w', 'e'];
 
+function ClassSelection() {
+    const selectClass = useGameState(s => s.selectClass);
+    const classes = Object.entries(classConfigs);
+
+    return (
+        <div style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'linear-gradient(135deg, #0a1a0f 0%, #0d2818 50%, #0a1a0f 100%)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000
+        }}>
+            <h1 style={{
+                fontSize: '3rem',
+                color: '#d4a853',
+                marginBottom: '1rem',
+                textShadow: '0 0 20px rgba(212, 168, 83, 0.5)'
+            }}>
+                選擇職業
+            </h1>
+            <p style={{ color: '#6b8f7a', marginBottom: '2rem', fontSize: '1.1rem' }}>
+                Choose Your Class
+            </p>
+            <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(2, 1fr)',
+                gap: '20px',
+                maxWidth: '800px'
+            }}>
+                {classes.map(([key, config]) => (
+                    <div
+                        key={key}
+                        onClick={() => selectClass(key)}
+                        style={{
+                            background: `linear-gradient(135deg, rgba(10, 26, 15, 0.95) 0%, rgba(20, 40, 30, 0.95) 100%)`,
+                            border: `2px solid ${config.color}`,
+                            borderRadius: '16px',
+                            padding: '24px',
+                            cursor: 'pointer',
+                            transition: 'all 0.3s ease',
+                            minWidth: '280px'
+                        }}
+                        onMouseEnter={(e) => {
+                            e.currentTarget.style.transform = 'scale(1.05)';
+                            e.currentTarget.style.boxShadow = `0 0 30px ${config.color}40`;
+                        }}
+                        onMouseLeave={(e) => {
+                            e.currentTarget.style.transform = 'scale(1)';
+                            e.currentTarget.style.boxShadow = 'none';
+                        }}
+                    >
+                        <div style={{ fontSize: '3rem', marginBottom: '8px' }}>{config.icon}</div>
+                        <h2 style={{ color: config.color, margin: '0 0 4px 0', fontSize: '1.5rem' }}>
+                            {config.name}
+                        </h2>
+                        <p style={{ color: '#6b8f7a', fontSize: '0.8rem', margin: '0 0 12px 0' }}>
+                            {config.nameEn}
+                        </p>
+                        <p style={{ color: '#e4f0e8', fontSize: '0.9rem', margin: 0 }}>
+                            {config.description}
+                        </p>
+                        <div style={{ marginTop: '12px', fontSize: '0.75rem', color: '#6b8f7a' }}>
+                            <span>HP: {config.baseHP} | MP: {config.baseMP} | ATK: {config.baseAttack}</span>
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+}
+
 function WetlandUI() {
+    const classSelected = useGameState(s => s.classSelected);
+    const playerClass = useGameState(s => s.playerClass);
     const playerHP = useGameState(s => s.playerHP);
     const playerMaxHP = useGameState(s => s.playerMaxHP);
     const playerMana = useGameState(s => s.playerMana);
@@ -31,14 +99,23 @@ function WetlandUI() {
     const castSkill = useGameState(s => s.castSkill);
     const updatePlayer = useGameState(s => s.updatePlayer);
     const addEvent = useGameState(s => s.addEvent);
+    const skillKeybinds = useGameState(s => s.skillKeybinds);
 
     const logRef = useRef(null);
     const particlesRef = useRef(null);
-    const [currentTime, setCurrentTime] = useState(performance.now() / 1000);
+    const [, forceUpdate] = useState(0);
 
     useEffect(() => {
-        const id = setInterval(() => setCurrentTime(performance.now() / 1000), 100);
+        const id = setInterval(() => forceUpdate(n => n + 1), 50);
         return () => clearInterval(id);
+    }, []);
+    
+    useEffect(() => {
+        const unsubscribe = useGameState.subscribe(
+            (state) => state.skills,
+            () => forceUpdate(n => n + 1)
+        );
+        return unsubscribe;
     }, []);
 
     useEffect(() => {
@@ -81,8 +158,11 @@ function WetlandUI() {
         : 0;
 
     const handleUseSkill = useCallback((skillKey) => {
-        castSkill(skillKey);
-    }, [castSkill]);
+        const key = Object.keys(skillKeybinds).find(k => skillKeybinds[k] === skillKey);
+        if (key) {
+            window.dispatchEvent(new KeyboardEvent('keydown', { key }));
+        }
+    }, [skillKeybinds]);
 
     const handleUseItem = useCallback((type) => {
         const state = useGameState.getState();
@@ -105,20 +185,23 @@ function WetlandUI() {
 
     useEffect(() => {
         const handler = (e) => {
-            const skillMap = {
-                '1': 'fireball', '2': 'icebolt', '3': 'meteor',
-                '4': 'chainlightning', '5': 'heal', 'r': 'nova', 'R': 'nova'
-            };
-            if (skillMap[e.key]) {
-                handleUseSkill(skillMap[e.key]);
-                return;
-            }
             if (e.key === 'q' || e.key === 'Q') handleUseItem('hp');
             if (e.key === 'w' || e.key === 'W') handleUseItem('mp');
         };
         window.addEventListener('keydown', handler);
         return () => window.removeEventListener('keydown', handler);
-    }, [handleUseSkill, handleUseItem]);
+    }, [handleUseItem]);
+
+    if (!classSelected) {
+        return <ClassSelection />;
+    }
+
+    const currentClass = classConfigs[playerClass] || classConfigs.mage;
+    const skillSlots = Object.entries(skillKeybinds).slice(0, 6).map(([key, skillKey]) => ({
+        key: skillKey,
+        label: key.toUpperCase(),
+        bindKey: key
+    }));
 
     const recentLogs = eventLog.slice(-15).reverse();
 
@@ -130,15 +213,12 @@ function WetlandUI() {
             <div className="wl-char-panel">
                 <div className="wl-char-card">
                     <div className="wl-char-header">
-                        <div className="wl-char-avatar">
-                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-                                <circle cx="12" cy="7" r="4"/>
-                            </svg>
+                        <div className="wl-char-avatar" style={{ background: `linear-gradient(135deg, ${currentClass.color}40 0%, ${currentClass.color}80 100%)`, border: `2px solid ${currentClass.color}` }}>
+                            <span style={{ fontSize: '24px' }}>{currentClass.icon}</span>
                         </div>
                         <div className="wl-char-info">
-                            <h2>冒險者</h2>
-                            <div className="wl-char-class">Lv.{playerLevel} Mage</div>
+                            <h2>{currentClass.name}</h2>
+                            <div className="wl-char-class">Lv.{playerLevel} {currentClass.nameEn}</div>
                         </div>
                     </div>
                     <div className="wl-stat-bars">
@@ -251,7 +331,7 @@ function WetlandUI() {
             {/* Skill Bar - Bottom Center */}
             <div className="wl-skillbar-panel">
                 <div className="wl-skillbar">
-                    {SKILL_SLOTS.map((slot, i) => {
+                    {skillSlots.map((slot, i) => {
                         const skill = skills[slot.key];
                         const remaining = skill?.unlocked
                             ? Math.max(0, (skill.cooldown || 0))

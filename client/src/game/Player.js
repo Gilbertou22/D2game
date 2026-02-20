@@ -1,4 +1,4 @@
-// src/game/Player.js (修正版：被攻擊時血條即時變化 + 受擊閃紅反饋 + 平滑動畫)
+// src/game/Player.js (深度性能優化版)
 import { useFrame } from '@react-three/fiber';
 import { useRef, useEffect, useState } from 'react';
 import { Html } from '@react-three/drei';
@@ -12,11 +12,10 @@ import { checkPlayerObstacleCollision } from '../utils/collision';
 const ATTACK_RANGE = 8;
 const ATTACK_SPEED = 1.5;
 const BASE_ATTACK_POWER = 200;
-const BASE_CRIT_CHANCE = 0.15; // 基礎暴擊率
+const BASE_CRIT_CHANCE = 0.15;
 const CRIT_MULTIPLIER = 2;
 const MAP_HALF_SIZE = 450;
 
-// 技能射程配置
 const SKILL_RANGES = {
     fireball: 80,
     icebolt: 80,
@@ -27,9 +26,13 @@ const SKILL_RANGES = {
     lightning: 50
 };
 
-//const PLAYER_MODEL_URL = 'https://threejs.org/examples/models/gltf/Soldier.glb';
+const PLAYER_MODEL_URL = 'models/Soldier.glb';
 
-const PLAYER_MODEL_URL = 'models/Soldier.glb'; // 本地模型路徑，請確保 public/models/player.glb 存在
+const _tempVec = new THREE.Vector3();
+const _dirVec = new THREE.Vector3();
+const _stepVec = new THREE.Vector3();
+const _hitPosVec = new THREE.Vector3();
+const _tempEuler = new THREE.Euler();
 
 function PlayerModel({ isMoving, isAttacking }) {
     const { scene, animations, error } = useGLTF(PLAYER_MODEL_URL);
@@ -167,7 +170,7 @@ function Player() {
         moveTarget = targetPosition;
     }
     
-    const isMoving = moveTarget && moveTarget.clone().sub(playerPos).length() > 0.5;
+    const isMoving = moveTarget && _tempVec.copy(moveTarget).sub(playerPos).length() > 0.5;
 
     useFrame((state, delta) => {
         if (!groupRef.current) return;
@@ -178,23 +181,23 @@ function Player() {
         const now = state.clock.getElapsedTime();
 
         if (moveTarget) {
-            let direction = moveTarget.clone().sub(playerPos);
-            direction.y = 0;
-            const distance = direction.length();
+            _dirVec.copy(moveTarget).sub(playerPos);
+            _dirVec.y = 0;
+            const distance = _dirVec.length();
 
             if (distance > (targetEnemy ? ATTACK_RANGE : 0.5)) {
-                direction.normalize();
-                const step = direction.multiplyScalar(20 * delta);
-                let newPos = playerPos.clone().add(step);
+                _dirVec.normalize();
+                _stepVec.copy(_dirVec).multiplyScalar(20 * delta);
+                _tempVec.copy(playerPos).add(_stepVec);
 
-                newPos.x = Math.max(-MAP_HALF_SIZE, Math.min(MAP_HALF_SIZE, newPos.x));
-                newPos.z = Math.max(-MAP_HALF_SIZE, Math.min(MAP_HALF_SIZE, newPos.z));
+                _tempVec.x = Math.max(-MAP_HALF_SIZE, Math.min(MAP_HALF_SIZE, _tempVec.x));
+                _tempVec.z = Math.max(-MAP_HALF_SIZE, Math.min(MAP_HALF_SIZE, _tempVec.z));
 
-                // 碰撞檢查：障礙物
-                if (!checkPlayerObstacleCollision(newPos)) {
-                    setPlayerPos(newPos);
-                    const rotationY = Math.atan2(-direction.x, -direction.z);
-                    setPlayerRotation(new THREE.Euler(0, rotationY, 0));
+                if (!checkPlayerObstacleCollision(_tempVec)) {
+                    setPlayerPos(_tempVec.clone());
+                    const rotationY = Math.atan2(-_dirVec.x, -_dirVec.z);
+                    _tempEuler.set(0, rotationY, 0);
+                    setPlayerRotation(_tempEuler);
                 }
             } else {
                 if (targetEnemy) {
@@ -203,44 +206,41 @@ function Player() {
                         return;
                     }
 
-                    const dir = targetEnemy.position.clone().sub(playerPos);
-                    dir.y = 0;
-                    dir.normalize();
-                    const rotationY = Math.atan2(-dir.x, -dir.z);
-                    setPlayerRotation(new THREE.Euler(0, rotationY, 0));
+                    _dirVec.copy(targetEnemy.position).sub(playerPos);
+                    _dirVec.y = 0;
+                    _dirVec.normalize();
+                    const rotationY = Math.atan2(-_dirVec.x, -_dirVec.z);
+                    _tempEuler.set(0, rotationY, 0);
+                    setPlayerRotation(_tempEuler);
 
                     if (now - lastAttackTime.current >= 1 / ATTACK_SPEED) {
                         lastAttackTime.current = now;
                         setIsAttacking(true);
 
-                        // 計算命中率 (基礎 85% + 玩家等級*0.5% - 敵人閃避)
                         const hitChance = 0.85 + playerLevel * 0.005 - (targetEnemy.dodge || 0);
                         const isHit = Math.random() < hitChance;
-                        
-                        // 暴擊判定 (在命中時)
                         const isCrit = isHit && Math.random() < playerCritChance;
                         
+                        _hitPosVec.copy(targetEnemy.position).add(new THREE.Vector3(0, targetEnemy.size / 2, 0));
+                        
                         if (!isHit) {
-                            // 攻擊MISS
-                            const hitPos = targetEnemy.position.clone().add(new THREE.Vector3(0, targetEnemy.size / 2, 0));
-                            useGameState.getState().addFloatingNumber(hitPos, 0, 'miss');
-                            createParticles(hitPos, 0x888888, 10, 8, 0.8, 'miss');
+                            useGameState.getState().addFloatingNumber(_hitPosVec, 0, 'miss');
+                            createParticles(_hitPosVec, 0x888888, 10, 8, 0.8, 'miss');
                         } else {
                             const damage = isCrit ? playerAttackPower * CRIT_MULTIPLIER : playerAttackPower;
 
                             updateEnemy(targetEnemy.id, { hp: Math.max(0, targetEnemy.hp - damage) });
 
-                            const hitPos = targetEnemy.position.clone().add(new THREE.Vector3(0, targetEnemy.size / 2, 0));
-                            createParticles(hitPos, 0xffffff, 20, 15, 1.2, 'melee_hit');
-                            createParticles(hitPos, 0xff0000, 15, 10, 1, 'hit_flash');
+                            createParticles(_hitPosVec, 0xffffff, 20, 15, 1.2, 'melee_hit');
+                            createParticles(_hitPosVec, 0xff0000, 15, 10, 1, 'hit_flash');
 
                             if (isCrit) {
-                                createParticles(hitPos, 0xffff00, 50, 40, 3, 'crit_explosion');
-                                createParticles(hitPos, 0xffaa00, 30, 30, 2.5, 'crit_sparks');
-                                createParticles(hitPos, 0xffffff, 20, 20, 2, 'crit_flash');
+                                createParticles(_hitPosVec, 0xffff00, 50, 40, 3, 'crit_explosion');
+                                createParticles(_hitPosVec, 0xffaa00, 30, 30, 2.5, 'crit_sparks');
+                                createParticles(_hitPosVec, 0xffffff, 20, 20, 2, 'crit_flash');
                             }
 
-                            useGameState.getState().addFloatingNumber(hitPos, damage, isCrit ? 'crit' : 'damage');
+                            useGameState.getState().addFloatingNumber(_hitPosVec, damage, isCrit ? 'crit' : 'damage');
                         }
 
                         setTimeout(() => setIsAttacking(false), 600);
@@ -251,16 +251,16 @@ function Player() {
             }
         }
         
-        // 如果在技能射程內選中了敵人但不移動，仍然面向敵人
         if (targetEnemy && !moveTarget && isInSkillRange) {
             if (!targetEnemy.id || targetEnemy.hp <= 0) {
                 setTargetEnemy(null);
             } else {
-                const dir = targetEnemy.position.clone().sub(playerPos);
-                dir.y = 0;
-                dir.normalize();
-                const rotationY = Math.atan2(-dir.x, -dir.z);
-                setPlayerRotation(new THREE.Euler(0, rotationY, 0));
+                _dirVec.copy(targetEnemy.position).sub(playerPos);
+                _dirVec.y = 0;
+                _dirVec.normalize();
+                const rotationY = Math.atan2(-_dirVec.x, -_dirVec.z);
+                _tempEuler.set(0, rotationY, 0);
+                setPlayerRotation(_tempEuler);
             }
         }
     });

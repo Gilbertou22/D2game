@@ -1,7 +1,7 @@
-// src/game/GameScene.js (添加視覺邊界提示版 + 性能優化)
+// src/game/GameScene.js (深度性能優化版)
 import { useThree } from '@react-three/fiber';
 import { useFrame } from '@react-three/fiber';
-import { useRef, useEffect, useCallback } from 'react';
+import { useRef, useEffect, useCallback, useMemo } from 'react';
 import * as THREE from 'three';
 import Player from './Player';
 import Obstacles from './Obstacles';
@@ -15,9 +15,12 @@ import useGameState from '../hooks/useGameState';
 
 const MAP_HALF_SIZE = 450;
 
-// 預創建 Raycaster 減少垃圾回收
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
+
+const _tempVec = new THREE.Vector3();
+const _offsetVec = new THREE.Vector3();
+const _desiredVec = new THREE.Vector3();
 
 function GameScene() {
     const { camera } = useThree();
@@ -66,33 +69,25 @@ function GameScene() {
         camera.updateProjectionMatrix();
     }, [camera, cameraMode]);
 
-    // 相機跟隨
+    // 相機跟隨 - 優化版：預分配對象，避免 GC
     useFrame(() => {
         const config = cameraConfigs[cameraMode] || cameraConfigs.isometric;
-        const offset = config.offset.clone();
+        _offsetVec.copy(config.offset);
         
-        // 根據視角模式調整偏移
         if (cameraMode === 'third') {
-            // 第三人稱：跟隨玩家旋轉
-            offset.applyEuler(playerRotation);
+            _offsetVec.applyEuler(playerRotation);
         } else if (cameraMode === 'first') {
-            // 第一人稱：在玩家位置
             camera.rotation.order = 'YXZ';
             camera.rotation.y = playerRotation.y;
             camera.rotation.x = 0;
         }
         
-        const desired = playerPos.clone().add(offset);
+        _desiredVec.copy(playerPos).add(_offsetVec);
         
         if (cameraMode === 'first') {
-            // 第一人稱直接設定位置
-            camera.position.set(
-                playerPos.x,
-                playerPos.y + config.offset.y,
-                playerPos.z
-            );
+            camera.position.set(playerPos.x, playerPos.y + config.offset.y, playerPos.z);
         } else {
-            camera.position.lerp(desired, 0.1);
+            camera.position.lerp(_desiredVec, 0.1);
             camera.lookAt(playerPos);
         }
     });
@@ -106,37 +101,16 @@ function GameScene() {
 
         raycaster.setFromCamera(mouse, camera);
 
-        // 點怪物 - 優化遍歷
-        if (enemies.length > 0) {
-            const enemyMeshes = [];
-            for (let i = 0; i < enemies.length; i++) {
-                const enemy = enemies[i];
-                if (enemy.mesh?.current) {
-                    enemy.mesh.current.traverse((child) => {
-                        if (child.isMesh) {
-                            enemyMeshes.push(child);
-                        }
-                    });
-                }
-            }
+        // 點怪物 - 優化遍歷，提前退出
+        for (let i = 0; i < enemies.length; i++) {
+            const enemy = enemies[i];
+            if (!enemy.mesh?.current) continue;
             
-            const enemyIntersects = raycaster.intersectObjects(enemyMeshes, false);
-            if (enemyIntersects.length > 0) {
-                const hitMesh = enemyIntersects[0].object;
-                for (let i = 0; i < enemies.length; i++) {
-                    const enemy = enemies[i];
-                    if (enemy.mesh?.current) {
-                        let found = false;
-                        enemy.mesh.current.traverse((child) => {
-                            if (child === hitMesh) found = true;
-                        });
-                        if (found) {
-                            setTargetEnemy(enemy);
-                            setTargetPosition(null);
-                            return;
-                        }
-                    }
-                }
+            const intersects = raycaster.intersectObject(enemy.mesh.current, true);
+            if (intersects.length > 0) {
+                setTargetEnemy(enemy);
+                setTargetPosition(null);
+                return;
             }
         }
 
@@ -144,13 +118,10 @@ function GameScene() {
         if (ground.current) {
             const intersects = raycaster.intersectObject(ground.current);
             if (intersects.length > 0) {
-                let point = intersects[0].point;
+                const point = intersects[0].point;
                 point.y = 3;
-
-                // 邊界限制
                 point.x = Math.max(-MAP_HALF_SIZE, Math.min(MAP_HALF_SIZE, point.x));
                 point.z = Math.max(-MAP_HALF_SIZE, Math.min(MAP_HALF_SIZE, point.z));
-
                 setTargetPosition(point);
                 setTargetEnemy(null);
             }
@@ -233,6 +204,7 @@ function GameScene() {
             <EnemiesContainer />
             <Chests />
             <Projectiles />
+            <SkillsManager />
             <Particles />           
             <LevelManager />
         </>

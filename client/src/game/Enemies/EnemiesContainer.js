@@ -20,13 +20,15 @@ function EnemiesContainer() {
         setEnemies,
         currentLevel,
         isBossLevel,
-        obstacles
+        obstacles,
+        classSelected
     } = useGameState();
 
     useEffect(() => {
+        if (!classSelected) return;
+        
         let difficulty = 1 + (currentLevel - 1) * 0.25;
 
-        // 第一關特殊減弱（怪物血量/攻擊減半，數量減少）
         if (currentLevel === 1) {
             difficulty *= 0.4; // 整體強度 50%
         }
@@ -37,8 +39,8 @@ function EnemiesContainer() {
         // 種子參考（用物件避免閉包問題）
         const seedRef = { value: currentLevel * 1000 };
 
-        // 怪物密度上限
-        const maxEnemies = Math.min(40 + currentLevel * 5, 120);
+        // 怪物密度上限 (暫時減少以提升 FPS)
+        const maxEnemies = Math.min(10 + currentLevel * 2, 30);
 
         // 怪物類型權重（總和 100）
         const typeWeights = [
@@ -153,8 +155,8 @@ function EnemiesContainer() {
                 level: currentLevel
             });
         } else {
-            // 普通關卡
-            const targetCount = Math.min(20 + currentLevel * 5, maxEnemies);
+            // 普通關卡 (暫時減少以提升 FPS)
+            const targetCount = Math.min(5 + currentLevel * 2, maxEnemies);
 
             while (enemyCount < targetCount) {
                 const type = getRandomType();
@@ -201,7 +203,7 @@ function EnemiesContainer() {
         }
 
         setEnemies(newEnemies);
-    }, [currentLevel, isBossLevel, obstacles]);
+    }, [currentLevel, isBossLevel, obstacles, classSelected, setEnemies]);
 
     const { enemies = [] } = useGameState();
     const enemyArray = Array.isArray(enemies) ? enemies : [];

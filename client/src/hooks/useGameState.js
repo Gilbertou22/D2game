@@ -2,16 +2,16 @@ import { create } from 'zustand';
 import * as THREE from 'three';
 import { calculateTotalStats, stackItems, RARITIES, generateLevelUpRewards, applyLevelUpReward } from '../utils/itemSystem';
 import { calculateTalentBonuses } from '../utils/talentTree';
+import classConfigs from '../configs/classConfigs';
 
-// 經驗值需求公式：指數成長
 const expPerLevel = (level) => Math.floor(100 * Math.pow(1.15, level - 1));
 
-// 重新計算屬性並返回狀態更新對象
 const recalculateStats = (state, { backpack, equipped }) => {
     const totalStats = calculateTotalStats(equipped);
-    const baseAttack = 50 + state.playerLevel * 10;
-    const baseHP = 300 + state.playerLevel * 20;
-    const baseMana = 300 + state.playerLevel * 20;
+    const classConfig = classConfigs[state.playerClass] || classConfigs.mage;
+    const baseAttack = classConfig.baseAttack + state.playerLevel * classConfig.attackPerLevel;
+    const baseHP = classConfig.baseHP + state.playerLevel * classConfig.hpPerLevel;
+    const baseMana = classConfig.baseMP + state.playerLevel * classConfig.mpPerLevel;
     const allStatsBonus = totalStats.allStats || 0;
 
     return {
@@ -23,7 +23,7 @@ const recalculateStats = (state, { backpack, equipped }) => {
         playerMaxManaBonus: (totalStats.mana || 0) + allStatsBonus * 5,
         playerManaRegen: 3 + (totalStats.manaRegen || 0) + allStatsBonus * 0.1,
         playerMoveSpeedBonus: totalStats.movementSpeed || 0,
-        playerCritChance: 0.15 + (totalStats.critChance || 0) / 100,
+        playerCritChance: (classConfig.critChance || 0.15) + (totalStats.critChance || 0) / 100,
         playerCritDamage: 50 + (totalStats.critDamage || 0),
         playerAttackSpeed: totalStats.attackSpeed || 0,
         playerLifeSteal: totalStats.lifeSteal || 0,
@@ -42,22 +42,47 @@ const recalculateStats = (state, { backpack, equipped }) => {
 
 const useGameState = create((set, get) => ({
 
-    // 玩家
+    playerClass: 'mage',
+    classSelected: false,
+    
+    selectClass: (className) => {
+        const classConfig = classConfigs[className];
+        if (!classConfig) return;
+        
+        console.log('Selecting class:', className, 'Skills:', Object.keys(classConfig.skills));
+        
+        set({
+            playerClass: className,
+            classSelected: true,
+            skills: JSON.parse(JSON.stringify(classConfig.skills)),
+            skillKeybinds: { ...classConfig.skillKeybinds },
+            playerHP: classConfig.baseHP,
+            playerMaxHP: classConfig.baseHP,
+            playerMana: classConfig.baseMP,
+            playerMaxMana: classConfig.baseMP,
+            playerAttackPower: classConfig.baseAttack,
+            playerCritChance: classConfig.critChance || 0.15
+        });
+    },
+
+    // Initial skills from mage config
+    skills: JSON.parse(JSON.stringify(classConfigs.mage.skills)),
+    skillKeybinds: { ...classConfigs.mage.skillKeybinds },
+
     playerPos: new THREE.Vector3(0, 3, 0),
     playerRotation: new THREE.Euler(0, 0, 0),
-    playerHP: 300,
-    playerMaxHP: 300,
-    playerMana: 300,
-    playerMaxMana: 300,
+    playerHP: 800,
+    playerMaxHP: 800,
+    playerMana: 200,
+    playerMaxMana: 200,
     playerLevel: 1,
     playerExp: 0,
     playerGold: 0,
 
-    // 視角模式: 'isometric' | 'third' | 'first'
     cameraMode: 'isometric',
     currentLevel: 1,
     isDead: false,
-    playerAttackPower: 250,
+    playerAttackPower: 100,
     playerCritChance: 0.15,
     playerDefense: 0,           // 新增：防禦
     playerMaxHPBonus: 0,
@@ -391,10 +416,17 @@ const useGameState = create((set, get) => ({
     castSkill: (skillKey) => {
         const state = get();
         const skill = state.skills[skillKey];
-
-        if (!skill || !skill.unlocked || skill.cooldown > 0 || state.playerMana < skill.manaCost || state.isDead) {
+        
+        console.log('castSkill called:', skillKey, 'skill:', skill, 'mana:', state.playerMana, 'isDead:', state.isDead);
+        
+        if (!skill) {
+            console.log('Skill not found:', skillKey, 'Available skills:', Object.keys(state.skills));
             return false;
         }
+        if (!skill.unlocked) return false;
+        if (skill.cooldown > 0) { console.log('On cooldown:', skill.cooldown); return false; }
+        if (state.playerMana < skill.manaCost) { console.log('Not enough mana'); return false; }
+        if (state.isDead) return false;
 
         // 扣魔力
         get().updatePlayer({ playerMana: state.playerMana - skill.manaCost });
@@ -422,15 +454,27 @@ const useGameState = create((set, get) => ({
     },
 
     // 每幀更新冷卻
-    updateSkillsCooldown: (delta) => set((state) => {
-        const updated = { ...state.skills };
-        Object.keys(updated).forEach(key => {
-            if (updated[key].cooldown > 0) {
-                updated[key].cooldown = Math.max(0, updated[key].cooldown - delta);
+    updateSkillsCooldown: (delta) => {
+        const state = get();
+        const skills = state.skills;
+        let hasChange = false;
+        const updated = {};
+        
+        Object.keys(skills).forEach(key => {
+            const skill = skills[key];
+            if (skill.cooldown > 0) {
+                const newCooldown = Math.max(0, skill.cooldown - delta);
+                hasChange = true;
+                updated[key] = { ...skill, cooldown: newCooldown };
+            } else {
+                updated[key] = skill;
             }
         });
-        return { skills: updated };
-    }),
+        
+        if (hasChange) {
+            set({ skills: updated });
+        }
+    },
 
     damageNumbers: [],  // [{ id, position, value, isCrit, lifetime }]
     

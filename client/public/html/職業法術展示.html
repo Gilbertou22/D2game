@@ -1,0 +1,4016 @@
+<!doctype html>
+<html lang="zh-TW">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>職業法術展示 - Diablo Style</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&family=Noto+Sans+TC:wght@300;400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #080810;
+        --bg-card: #0c0c18;
+        --fg: #e8e8f0;
+        --muted: #6b7280;
+        --border: #1a1a2e;
+        --accent-mage: #9f7aea;
+        --accent-warrior: #f56565;
+        --accent-archer: #48bb78;
+        --accent-druid: #68d391;
+      }
+
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: "Noto Sans TC", sans-serif;
+        background: var(--bg);
+        color: var(--fg);
+        overflow-x: hidden;
+      }
+
+      .font-display {
+        font-family: "Cinzel", serif;
+      }
+
+      #canvas-container {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 0;
+      }
+
+      .glass {
+        background: rgba(12, 12, 24, 0.9);
+        backdrop-filter: blur(20px);
+        border: 1px solid var(--border);
+      }
+
+      .skill-btn {
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        position: relative;
+        overflow: hidden;
+      }
+
+      .skill-btn::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(
+          90deg,
+          transparent,
+          rgba(255, 255, 255, 0.1),
+          transparent
+        );
+        transition: left 0.5s;
+      }
+
+      .skill-btn:hover::before {
+        left: 100%;
+      }
+
+      .skill-btn:hover {
+        transform: translateX(4px);
+        border-color: rgba(255, 255, 255, 0.2);
+      }
+
+      .class-tab {
+        position: relative;
+        transition: all 0.3s ease;
+      }
+
+      .class-tab.active {
+        font-weight: 700;
+      }
+
+      .class-tab::after {
+        content: "";
+        position: absolute;
+        bottom: -2px;
+        left: 50%;
+        transform: translateX(-50%) scaleX(0);
+        width: 80%;
+        height: 2px;
+        border-radius: 2px;
+        transition: transform 0.3s ease;
+      }
+
+      .class-tab.active::after {
+        transform: translateX(-50%) scaleX(1);
+      }
+
+      @keyframes float {
+        0%,
+        100% {
+          transform: translateY(0) rotate(0deg);
+        }
+        50% {
+          transform: translateY(-8px) rotate(3deg);
+        }
+      }
+
+      @keyframes pulse-glow {
+        0%,
+        100% {
+          filter: drop-shadow(0 0 8px currentColor);
+        }
+        50% {
+          filter: drop-shadow(0 0 16px currentColor);
+        }
+      }
+
+      @keyframes slideIn {
+        from {
+          opacity: 0;
+          transform: translateX(-20px);
+        }
+        to {
+          opacity: 1;
+          transform: translateX(0);
+        }
+      }
+
+      .animate-slideIn {
+        animation: slideIn 0.4s ease forwards;
+      }
+
+      .skill-icon {
+        animation: float 3s ease-in-out infinite;
+      }
+
+      .glow-text {
+        text-shadow: 0 0 20px currentColor;
+      }
+
+      ::-webkit-scrollbar {
+        width: 4px;
+      }
+      ::-webkit-scrollbar-track {
+        background: var(--bg);
+      }
+      ::-webkit-scrollbar-thumb {
+        background: var(--border);
+        border-radius: 2px;
+      }
+
+      .cast-indicator {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        pointer-events: none;
+        z-index: 100;
+      }
+
+      .cast-ring {
+        width: 120px;
+        height: 120px;
+        border: 2px solid;
+        border-radius: 50%;
+        animation: castPulse 0.5s ease-out forwards;
+      }
+
+      @keyframes castPulse {
+        0% {
+          transform: scale(0.5);
+          opacity: 1;
+        }
+        100% {
+          transform: scale(2);
+          opacity: 0;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+          animation-duration: 0.01ms !important;
+          transition-duration: 0.01ms !important;
+        }
+      }
+    </style>
+
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+          "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+        }
+      }
+    </script>
+  </head>
+  <body class="min-h-screen">
+    <div id="canvas-container"></div>
+
+    <div id="cast-indicator" class="cast-indicator hidden">
+      <div class="cast-ring"></div>
+    </div>
+
+    <div class="relative z-10 min-h-screen flex flex-col lg:flex-row">
+      <!-- Left Panel -->
+      <aside
+        class="lg:w-80 w-full glass lg:h-screen p-6 flex flex-col border-r border-white/5"
+      >
+        <header class="mb-6">
+          <h1
+            class="font-display text-xl font-bold tracking-widest mb-1 opacity-90"
+          >
+            ARCANE ARTS
+          </h1>
+          <p class="text-xs text-gray-500 tracking-wide">職業法術展示系統</p>
+        </header>
+
+        <nav class="flex gap-1 mb-6" role="tablist">
+          <button
+            class="class-tab mage active px-3 py-2 rounded-lg text-xs font-medium tracking-wide"
+            data-class="mage"
+            role="tab"
+            style="color: var(--accent-mage)"
+          >
+            法師
+          </button>
+          <button
+            class="class-tab warrior px-3 py-2 rounded-lg text-xs font-medium tracking-wide"
+            data-class="warrior"
+            role="tab"
+            style="color: var(--accent-warrior)"
+          >
+            戰士
+          </button>
+          <button
+            class="class-tab archer px-3 py-2 rounded-lg text-xs font-medium tracking-wide"
+            data-class="archer"
+            role="tab"
+            style="color: var(--accent-archer)"
+          >
+            弓箭手
+          </button>
+          <button
+            class="class-tab druid px-3 py-2 rounded-lg text-xs font-medium tracking-wide"
+            data-class="druid"
+            role="tab"
+            style="color: var(--accent-druid)"
+          >
+            德魯伊
+          </button>
+        </nav>
+
+        <div
+          id="class-info"
+          class="mb-6 p-4 rounded-xl bg-black/40 border border-white/5 relative overflow-hidden"
+        >
+          <div class="absolute inset-0 opacity-20" id="class-bg-pattern"></div>
+          <div class="relative z-10">
+            <div class="flex items-center gap-3 mb-3">
+              <span id="class-icon" class="text-4xl skill-icon"></span>
+              <div>
+                <h2 id="class-name" class="font-display text-lg font-bold"></h2>
+                <p
+                  id="class-name-en"
+                  class="text-xs text-gray-500 tracking-wider"
+                ></p>
+              </div>
+            </div>
+            <p id="class-description" class="text-sm text-gray-400 mb-4"></p>
+            <div class="grid grid-cols-3 gap-2 text-center">
+              <div class="p-2 rounded-lg bg-black/30">
+                <p class="text-[10px] text-gray-500 uppercase tracking-wider">
+                  HP
+                </p>
+                <p id="stat-hp" class="font-bold text-sm"></p>
+              </div>
+              <div class="p-2 rounded-lg bg-black/30">
+                <p class="text-[10px] text-gray-500 uppercase tracking-wider">
+                  MP
+                </p>
+                <p id="stat-mp" class="font-bold text-sm"></p>
+              </div>
+              <div class="p-2 rounded-lg bg-black/30">
+                <p class="text-[10px] text-gray-500 uppercase tracking-wider">
+                  ATK
+                </p>
+                <p id="stat-atk" class="font-bold text-sm"></p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex-1 overflow-y-auto">
+          <h3 class="text-[10px] text-gray-600 uppercase tracking-widest mb-3">
+            Abilities
+          </h3>
+          <div id="skills-list" class="space-y-2"></div>
+        </div>
+
+        <footer class="mt-4 pt-4 border-t border-white/5">
+          <p class="text-[10px] text-gray-600">
+            Drag to rotate / Scroll to zoom
+          </p>
+        </footer>
+      </aside>
+
+      <!-- Center -->
+      <main class="flex-1 relative min-h-[60vh] lg:min-h-screen">
+        <div
+          id="skill-display"
+          class="absolute top-6 left-1/2 -translate-x-1/2 glass rounded-xl px-6 py-3 text-center opacity-0 transition-all duration-500 pointer-events-none border border-white/10"
+        >
+          <div class="flex items-center gap-4">
+            <span id="skill-icon-display" class="text-3xl"></span>
+            <div class="text-left">
+              <h3
+                id="skill-name-display"
+                class="font-display text-base font-bold tracking-wide"
+              ></h3>
+              <p id="skill-desc-display" class="text-xs text-gray-400"></p>
+            </div>
+          </div>
+        </div>
+
+        <div
+          id="hint"
+          class="absolute bottom-8 left-1/2 -translate-x-1/2 glass rounded-full px-6 py-2 text-xs text-gray-500 border border-white/5"
+        >
+          點擊左側技能施放法術
+        </div>
+      </main>
+
+      <!-- Right Panel -->
+      <aside
+        id="skill-detail-panel"
+        class="lg:w-72 w-full glass lg:h-screen p-6 hidden lg:block opacity-0 transition-opacity duration-500 border-l border-white/5"
+      >
+        <h3
+          class="font-display text-sm font-bold mb-4 tracking-wider opacity-80"
+        >
+          Skill Details
+        </h3>
+        <div id="skill-detail-content">
+          <p class="text-gray-600 text-xs">選擇技能查看詳情</p>
+        </div>
+      </aside>
+    </div>
+
+    <script type="module">
+      import * as THREE from "three";
+      import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+
+      const classConfigs = {
+        mage: {
+          name: "法師",
+          nameEn: "Mage",
+          icon: "🧙",
+          description: "掌控元素之力，遠程魔法攻擊",
+          baseHP: 800,
+          baseMP: 200,
+          baseAttack: 100,
+          color: "#9f7aea",
+          skills: {
+            fireball: {
+              icon: "🔥",
+              name: "火球術",
+              description: "發射熾熱火球造成範圍傷害",
+              damage: 550,
+              manaCost: 2,
+              maxCooldown: 1,
+            },
+            icebolt: {
+              icon: "❄️",
+              name: "冰箭術",
+              description: "發射寒冰箭矢凍結敵人",
+              damage: 80,
+              manaCost: 15,
+              maxCooldown: 3,
+            },
+            meteor: {
+              icon: "☄️",
+              name: "隕石術",
+              description: "召喚隕石從天而降",
+              damage: 800,
+              manaCost: 50,
+              maxCooldown: 8,
+            },
+            chainlightning: {
+              icon: "⚡",
+              name: "連鎖閃電",
+              description: "閃電在敵人之間彈射",
+              damage: 120,
+              manaCost: 35,
+              maxCooldown: 10,
+            },
+            heal: {
+              icon: "💚",
+              name: "治療術",
+              description: "恢復生命值",
+              healAmount: 100,
+              manaCost: 30,
+              maxCooldown: 10,
+            },
+            nova: {
+              icon: "💥",
+              name: "奧術新星",
+              description: "以自身為中心釋放能量波",
+              damage: 300,
+              manaCost: 50,
+              maxCooldown: 12,
+            },
+          },
+        },
+        warrior: {
+          name: "戰士",
+          nameEn: "Warrior",
+          icon: "⚔️",
+          description: "近戰之王，高血量高防禦",
+          baseHP: 1500,
+          baseMP: 100,
+          baseAttack: 150,
+          color: "#f56565",
+          skills: {
+            slash: {
+              icon: "🗡️",
+              name: "橫斬",
+              description: "揮舞武器攻擊前方敵人",
+              damage: 200,
+              manaCost: 0,
+              maxCooldown: 0.8,
+            },
+            charge: {
+              icon: "🏃",
+              name: "衝鋒",
+              description: "衝向敵人並造成暈眩",
+              damage: 300,
+              manaCost: 15,
+              maxCooldown: 5,
+            },
+            whirlwind: {
+              icon: "🌀",
+              name: "旋風斬",
+              description: "旋轉攻擊周圍所有敵人",
+              damage: 180,
+              manaCost: 25,
+              maxCooldown: 6,
+            },
+            shieldbash: {
+              icon: "🛡️",
+              name: "盾擊",
+              description: "用盾牌猛擊敵人",
+              damage: 150,
+              manaCost: 20,
+              maxCooldown: 8,
+            },
+            battlecry: {
+              icon: "📢",
+              name: "戰吼",
+              description: "提升攻擊力",
+              damage: 0,
+              manaCost: 30,
+              maxCooldown: 15,
+            },
+            execute: {
+              icon: "💀",
+              name: "處決",
+              description: "對低血量敵人造成巨大傷害",
+              damage: 500,
+              manaCost: 40,
+              maxCooldown: 10,
+            },
+          },
+        },
+        archer: {
+          name: "弓箭手",
+          nameEn: "Archer",
+          icon: "🏹",
+          description: "遠程物理攻擊，高暴擊高機動",
+          baseHP: 900,
+          baseMP: 120,
+          baseAttack: 120,
+          color: "#48bb78",
+          skills: {
+            quickshot: {
+              icon: "➡️",
+              name: "速射",
+              description: "快速射出一支箭矢",
+              damage: 100,
+              manaCost: 0,
+              maxCooldown: 0.5,
+            },
+            multishot: {
+              icon: "🎯",
+              name: "多重射擊",
+              description: "同時射出多支箭矢",
+              damage: 80,
+              manaCost: 20,
+              maxCooldown: 4,
+            },
+            poisonarrow: {
+              icon: "☠️",
+              name: "毒箭",
+              description: "射出毒箭造成持續傷害",
+              damage: 60,
+              manaCost: 25,
+              maxCooldown: 6,
+            },
+            arrowrain: {
+              icon: "🌧️",
+              name: "箭雨",
+              description: "在區域降下箭雨",
+              damage: 150,
+              manaCost: 50,
+              maxCooldown: 12,
+            },
+            evasion: {
+              icon: "💨",
+              name: "閃避",
+              description: "短時間內閃避所有攻擊",
+              damage: 0,
+              manaCost: 15,
+              maxCooldown: 10,
+            },
+            snipe: {
+              icon: "🎯",
+              name: "狙擊",
+              description: "蓄力射出高暴擊的一箭",
+              damage: 400,
+              manaCost: 35,
+              maxCooldown: 8,
+            },
+          },
+        },
+        druid: {
+          name: "德魯伊",
+          nameEn: "Druid",
+          icon: "🌿",
+          description: "自然之力，治療與變身",
+          baseHP: 1000,
+          baseMP: 180,
+          baseAttack: 80,
+          color: "#68d391",
+          skills: {
+            wrath: {
+              icon: "⚡",
+              name: "憤怒",
+              description: "釋放自然能量攻擊敵人",
+              damage: 150,
+              manaCost: 5,
+              maxCooldown: 1,
+            },
+            rejuvenation: {
+              icon: "💚",
+              name: "回春術",
+              description: "立即治療並持續恢復生命",
+              healAmount: 80,
+              manaCost: 25,
+              maxCooldown: 8,
+            },
+            thorns: {
+              icon: "🌵",
+              name: "荊棘",
+              description: "受到攻擊時反彈傷害",
+              damage: 50,
+              manaCost: 30,
+              maxCooldown: 10,
+            },
+            sunfire: {
+              icon: "☀️",
+              name: "日炎術",
+              description: "太陽之力灼燒區域敵人",
+              damage: 200,
+              manaCost: 35,
+              maxCooldown: 6,
+            },
+            bearform: {
+              icon: "🐻",
+              name: "熊形態",
+              description: "變身為熊，提升血量和攻擊",
+              damage: 0,
+              manaCost: 50,
+              maxCooldown: 20,
+            },
+            tranquility: {
+              icon: "🌸",
+              name: "寧靜",
+              description: "持續治療周圍所有友方",
+              healAmount: 200,
+              manaCost: 80,
+              maxCooldown: 30,
+            },
+          },
+        },
+      };
+
+      // Three.js Core
+      let scene, camera, renderer, controls;
+      let currentEffect = null;
+      let clock = new THREE.Clock();
+      let groundMesh, gridHelper;
+
+      // Particle pool for performance
+      const particlePools = [];
+
+      function init() {
+        const container = document.getElementById("canvas-container");
+
+        scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x080810, 0.02);
+
+        camera = new THREE.PerspectiveCamera(
+          55,
+          window.innerWidth / window.innerHeight,
+          0.1,
+          1000,
+        );
+        camera.position.set(0, 8, 18);
+        camera.lookAt(0, 0, 0);
+
+        renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.setClearColor(0x080810, 1);
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.2;
+        container.appendChild(renderer.domElement);
+
+        controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.minDistance = 8;
+        controls.maxDistance = 35;
+        controls.maxPolarAngle = Math.PI / 2.1;
+
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0x404050, 0.4);
+        scene.add(ambientLight);
+
+        createGround();
+        createBackgroundElements();
+
+        window.addEventListener("resize", onWindowResize);
+        animate();
+      }
+
+      function createGround() {
+        // Ground
+        const groundGeo = new THREE.CircleGeometry(25, 64);
+        const groundMat = new THREE.MeshStandardMaterial({
+          color: 0x0a0a14,
+          roughness: 0.9,
+          metalness: 0.1,
+          transparent: true,
+          opacity: 0.95,
+        });
+        groundMesh = new THREE.Mesh(groundGeo, groundMat);
+        groundMesh.rotation.x = -Math.PI / 2;
+        groundMesh.position.y = -0.01;
+        scene.add(groundMesh);
+
+        // Hex grid pattern
+        gridHelper = new THREE.GridHelper(50, 50, 0x1a1a2e, 0x0f0f1a);
+        gridHelper.material.transparent = true;
+        gridHelper.material.opacity = 0.4;
+        scene.add(gridHelper);
+
+        // Center rune circle
+        const runeGeo = new THREE.RingGeometry(1.5, 1.7, 6);
+        const runeMat = new THREE.MeshBasicMaterial({
+          color: 0x2a2a4a,
+          transparent: true,
+          opacity: 0.5,
+          side: THREE.DoubleSide,
+        });
+        const rune = new THREE.Mesh(runeGeo, runeMat);
+        rune.rotation.x = -Math.PI / 2;
+        rune.position.y = 0.02;
+        scene.add(rune);
+      }
+
+      function createBackgroundElements() {
+        // Floating particles
+        const particleCount = 300;
+        const geometry = new THREE.BufferGeometry();
+        const positions = new Float32Array(particleCount * 3);
+
+        for (let i = 0; i < particleCount * 3; i += 3) {
+          positions[i] = (Math.random() - 0.5) * 60;
+          positions[i + 1] = Math.random() * 25;
+          positions[i + 2] = (Math.random() - 0.5) * 60;
+        }
+
+        geometry.setAttribute(
+          "position",
+          new THREE.BufferAttribute(positions, 3),
+        );
+
+        const material = new THREE.PointsMaterial({
+          color: 0x3a3a5a,
+          size: 0.08,
+          transparent: true,
+          opacity: 0.6,
+        });
+
+        const particles = new THREE.Points(geometry, material);
+        scene.add(particles);
+      }
+
+      function onWindowResize() {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      }
+
+      // ==================== SPELL EFFECTS ====================
+
+      // Base Spell Class
+      class SpellEffect {
+        constructor(config) {
+          this.objects = [];
+          this.age = 0;
+          this.maxAge = config.duration || 3;
+          this.config = config;
+        }
+
+        add(obj) {
+          this.objects.push(obj);
+          scene.add(obj);
+        }
+
+        update(delta) {
+          this.age += delta;
+          return this.age < this.maxAge;
+        }
+
+        dispose() {
+          this.objects.forEach((obj) => {
+            scene.remove(obj);
+            if (obj.geometry) obj.geometry.dispose();
+            if (obj.material) {
+              if (Array.isArray(obj.material)) {
+                obj.material.forEach((m) => m.dispose());
+              } else {
+                obj.material.dispose();
+              }
+            }
+          });
+        }
+      }
+
+      // ==================== MAGE SPELLS ====================
+
+      class FireballSpell extends SpellEffect {
+        constructor() {
+          super({ duration: 2.5 });
+
+          // Main fireball
+          const ballGeo = new THREE.SphereGeometry(0.6, 32, 32);
+          const ballMat = new THREE.MeshBasicMaterial({
+            color: 0xff4400,
+            transparent: true,
+            opacity: 0.9,
+          });
+          this.ball = new THREE.Mesh(ballGeo, ballMat);
+          this.ball.position.set(-10, 2, 0);
+          this.add(this.ball);
+
+          // Inner core (brighter)
+          const coreGeo = new THREE.SphereGeometry(0.35, 16, 16);
+          const coreMat = new THREE.MeshBasicMaterial({
+            color: 0xffcc00,
+            transparent: true,
+            opacity: 1,
+          });
+          this.core = new THREE.Mesh(coreGeo, coreMat);
+          this.ball.add(this.core);
+
+          // Fire trail particles
+          this.trailParticles = [];
+          for (let i = 0; i < 150; i++) {
+            const pGeo = new THREE.SphereGeometry(
+              0.1 + Math.random() * 0.15,
+              6,
+              6,
+            );
+            const pMat = new THREE.MeshBasicMaterial({
+              color: new THREE.Color().setHSL(
+                0.05 + Math.random() * 0.05,
+                1,
+                0.5 + Math.random() * 0.3,
+              ),
+              transparent: true,
+              opacity: 0.8,
+            });
+            const particle = new THREE.Mesh(pGeo, pMat);
+            particle.userData = {
+              offset: new THREE.Vector3(
+                (Math.random() - 0.5) * 1.5,
+                (Math.random() - 0.5) * 1.5,
+                (Math.random() - 0.5) * 1.5,
+              ),
+              life: Math.random() * 0.5,
+              maxLife: 0.5 + Math.random() * 0.3,
+            };
+            this.add(particle);
+            this.trailParticles.push(particle);
+          }
+
+          // Point light
+          this.light = new THREE.PointLight(0xff4400, 3, 15);
+          this.ball.add(this.light);
+
+          this.startPos = new THREE.Vector3(-10, 2, 0);
+          this.targetPos = new THREE.Vector3(10, 2, 0);
+          this.exploded = false;
+        }
+
+        update(delta) {
+          super.update(delta);
+
+          const flyDuration = 1.5;
+          const progress = Math.min(this.age / flyDuration, 1);
+
+          // Ball movement
+          this.ball.position.lerpVectors(
+            this.startPos,
+            this.targetPos,
+            progress,
+          );
+          this.ball.rotation.x += delta * 3;
+          this.ball.rotation.y += delta * 2;
+
+          // Pulsing
+          const pulse = 1 + Math.sin(this.age * 15) * 0.1;
+          this.ball.scale.setScalar(pulse);
+
+          // Trail particles
+          this.trailParticles.forEach((p) => {
+            p.userData.life += delta;
+            if (p.userData.life > p.userData.maxLife) {
+              p.userData.life = 0;
+              p.position.copy(this.ball.position).add(p.userData.offset);
+            }
+            const lifeRatio = p.userData.life / p.userData.maxLife;
+            p.material.opacity = 0.8 * (1 - lifeRatio);
+            p.scale.setScalar((1 - lifeRatio) * 1.5);
+            p.position.y -= delta * 0.5;
+          });
+
+          // Explosion
+          if (progress >= 1 && !this.exploded) {
+            this.exploded = true;
+            this.createExplosion();
+          }
+
+          if (this.exploded) {
+            this.ball.visible = false;
+          }
+
+          return this.age < this.maxAge;
+        }
+
+        createExplosion() {
+          // Shockwave ring
+          const ringGeo = new THREE.RingGeometry(0.1, 0.5, 32);
+          const ringMat = new THREE.MeshBasicMaterial({
+            color: 0xff6600,
+            transparent: true,
+            opacity: 1,
+            side: THREE.DoubleSide,
+          });
+          this.shockwave = new THREE.Mesh(ringGeo, ringMat);
+          this.shockwave.position.copy(this.targetPos);
+          this.shockwave.rotation.x = -Math.PI / 2;
+          this.add(this.shockwave);
+
+          // Explosion particles
+          this.expParticles = [];
+          for (let i = 0; i < 200; i++) {
+            const pGeo = new THREE.SphereGeometry(
+              0.1 + Math.random() * 0.2,
+              6,
+              6,
+            );
+            const pMat = new THREE.MeshBasicMaterial({
+              color: new THREE.Color().setHSL(
+                0.05 + Math.random() * 0.08,
+                1,
+                0.5 + Math.random() * 0.4,
+              ),
+              transparent: true,
+              opacity: 1,
+            });
+            const particle = new THREE.Mesh(pGeo, pMat);
+            particle.position.copy(this.targetPos);
+            particle.userData = {
+              velocity: new THREE.Vector3(
+                (Math.random() - 0.5) * 12,
+                Math.random() * 8,
+                (Math.random() - 0.5) * 12,
+              ),
+            };
+            this.add(particle);
+            this.expParticles.push(particle);
+          }
+
+          // Flash light
+          this.flashLight = new THREE.PointLight(0xff4400, 10, 30);
+          this.flashLight.position.copy(this.targetPos);
+          this.add(this.flashLight);
+        }
+
+        update(delta) {
+          const ageResult = SpellEffect.prototype.update.call(this, delta);
+
+          if (this.exploded) {
+            // Expand shockwave
+            if (this.shockwave) {
+              const scale = 1 + (this.age - 1.5) * 15;
+              this.shockwave.scale.set(scale, scale, 1);
+              this.shockwave.material.opacity = Math.max(
+                0,
+                1 - (this.age - 1.5) * 2,
+              );
+            }
+
+            // Explosion particles
+            this.expParticles.forEach((p) => {
+              p.position.add(p.userData.velocity.clone().multiplyScalar(delta));
+              p.userData.velocity.y -= delta * 15;
+              p.material.opacity *= 0.96;
+              p.scale.multiplyScalar(0.98);
+            });
+
+            // Fade flash
+            if (this.flashLight) {
+              this.flashLight.intensity *= 0.9;
+            }
+          } else {
+            const flyDuration = 1.5;
+            const progress = Math.min(this.age / flyDuration, 1);
+
+            this.ball.position.lerpVectors(
+              this.startPos,
+              this.targetPos,
+              progress,
+            );
+            this.ball.rotation.x += delta * 3;
+            this.ball.rotation.y += delta * 2;
+
+            const pulse = 1 + Math.sin(this.age * 15) * 0.1;
+            this.ball.scale.setScalar(pulse);
+
+            this.trailParticles.forEach((p) => {
+              p.userData.life += delta;
+              if (p.userData.life > p.userData.maxLife) {
+                p.userData.life = 0;
+                p.position.copy(this.ball.position).add(p.userData.offset);
+              }
+              const lifeRatio = p.userData.life / p.userData.maxLife;
+              p.material.opacity = 0.8 * (1 - lifeRatio);
+              p.scale.setScalar((1 - lifeRatio) * 1.5);
+              p.position.y -= delta * 0.5;
+            });
+
+            if (progress >= 1) {
+              this.exploded = true;
+              this.createExplosion();
+            }
+          }
+
+          return ageResult;
+        }
+      }
+
+      class IceBoltSpell extends SpellEffect {
+        constructor() {
+          super({ duration: 2 });
+
+          // Main ice crystal
+          const crystalGeo = new THREE.OctahedronGeometry(0.5, 0);
+          const crystalMat = new THREE.MeshBasicMaterial({
+            color: 0x66ddff,
+            transparent: true,
+            opacity: 0.9,
+          });
+          this.crystal = new THREE.Mesh(crystalGeo, crystalMat);
+          this.crystal.position.set(-10, 2, 0);
+          this.crystal.scale.set(1, 2, 1);
+          this.add(this.crystal);
+
+          // Ice shards orbiting
+          this.shards = [];
+          for (let i = 0; i < 8; i++) {
+            const shardGeo = new THREE.ConeGeometry(0.1, 0.4, 4);
+            const shardMat = new THREE.MeshBasicMaterial({
+              color: 0x88eeff,
+              transparent: true,
+              opacity: 0.7,
+            });
+            const shard = new THREE.Mesh(shardGeo, shardMat);
+            shard.userData = {
+              angle: (i / 8) * Math.PI * 2,
+              radius: 0.8,
+              speed: 3 + Math.random(),
+            };
+            this.add(shard);
+            this.shards.push(shard);
+          }
+
+          // Frost trail
+          this.trail = [];
+          for (let i = 0; i < 100; i++) {
+            const pGeo = new THREE.SphereGeometry(
+              0.05 + Math.random() * 0.08,
+              4,
+              4,
+            );
+            const pMat = new THREE.MeshBasicMaterial({
+              color: 0xaaddff,
+              transparent: true,
+              opacity: 0.6,
+            });
+            const particle = new THREE.Mesh(pGeo, pMat);
+            particle.userData = {
+              offset: new THREE.Vector3(
+                (Math.random() - 0.5) * 0.8,
+                (Math.random() - 0.5) * 0.8,
+                (Math.random() - 0.5) * 0.8,
+              ),
+              life: Math.random(),
+            };
+            this.add(particle);
+            this.trail.push(particle);
+          }
+
+          // Light
+          this.light = new THREE.PointLight(0x66ddff, 2, 10);
+          this.crystal.add(this.light);
+
+          this.startPos = new THREE.Vector3(-10, 2, 0);
+          this.targetPos = new THREE.Vector3(10, 2, 0);
+          this.impactTime = null;
+        }
+
+        update(delta) {
+          super.update(delta);
+
+          const flyDuration = 1;
+          let progress;
+
+          if (this.age < flyDuration) {
+            progress = this.age / flyDuration;
+            this.crystal.position.lerpVectors(
+              this.startPos,
+              this.targetPos,
+              progress,
+            );
+
+            // Rotation
+            this.crystal.rotation.x += delta * 5;
+            this.crystal.rotation.z += delta * 3;
+
+            // Orbiting shards
+            this.shards.forEach((shard, i) => {
+              shard.userData.angle += delta * shard.userData.speed;
+              const angle = shard.userData.angle;
+              const r = shard.userData.radius;
+              shard.position.copy(this.crystal.position);
+              shard.position.x += Math.cos(angle) * r;
+              shard.position.z += Math.sin(angle) * r;
+              shard.rotation.z = angle + Math.PI / 2;
+            });
+
+            // Trail
+            this.trail.forEach((p) => {
+              p.userData.life += delta;
+              if (p.userData.life > 0.3) {
+                p.userData.life = 0;
+                p.position.copy(this.crystal.position).add(p.userData.offset);
+              }
+              p.material.opacity = 0.6 * (1 - p.userData.life / 0.3);
+            });
+          } else {
+            // Impact - ice explosion
+            if (!this.impactTime) {
+              this.impactTime = this.age;
+              this.crystal.visible = false;
+              this.createImpact();
+            }
+
+            // Fade impact
+            this.impactParticles.forEach((p) => {
+              p.position.add(p.userData.velocity.clone().multiplyScalar(delta));
+              p.userData.velocity.multiplyScalar(0.95);
+              p.material.opacity *= 0.97;
+            });
+
+            if (this.shockwave) {
+              const scale = 1 + (this.age - this.impactTime) * 8;
+              this.shockwave.scale.set(scale, scale, 1);
+              this.shockwave.material.opacity = Math.max(
+                0,
+                0.8 - (this.age - this.impactTime) * 2,
+              );
+            }
+          }
+
+          return this.age < this.maxAge;
+        }
+
+        createImpact() {
+          // Ice explosion
+          this.impactParticles = [];
+          for (let i = 0; i < 100; i++) {
+            const pGeo = new THREE.OctahedronGeometry(
+              0.1 + Math.random() * 0.15,
+              0,
+            );
+            const pMat = new THREE.MeshBasicMaterial({
+              color: new THREE.Color().setHSL(
+                0.55 + Math.random() * 0.05,
+                0.8,
+                0.7,
+              ),
+              transparent: true,
+              opacity: 1,
+            });
+            const particle = new THREE.Mesh(pGeo, pMat);
+            particle.position.copy(this.targetPos);
+            particle.userData = {
+              velocity: new THREE.Vector3(
+                (Math.random() - 0.5) * 8,
+                Math.random() * 6,
+                (Math.random() - 0.5) * 8,
+              ),
+            };
+            this.add(particle);
+            this.impactParticles.push(particle);
+          }
+
+          // Frost ring
+          const ringGeo = new THREE.RingGeometry(0.1, 0.3, 32);
+          const ringMat = new THREE.MeshBasicMaterial({
+            color: 0x88ddff,
+            transparent: true,
+            opacity: 0.8,
+            side: THREE.DoubleSide,
+          });
+          this.shockwave = new THREE.Mesh(ringGeo, ringMat);
+          this.shockwave.position.copy(this.targetPos);
+          this.shockwave.position.y = 0.1;
+          this.shockwave.rotation.x = -Math.PI / 2;
+          this.add(this.shockwave);
+        }
+      }
+
+      class MeteorSpell extends SpellEffect {
+        constructor() {
+          super({ duration: 4 });
+
+          // Meteor body
+          const meteorGeo = new THREE.DodecahedronGeometry(1.2, 1);
+          const meteorMat = new THREE.MeshBasicMaterial({
+            color: 0xff3300,
+            transparent: true,
+            opacity: 0.95,
+          });
+          this.meteor = new THREE.Mesh(meteorGeo, meteorMat);
+          this.meteor.position.set(0, 30, 0);
+          this.add(this.meteor);
+
+          // Inner glow
+          const innerGeo = new THREE.SphereGeometry(0.8, 16, 16);
+          const innerMat = new THREE.MeshBasicMaterial({
+            color: 0xffaa00,
+            transparent: true,
+            opacity: 1,
+          });
+          this.inner = new THREE.Mesh(innerGeo, innerMat);
+          this.meteor.add(this.inner);
+
+          // Fire trail
+          this.trail = [];
+          for (let i = 0; i < 300; i++) {
+            const pGeo = new THREE.SphereGeometry(
+              0.1 + Math.random() * 0.3,
+              6,
+              6,
+            );
+            const pMat = new THREE.MeshBasicMaterial({
+              color: new THREE.Color().setHSL(
+                0.05 + Math.random() * 0.05,
+                1,
+                0.5 + Math.random() * 0.3,
+              ),
+              transparent: true,
+              opacity: 0.9,
+            });
+            const particle = new THREE.Mesh(pGeo, pMat);
+            particle.userData = {
+              offset: new THREE.Vector3(
+                (Math.random() - 0.5) * 2,
+                Math.random() * 4,
+                (Math.random() - 0.5) * 2,
+              ),
+              life: Math.random(),
+            };
+            this.add(particle);
+            this.trail.push(particle);
+          }
+
+          // Light
+          this.light = new THREE.PointLight(0xff4400, 5, 30);
+          this.meteor.add(this.light);
+
+          this.hasImpacted = false;
+          this.impactParticles = [];
+        }
+
+        update(delta) {
+          super.update(delta);
+
+          const fallDuration = 1.5;
+
+          if (this.age < fallDuration) {
+            // Falling
+            const progress = this.age / fallDuration;
+            const easeProgress = 1 - Math.pow(1 - progress, 3);
+            this.meteor.position.y = 30 - easeProgress * 30;
+
+            // Rotation
+            this.meteor.rotation.x += delta * 2;
+            this.meteor.rotation.z += delta * 1.5;
+
+            // Scale up slightly as it falls
+            const scale = 1 + progress * 0.3;
+            this.meteor.scale.setScalar(scale);
+
+            // Trail
+            this.trail.forEach((p) => {
+              p.userData.life += delta;
+              if (p.userData.life > 0.4) {
+                p.userData.life = 0;
+                p.position.copy(this.meteor.position).add(p.userData.offset);
+              }
+              const ratio = p.userData.life / 0.4;
+              p.material.opacity = 0.9 * (1 - ratio);
+              p.scale.setScalar((1 - ratio) * 2);
+            });
+          } else if (!this.hasImpacted) {
+            this.hasImpacted = true;
+            this.meteor.visible = false;
+            this.createImpact();
+          }
+
+          if (this.hasImpacted) {
+            // Impact effects
+            this.impactParticles.forEach((p) => {
+              p.position.add(p.userData.velocity.clone().multiplyScalar(delta));
+              p.userData.velocity.y -= delta * 20;
+              p.material.opacity *= 0.96;
+            });
+
+            // Shockwave
+            if (this.shockwave) {
+              const ageSinceImpact = this.age - fallDuration;
+              const scale = 1 + ageSinceImpact * 20;
+              this.shockwave.scale.set(scale, scale, 1);
+              this.shockwave.material.opacity = Math.max(
+                0,
+                1 - ageSinceImpact * 0.8,
+              );
+            }
+
+            // Ground glow
+            if (this.groundGlow) {
+              const ageSinceImpact = this.age - fallDuration;
+              this.groundGlow.material.opacity = Math.max(
+                0,
+                0.8 - ageSinceImpact * 0.4,
+              );
+              const scale = 1 + ageSinceImpact * 5;
+              this.groundGlow.scale.set(scale, scale, 1);
+            }
+          }
+
+          return this.age < this.maxAge;
+        }
+
+        createImpact() {
+          // Explosion particles
+          for (let i = 0; i < 400; i++) {
+            const pGeo = new THREE.SphereGeometry(
+              0.15 + Math.random() * 0.25,
+              6,
+              6,
+            );
+            const pMat = new THREE.MeshBasicMaterial({
+              color: new THREE.Color().setHSL(
+                0.03 + Math.random() * 0.08,
+                1,
+                0.5 + Math.random() * 0.4,
+              ),
+              transparent: true,
+              opacity: 1,
+            });
+            const particle = new THREE.Mesh(pGeo, pMat);
+            particle.position.set(0, 0.5, 0);
+
+            const theta = Math.random() * Math.PI * 2;
+            const phi = (Math.random() * Math.PI) / 2;
+            const speed = 8 + Math.random() * 15;
+
+            particle.userData = {
+              velocity: new THREE.Vector3(
+                speed * Math.sin(phi) * Math.cos(theta),
+                speed * Math.cos(phi) + 5,
+                speed * Math.sin(phi) * Math.sin(theta),
+              ),
+            };
+            this.add(particle);
+            this.impactParticles.push(particle);
+          }
+
+          // Shockwave ring
+          const ringGeo = new THREE.RingGeometry(0.5, 1.5, 64);
+          const ringMat = new THREE.MeshBasicMaterial({
+            color: 0xff4400,
+            transparent: true,
+            opacity: 1,
+            side: THREE.DoubleSide,
+          });
+          this.shockwave = new THREE.Mesh(ringGeo, ringMat);
+          this.shockwave.rotation.x = -Math.PI / 2;
+          this.shockwave.position.y = 0.1;
+          this.add(this.shockwave);
+
+          // Ground glow
+          const glowGeo = new THREE.CircleGeometry(3, 32);
+          const glowMat = new THREE.MeshBasicMaterial({
+            color: 0xff2200,
+            transparent: true,
+            opacity: 0.8,
+          });
+          this.groundGlow = new THREE.Mesh(glowGeo, glowMat);
+          this.groundGlow.rotation.x = -Math.PI / 2;
+          this.groundGlow.position.y = 0.05;
+          this.add(this.groundGlow);
+
+          // Flash light
+          this.flash = new THREE.PointLight(0xff4400, 20, 50);
+          this.flash.position.set(0, 3, 0);
+          this.add(this.flash);
+        }
+      }
+
+      class ChainLightningSpell extends SpellEffect {
+        constructor() {
+          super({ duration: 2 });
+
+          this.targets = [
+            new THREE.Vector3(0, 1.5, 0),
+            new THREE.Vector3(6, 1.5, 3),
+            new THREE.Vector3(-5, 1.5, 4),
+            new THREE.Vector3(3, 1.5, -5),
+          ];
+
+          this.bolts = [];
+          this.currentTarget = 0;
+          this.lastCast = 0;
+          this.castDelay = 0.35;
+        }
+
+        update(delta) {
+          super.update(delta);
+
+          // Cast to each target
+          if (
+            this.age - this.lastCast > this.castDelay &&
+            this.currentTarget < this.targets.length
+          ) {
+            this.createBolt(this.targets[this.currentTarget]);
+            this.currentTarget++;
+            this.lastCast = this.age;
+          }
+
+          // Animate bolts
+          this.bolts.forEach((bolt) => {
+            if (bolt.line) {
+              bolt.line.material.opacity *= 0.92;
+            }
+            if (bolt.glow) {
+              bolt.glow.material.opacity *= 0.9;
+            }
+            if (bolt.impact) {
+              bolt.impact.scale.multiplyScalar(1.05);
+              bolt.impact.material.opacity *= 0.9;
+            }
+          });
+
+          return this.age < this.maxAge;
+        }
+
+        createBolt(target) {
+          const origin =
+            this.currentTarget === 0
+              ? new THREE.Vector3(0, 3, 0)
+              : this.targets[this.currentTarget - 1];
+
+          // Create jagged line
+          const points = [origin.clone()];
+          const segments = 20;
+
+          for (let i = 1; i < segments; i++) {
+            const t = i / segments;
+            const point = new THREE.Vector3().lerpVectors(origin, target, t);
+            point.x += (Math.random() - 0.5) * 1.5;
+            point.y += (Math.random() - 0.5) * 1.5;
+            point.z += (Math.random() - 0.5) * 1.5;
+            points.push(point);
+          }
+          points.push(target.clone());
+
+          const geometry = new THREE.BufferGeometry().setFromPoints(points);
+          const material = new THREE.LineBasicMaterial({
+            color: 0x88ddff,
+            transparent: true,
+            opacity: 1,
+          });
+          const line = new THREE.Line(geometry, material);
+          this.add(line);
+
+          // Glow effect (thicker line behind)
+          const glowMat = new THREE.LineBasicMaterial({
+            color: 0x44aaff,
+            transparent: true,
+            opacity: 0.5,
+            linewidth: 3,
+          });
+          const glow = new THREE.Line(geometry.clone(), glowMat);
+          this.add(glow);
+
+          // Impact sphere
+          const impactGeo = new THREE.SphereGeometry(0.3, 16, 16);
+          const impactMat = new THREE.MeshBasicMaterial({
+            color: 0x88ddff,
+            transparent: true,
+            opacity: 1,
+          });
+          const impact = new THREE.Mesh(impactGeo, impactMat);
+          impact.position.copy(target);
+          this.add(impact);
+
+          // Light at impact
+          const light = new THREE.PointLight(0x88ddff, 3, 8);
+          light.position.copy(target);
+          this.add(light);
+
+          this.bolts.push({ line, glow, impact, light });
+        }
+      }
+
+      class HealSpell extends SpellEffect {
+        constructor() {
+          super({ duration: 2.5 });
+
+          // Rising particles
+          this.particles = [];
+          for (let i = 0; i < 150; i++) {
+            const pGeo = new THREE.SphereGeometry(
+              0.08 + Math.random() * 0.1,
+              6,
+              6,
+            );
+            const pMat = new THREE.MeshBasicMaterial({
+              color: new THREE.Color().setHSL(
+                0.35 + Math.random() * 0.1,
+                0.8,
+                0.5,
+              ),
+              transparent: true,
+              opacity: 0.8,
+            });
+            const particle = new THREE.Mesh(pGeo, pMat);
+            const theta = Math.random() * Math.PI * 2;
+            const r = Math.random() * 2;
+            particle.position.set(
+              r * Math.cos(theta),
+              Math.random() * 0.5,
+              r * Math.sin(theta),
+            );
+            particle.userData = {
+              baseX: particle.position.x,
+              baseZ: particle.position.z,
+              speed: 1 + Math.random() * 2,
+              phase: Math.random() * Math.PI * 2,
+            };
+            this.add(particle);
+            this.particles.push(particle);
+          }
+
+          // Rising rings
+          this.rings = [];
+          for (let i = 0; i < 4; i++) {
+            const ringGeo = new THREE.TorusGeometry(1.5 + i * 0.3, 0.08, 8, 32);
+            const ringMat = new THREE.MeshBasicMaterial({
+              color: 0x44ff88,
+              transparent: true,
+              opacity: 0.6,
+            });
+            const ring = new THREE.Mesh(ringGeo, ringMat);
+            ring.position.y = -1;
+            ring.userData = { delay: i * 0.2, baseY: -1 };
+            this.add(ring);
+            this.rings.push(ring);
+          }
+
+          // Center glow
+          const glowGeo = new THREE.CircleGeometry(2, 32);
+          const glowMat = new THREE.MeshBasicMaterial({
+            color: 0x22ff66,
+            transparent: true,
+            opacity: 0.3,
+          });
+          this.centerGlow = new THREE.Mesh(glowGeo, glowMat);
+          this.centerGlow.rotation.x = -Math.PI / 2;
+          this.centerGlow.position.y = 0.02;
+          this.add(this.centerGlow);
+
+          // Light
+          this.light = new THREE.PointLight(0x44ff88, 2, 15);
+          this.light.position.y = 2;
+          this.add(this.light);
+        }
+
+        update(delta) {
+          super.update(delta);
+
+          // Particles rise
+          this.particles.forEach((p) => {
+            p.position.y += delta * p.userData.speed;
+            p.position.x =
+              p.userData.baseX +
+              Math.sin(this.age * 3 + p.userData.phase) * 0.2;
+            p.position.z =
+              p.userData.baseZ +
+              Math.cos(this.age * 3 + p.userData.phase) * 0.2;
+
+            if (p.position.y > 5) {
+              p.position.y = 0;
+            }
+            p.material.opacity = 0.8 * (1 - p.position.y / 5);
+          });
+
+          // Rings rise
+          this.rings.forEach((ring) => {
+            const age = this.age - ring.userData.delay;
+            if (age > 0) {
+              ring.position.y = ring.userData.baseY + (age % 1.5) * 4;
+              ring.rotation.z = age * 2;
+              ring.material.opacity = 0.6 * (1 - (age % 1.5) / 1.5);
+            }
+          });
+
+          // Pulse glow
+          const pulse = 0.3 + Math.sin(this.age * 5) * 0.1;
+          this.centerGlow.material.opacity = pulse;
+
+          return this.age < this.maxAge;
+        }
+      }
+
+      class NovaSpell extends SpellEffect {
+        constructor() {
+          super({ duration: 1.8 });
+
+          // Nova particles
+          this.particles = [];
+          for (let i = 0; i < 500; i++) {
+            const pGeo = new THREE.SphereGeometry(
+              0.08 + Math.random() * 0.12,
+              4,
+              4,
+            );
+            const pMat = new THREE.MeshBasicMaterial({
+              color: new THREE.Color().setHSL(
+                0.75 + Math.random() * 0.1,
+                0.8,
+                0.6,
+              ),
+              transparent: true,
+              opacity: 1,
+            });
+            const particle = new THREE.Mesh(pGeo, pMat);
+            particle.position.set(0, 1.5, 0);
+
+            const theta = Math.random() * Math.PI * 2;
+            const phi = Math.random() * Math.PI - Math.PI / 2;
+            const speed = 10 + Math.random() * 10;
+
+            particle.userData = {
+              velocity: new THREE.Vector3(
+                speed * Math.cos(phi) * Math.cos(theta),
+                speed * Math.sin(phi) * 0.3,
+                speed * Math.cos(phi) * Math.sin(theta),
+              ),
+            };
+            this.add(particle);
+            this.particles.push(particle);
+          }
+
+          // Core sphere
+          const coreGeo = new THREE.SphereGeometry(0.5, 32, 32);
+          const coreMat = new THREE.MeshBasicMaterial({
+            color: 0xaa66ff,
+            transparent: true,
+            opacity: 1,
+          });
+          this.core = new THREE.Mesh(coreGeo, coreMat);
+          this.core.position.y = 1.5;
+          this.add(this.core);
+
+          // Shockwave rings
+          this.rings = [];
+          for (let i = 0; i < 3; i++) {
+            const ringGeo = new THREE.RingGeometry(0.5, 0.7, 64);
+            const ringMat = new THREE.MeshBasicMaterial({
+              color: 0xaa66ff,
+              transparent: true,
+              opacity: 0.8,
+              side: THREE.DoubleSide,
+            });
+            const ring = new THREE.Mesh(ringGeo, ringMat);
+            ring.rotation.x = -Math.PI / 2;
+            ring.position.y = 0.1;
+            ring.userData = { delay: i * 0.1 };
+            this.add(ring);
+            this.rings.push(ring);
+          }
+
+          // Light
+          this.light = new THREE.PointLight(0xaa66ff, 5, 20);
+          this.light.position.y = 1.5;
+          this.add(this.light);
+        }
+
+        update(delta) {
+          super.update(delta);
+
+          // Expand particles
+          this.particles.forEach((p) => {
+            p.position.add(p.userData.velocity.clone().multiplyScalar(delta));
+            p.userData.velocity.y -= delta * 5;
+            p.material.opacity *= 0.97;
+            p.scale.multiplyScalar(0.99);
+          });
+
+          // Shrink core
+          this.core.scale.multiplyScalar(0.95);
+          this.core.material.opacity *= 0.9;
+
+          // Expand rings
+          this.rings.forEach((ring) => {
+            const age = this.age - ring.userData.delay;
+            if (age > 0) {
+              const scale = 1 + age * 15;
+              ring.scale.set(scale, scale, 1);
+              ring.material.opacity = Math.max(0, 0.8 - age * 0.5);
+            }
+          });
+
+          // Fade light
+          this.light.intensity *= 0.97;
+
+          return this.age < this.maxAge;
+        }
+      }
+
+      // ==================== WARRIOR SPELLS ====================
+
+      class SlashSpell extends SpellEffect {
+        constructor() {
+          super({ duration: 1 });
+
+          // Arc slash - 180 degree front attack
+          this.slashArcs = [];
+          for (let i = 0; i < 3; i++) {
+            const curve = new THREE.EllipseCurve(
+              0,
+              0,
+              3 + i * 0.3,
+              2 + i * 0.2,
+              -Math.PI / 2,
+              Math.PI / 2,
+              false,
+              0,
+            );
+            const points = curve.getPoints(50);
+            const geometry = new THREE.BufferGeometry().setFromPoints(points);
+            const material = new THREE.LineBasicMaterial({
+              color: new THREE.Color().setHSL(0, 0.8, 0.5 + i * 0.1),
+              transparent: true,
+              opacity: 1 - i * 0.2,
+            });
+            const arc = new THREE.Line(geometry, material);
+            arc.position.set(0, 1.5, -1);
+            arc.rotation.x = -Math.PI / 6;
+            arc.userData = { delay: i * 0.05 };
+            this.add(arc);
+            this.slashArcs.push(arc);
+          }
+
+          // Sparks
+          this.sparks = [];
+          for (let i = 0; i < 80; i++) {
+            const pGeo = new THREE.SphereGeometry(
+              0.04 + Math.random() * 0.06,
+              4,
+              4,
+            );
+            const pMat = new THREE.MeshBasicMaterial({
+              color: new THREE.Color().setHSL(0.08, 1, 0.6),
+              transparent: true,
+              opacity: 1,
+            });
+            const spark = new THREE.Mesh(pGeo, pMat);
+            const angle = (Math.random() - 0.5) * Math.PI;
+            const r = 2 + Math.random() * 2;
+            spark.position.set(
+              r * Math.sin(angle),
+              1.5 + (Math.random() - 0.5) * 1.5,
+              r * Math.cos(angle) - 1,
+            );
+            spark.userData = {
+              velocity: new THREE.Vector3(
+                Math.sin(angle) * (3 + Math.random() * 3),
+                1 + Math.random() * 3,
+                Math.cos(angle) * (3 + Math.random() * 3),
+              ),
+            };
+            this.add(spark);
+            this.sparks.push(spark);
+          }
+
+          // Dust particles
+          this.dust = [];
+          for (let i = 0; i < 50; i++) {
+            const pGeo = new THREE.SphereGeometry(
+              0.05 + Math.random() * 0.1,
+              4,
+              4,
+            );
+            const pMat = new THREE.MeshBasicMaterial({
+              color: 0x886644,
+              transparent: true,
+              opacity: 0.6,
+            });
+            const dust = new THREE.Mesh(pGeo, pMat);
+            dust.position.set(
+              (Math.random() - 0.5) * 6,
+              0.1,
+              (Math.random() - 0.5) * 4 - 1,
+            );
+            dust.userData = {
+              velocity: new THREE.Vector3(
+                (Math.random() - 0.5) * 2,
+                Math.random() * 2,
+                Math.random() * 2,
+              ),
+            };
+            this.add(dust);
+            this.dust.push(dust);
+          }
+        }
+
+        update(delta) {
+          super.update(delta);
+
+          // Fade arcs
+          this.slashArcs.forEach((arc, i) => {
+            const age = this.age - arc.userData.delay;
+            if (age > 0) {
+              arc.material.opacity = Math.max(0, (1 - i * 0.2) * (1 - age * 3));
+              const scale = 1 + age * 2;
+              arc.scale.set(scale, scale, 1);
+            }
+          });
+
+          // Sparks fly
+          this.sparks.forEach((s) => {
+            s.position.add(s.userData.velocity.clone().multiplyScalar(delta));
+            s.userData.velocity.y -= delta * 15;
+            s.material.opacity *= 0.95;
+          });
+
+          // Dust settle
+          this.dust.forEach((d) => {
+            d.position.add(d.userData.velocity.clone().multiplyScalar(delta));
+            d.userData.velocity.y -= delta * 3;
+            d.userData.velocity.multiplyScalar(0.98);
+            d.material.opacity *= 0.97;
+          });
+
+          return this.age < this.maxAge;
+        }
+      }
+
+      class ChargeSpell extends SpellEffect {
+        constructor() {
+          super({ duration: 1.5 });
+
+          // Player position marker (start)
+          this.startMarker = new THREE.Group();
+          this.startMarker.position.set(-8, 0, 0);
+
+          // Trail particles (dust + speed lines)
+          this.trail = [];
+          for (let i = 0; i < 100; i++) {
+            const pGeo = new THREE.SphereGeometry(
+              0.1 + Math.random() * 0.15,
+              4,
+              4,
+            );
+            const pMat = new THREE.MeshBasicMaterial({
+              color: 0x886644,
+              transparent: true,
+              opacity: 0.7,
+            });
+            const particle = new THREE.Mesh(pGeo, pMat);
+            particle.position.set(
+              -8 + (Math.random() - 0.5) * 2,
+              Math.random() * 2,
+              (Math.random() - 0.5) * 2,
+            );
+            particle.userData = {
+              velocity: new THREE.Vector3(0, 0, 0),
+              isTrail: true,
+              delay: Math.random() * 0.5,
+            };
+            this.add(particle);
+            this.trail.push(particle);
+          }
+
+          // Speed lines
+          this.speedLines = [];
+          for (let i = 0; i < 30; i++) {
+            const lineGeo = new THREE.BufferGeometry();
+            const x = (Math.random() - 0.5) * 4;
+            const y = 0.5 + Math.random() * 2;
+            const z = (Math.random() - 0.5) * 4;
+            const length = 0.5 + Math.random() * 1;
+            lineGeo.setFromPoints([
+              new THREE.Vector3(x, y, z),
+              new THREE.Vector3(x - length, y, z),
+            ]);
+            const lineMat = new THREE.LineBasicMaterial({
+              color: 0xffffff,
+              transparent: true,
+              opacity: 0.5,
+            });
+            const line = new THREE.Line(lineGeo, lineMat);
+            line.position.x = -8;
+            line.userData = { startX: -8, delay: Math.random() * 0.8 };
+            this.add(line);
+            this.speedLines.push(line);
+          }
+
+          // Impact effect (created on arrival)
+          this.hasImpacted = false;
+          this.impactParticles = [];
+        }
+
+        update(delta) {
+          super.update(delta);
+
+          const chargeDuration = 0.6;
+
+          if (this.age < chargeDuration) {
+            // Speed lines follow charge
+            this.speedLines.forEach((line) => {
+              const progress = this.age / chargeDuration;
+              line.position.x = -8 + progress * 16 + line.userData.delay * 5;
+              line.material.opacity = 0.5 * (1 - progress);
+            });
+
+            // Trail dust
+            this.trail.forEach((p) => {
+              if (this.age > p.userData.delay) {
+                p.position.x += delta * 25;
+                p.material.opacity *= 0.95;
+              }
+            });
+          } else if (!this.hasImpacted) {
+            this.hasImpacted = true;
+            this.createImpact();
+          }
+
+          if (this.hasImpacted) {
+            // Impact particles
+            this.impactParticles.forEach((p) => {
+              p.position.add(p.userData.velocity.clone().multiplyScalar(delta));
+              p.userData.velocity.y -= delta * 10;
+              p.material.opacity *= 0.94;
+            });
+
+            // Shockwave
+            if (this.shockwave) {
+              const age = this.age - chargeDuration;
+              const scale = 1 + age * 12;
+              this.shockwave.scale.set(scale, scale, 1);
+              this.shockwave.material.opacity = Math.max(0, 1 - age * 1.5);
+            }
+          }
+
+          return this.age < this.maxAge;
+        }
+
+        createImpact() {
+          // Impact burst
+          for (let i = 0; i < 80; i++) {
+            const pGeo = new THREE.SphereGeometry(
+              0.1 + Math.random() * 0.15,
+              6,
+              6,
+            );
+            const pMat = new THREE.MeshBasicMaterial({
+              color: new THREE.Color().setHSL(0, 0.7, 0.5),
+              transparent: true,
+              opacity: 1,
+            });
+            const particle = new THREE.Mesh(pGeo, pMat);
+            particle.position.set(8, 1.5, 0);
+
+            const theta = Math.random() * Math.PI * 2;
+            const speed = 5 + Math.random() * 10;
+
+            particle.userData = {
+              velocity: new THREE.Vector3(
+                speed * Math.cos(theta),
+                3 + Math.random() * 5,
+                speed * Math.sin(theta),
+              ),
+            };
+            this.add(particle);
+            this.impactParticles.push(particle);
+          }
+
+          // Shockwave
+          const ringGeo = new THREE.RingGeometry(0.3, 0.8, 32);
+          const ringMat = new THREE.MeshBasicMaterial({
+            color: 0xff6644,
+            transparent: true,
+            opacity: 1,
+            side: THREE.DoubleSide,
+          });
+          this.shockwave = new THREE.Mesh(ringGeo, ringMat);
+          this.shockwave.rotation.x = -Math.PI / 2;
+          this.shockwave.position.set(8, 0.1, 0);
+          this.add(this.shockwave);
+        }
+      }
+
+      class WhirlwindSpell extends SpellEffect {
+        constructor() {
+          super({ duration: 2.5 });
+
+          // Rotating blade arcs
+          this.blades = [];
+          for (let i = 0; i < 6; i++) {
+            const curve = new THREE.EllipseCurve(
+              0,
+              0,
+              4,
+              3,
+              0,
+              Math.PI * 2,
+              false,
+              0,
+            );
+            const points = curve.getPoints(64);
+            const geometry = new THREE.BufferGeometry().setFromPoints(points);
+            const material = new THREE.LineBasicMaterial({
+              color: new THREE.Color().setHSL(0, 0.7, 0.5 + (i % 2) * 0.15),
+              transparent: true,
+              opacity: 0.8,
+            });
+            const blade = new THREE.Line(geometry, material);
+            blade.rotation.x = Math.PI / 2;
+            blade.position.y = 0.5 + i * 0.3;
+            blade.userData = {
+              speed: 8 + i * 0.5,
+              direction: i % 2 === 0 ? 1 : -1,
+            };
+            this.add(blade);
+            this.blades.push(blade);
+          }
+
+          // Inner particles
+          this.innerParticles = [];
+          for (let i = 0; i < 200; i++) {
+            const pGeo = new THREE.SphereGeometry(
+              0.05 + Math.random() * 0.08,
+              4,
+              4,
+            );
+            const pMat = new THREE.MeshBasicMaterial({
+              color: new THREE.Color().setHSL(
+                0,
+                0.6,
+                0.4 + Math.random() * 0.3,
+              ),
+              transparent: true,
+              opacity: 0.8,
+            });
+            const particle = new THREE.Mesh(pGeo, pMat);
+            const theta = Math.random() * Math.PI * 2;
+            const r = Math.random() * 4;
+            const y = Math.random() * 3;
+            particle.position.set(r * Math.cos(theta), y, r * Math.sin(theta));
+            particle.userData = {
+              baseR: r,
+              baseTheta: theta,
+              baseY: y,
+              speed: 2 + Math.random() * 3,
+            };
+            this.add(particle);
+            this.innerParticles.push(particle);
+          }
+
+          // Dust on ground
+          this.dust = [];
+          for (let i = 0; i < 100; i++) {
+            const pGeo = new THREE.SphereGeometry(
+              0.08 + Math.random() * 0.12,
+              4,
+              4,
+            );
+            const pMat = new THREE.MeshBasicMaterial({
+              color: 0x665544,
+              transparent: true,
+              opacity: 0.6,
+            });
+            const dust = new THREE.Mesh(pGeo, pMat);
+            const theta = Math.random() * Math.PI * 2;
+            const r = 3 + Math.random() * 3;
+            dust.position.set(r * Math.cos(theta), 0.1, r * Math.sin(theta));
+            dust.userData = {
+              baseTheta: theta,
+              baseR: r,
+              speed: 1 + Math.random() * 2,
+            };
+            this.add(dust);
+            this.dust.push(dust);
+          }
+
+          // Center glow
+          const glowGeo = new THREE.CircleGeometry(2, 32);
+          const glowMat = new THREE.MeshBasicMaterial({
+            color: 0xff4444,
+            transparent: true,
+            opacity: 0.4,
+          });
+          this.centerGlow = new THREE.Mesh(glowGeo, glowMat);
+          this.centerGlow.rotation.x = -Math.PI / 2;
+          this.centerGlow.position.y = 0.02;
+          this.add(this.centerGlow);
+        }
+
+        update(delta) {
+          super.update(delta);
+
+          // Rotate blades
+          this.blades.forEach((blade) => {
+            blade.rotation.z +=
+              delta * blade.userData.speed * blade.userData.direction;
+            const scale = 1 + Math.sin(this.age * 10) * 0.05;
+            blade.scale.set(scale, scale, 1);
+            blade.material.opacity = 0.8 * (1 - this.age / this.maxAge);
+          });
+
+          // Inner particles spiral up
+          this.innerParticles.forEach((p) => {
+            p.userData.baseTheta += delta * p.userData.speed;
+            const r = p.userData.baseR;
+            const theta = p.userData.baseTheta;
+            p.position.x = r * Math.cos(theta);
+            p.position.z = r * Math.sin(theta);
+            p.position.y =
+              p.userData.baseY +
+              Math.sin(this.age * 3 + p.userData.baseTheta) * 0.3;
+            p.material.opacity = 0.8 * (1 - this.age / this.maxAge);
+          });
+
+          // Dust spiral
+          this.dust.forEach((d) => {
+            d.userData.baseTheta += delta * d.userData.speed;
+            const r = d.userData.baseR;
+            const theta = d.userData.baseTheta;
+            d.position.x = r * Math.cos(theta);
+            d.position.z = r * Math.sin(theta);
+            d.material.opacity = 0.6 * (1 - this.age / this.maxAge);
+          });
+
+          // Pulse glow
+          this.centerGlow.material.opacity =
+            0.4 * Math.sin(this.age * 5) * (1 - this.age / this.maxAge);
+
+          return this.age < this.maxAge;
+        }
+      }
+
+      class ShieldBashSpell extends SpellEffect {
+        constructor() {
+          super({ duration: 1.5 });
+
+          // Shield shape
+          const shieldShape = new THREE.Shape();
+          shieldShape.moveTo(0, -1.2);
+          shieldShape.quadraticCurveTo(0.8, -0.8, 0.8, 0);
+          shieldShape.quadraticCurveTo(0.8, 0.8, 0, 1.2);
+          shieldShape.quadraticCurveTo(-0.8, 0.8, -0.8, 0);
+          shieldShape.quadraticCurveTo(-0.8, -0.8, 0, -1.2);
+
+          const shieldGeo = new THREE.ExtrudeGeometry(shieldShape, {
+            depth: 0.2,
+            bevelEnabled: false,
+          });
+          const shieldMat = new THREE.MeshBasicMaterial({
+            color: 0xccaa44,
+            transparent: true,
+            opacity: 0.9,
+          });
+          this.shield = new THREE.Mesh(shieldGeo, shieldMat);
+          this.shield.position.set(-3, 1.5, 0);
+          this.shield.rotation.y = Math.PI / 2;
+          this.add(this.shield);
+
+          // Impact particles
+          this.impactParticles = [];
+          for (let i = 0; i < 100; i++) {
+            const pGeo = new THREE.SphereGeometry(
+              0.05 + Math.random() * 0.1,
+              4,
+              4,
+            );
+            const pMat = new THREE.MeshBasicMaterial({
+              color: new THREE.Color().setHSL(
+                0.12,
+                0.6,
+                0.5 + Math.random() * 0.3,
+              ),
+              transparent: true,
+              opacity: 1,
+            });
+            const particle = new THREE.Mesh(pGeo, pMat);
+            particle.position.set(0, 1.5, 0);
+            const theta = Math.random() * Math.PI * 2;
+            const speed = 3 + Math.random() * 6;
+            particle.userData = {
+              velocity: new THREE.Vector3(
+                speed * Math.cos(theta),
+                (Math.random() - 0.5) * 4,
+                speed * Math.sin(theta),
+              ),
+            };
+            this.add(particle);
+            this.impactParticles.push(particle);
+          }
+
+          // Shockwave
+          const ringGeo = new THREE.RingGeometry(0.5, 0.8, 32);
+          const ringMat = new THREE.MeshBasicMaterial({
+            color: 0xddcc66,
+            transparent: true,
+            opacity: 0.8,
+            side: THREE.DoubleSide,
+          });
+          this.shockwave = new THREE.Mesh(ringGeo, ringMat);
+          this.shockwave.position.set(0, 1.5, 0);
+          this.shockwave.rotation.y = Math.PI / 2;
+          this.add(this.shockwave);
+
+          // Shield bash trail
+          this.trail = [];
+          for (let i = 0; i < 30; i++) {
+            const lineGeo = new THREE.BufferGeometry();
+            const y = 0.5 + Math.random() * 2;
+            const z = (Math.random() - 0.5) * 2;
+            lineGeo.setFromPoints([
+              new THREE.Vector3(-3, y, z),
+              new THREE.Vector3(0, y, z),
+            ]);
+            const lineMat = new THREE.LineBasicMaterial({
+              color: 0xddcc66,
+              transparent: true,
+              opacity: 0.6,
+            });
+            const line = new THREE.Line(lineGeo, lineMat);
+            this.add(line);
+            this.trail.push(line);
+          }
+        }
+
+        update(delta) {
+          super.update(delta);
+
+          // Shield animation (bash forward then back)
+          const bashDuration = 0.3;
+          if (this.age < bashDuration) {
+            const progress = this.age / bashDuration;
+            this.shield.position.x = -3 + progress * 3;
+          } else {
+            this.shield.position.x = 0;
+            this.shield.material.opacity *= 0.9;
+          }
+
+          // Impact particles
+          this.impactParticles.forEach((p) => {
+            p.position.add(p.userData.velocity.clone().multiplyScalar(delta));
+            p.userData.velocity.multiplyScalar(0.95);
+            p.material.opacity *= 0.96;
+          });
+
+          // Expand shockwave
+          const scale = 1 + this.age * 8;
+          this.shockwave.scale.set(scale, scale, 1);
+          this.shockwave.material.opacity = Math.max(0, 0.8 - this.age);
+
+          // Fade trail
+          this.trail.forEach((l) => {
+            l.material.opacity *= 0.9;
+          });
+
+          return this.age < this.maxAge;
+        }
+      }
+
+      class BattlecrySpell extends SpellEffect {
+        constructor() {
+          super({ duration: 2 });
+
+          // Expanding sound waves
+          this.waves = [];
+          for (let i = 0; i < 5; i++) {
+            const ringGeo = new THREE.TorusGeometry(0.5, 0.1, 8, 32);
+            const ringMat = new THREE.MeshBasicMaterial({
+              color: 0xff4444,
+              transparent: true,
+              opacity: 0.8,
+            });
+            const ring = new THREE.Mesh(ringGeo, ringMat);
+            ring.position.y = 1.5;
+            ring.userData = { delay: i * 0.2 };
+            this.add(ring);
+            this.waves.push(ring);
+          }
+
+          // Aura particles rising
+          this.auraParticles = [];
+          for (let i = 0; i < 100; i++) {
+            const pGeo = new THREE.SphereGeometry(
+              0.08 + Math.random() * 0.1,
+              4,
+              4,
+            );
+            const pMat = new THREE.MeshBasicMaterial({
+              color: new THREE.Color().setHSL(
+                0,
+                0.8,
+                0.5 + Math.random() * 0.2,
+              ),
+              transparent: true,
+              opacity: 0.8,
+            });
+            const particle = new THREE.Mesh(pGeo, pMat);
+            const theta = Math.random() * Math.PI * 2;
+            const r = 1 + Math.random() * 2;
+            particle.position.set(
+              r * Math.cos(theta),
+              Math.random() * 3,
+              r * Math.sin(theta),
+            );
+            particle.userData = {
+              baseTheta: theta,
+              baseR: r,
+              speed: 1 + Math.random() * 2,
+              phase: Math.random() * Math.PI * 2,
+            };
+            this.add(particle);
+            this.auraParticles.push(particle);
+          }
+
+          // Ground rune circle
+          const runeGeo = new THREE.RingGeometry(1.5, 2, 6);
+          const runeMat = new THREE.MeshBasicMaterial({
+            color: 0xff3333,
+            transparent: true,
+            opacity: 0.6,
+            side: THREE.DoubleSide,
+          });
+          this.rune = new THREE.Mesh(runeGeo, runeMat);
+          this.rune.rotation.x = -Math.PI / 2;
+          this.rune.position.y = 0.05;
+          this.add(this.rune);
+        }
+
+        update(delta) {
+          super.update(delta);
+
+          // Expand waves
+          this.waves.forEach((wave) => {
+            const age = this.age - wave.userData.delay;
+            if (age > 0) {
+              const scale = 1 + age * 8;
+              wave.scale.set(scale, scale, 1);
+              wave.rotation.y = age * 2;
+              wave.material.opacity = Math.max(0, 0.8 - age * 0.5);
+            }
+          });
+
+          // Aura particles
+          this.auraParticles.forEach((p) => {
+            p.position.y += delta * p.userData.speed;
+            p.position.x =
+              p.userData.baseR * Math.cos(p.userData.baseTheta + this.age);
+            p.position.z =
+              p.userData.baseR * Math.sin(p.userData.baseTheta + this.age);
+
+            if (p.position.y > 4) {
+              p.position.y = 0;
+            }
+            p.material.opacity =
+              0.8 * Math.sin(this.age * 3 + p.userData.phase);
+          });
+
+          // Rotate rune
+          this.rune.rotation.z += delta * 2;
+          this.rune.material.opacity =
+            0.6 * Math.sin(this.age * 2) * (1 - this.age / this.maxAge);
+
+          return this.age < this.maxAge;
+        }
+      }
+
+      class ExecuteSpell extends SpellEffect {
+        constructor() {
+          super({ duration: 1.5 });
+
+          // Giant blade slash from above
+          const bladeCurve = new THREE.CubicBezierCurve3(
+            new THREE.Vector3(0, 0, -3),
+            new THREE.Vector3(0, 0, -1),
+            new THREE.Vector3(0, 0, 1),
+            new THREE.Vector3(0, 0, 3),
+          );
+
+          // Multiple blade arcs
+          this.blades = [];
+          for (let i = 0; i < 5; i++) {
+            const points = [];
+            for (let t = 0; t <= 1; t += 0.05) {
+              const point = bladeCurve.getPoint(t);
+              point.x += Math.sin(t * Math.PI) * (3 + i * 0.5);
+              points.push(point);
+            }
+
+            const geometry = new THREE.BufferGeometry().setFromPoints(points);
+            const material = new THREE.LineBasicMaterial({
+              color: new THREE.Color().setHSL(0, 0, 0.3 + i * 0.1),
+              transparent: true,
+              opacity: 1,
+            });
+            const blade = new THREE.Line(geometry, material);
+            blade.rotation.x = Math.PI / 2;
+            blade.position.y = 8;
+            blade.userData = { delay: i * 0.03, startY: 8 };
+            this.add(blade);
+            this.blades.push(blade);
+          }
+
+          // Blood/dark particles
+          this.particles = [];
+          for (let i = 0; i < 150; i++) {
+            const pGeo = new THREE.SphereGeometry(
+              0.1 + Math.random() * 0.15,
+              4,
+              4,
+            );
+            const pMat = new THREE.MeshBasicMaterial({
+              color: new THREE.Color().setHSL(
+                0,
+                0.8,
+                0.2 + Math.random() * 0.2,
+              ),
+              transparent: true,
+              opacity: 1,
+            });
+            const particle = new THREE.Mesh(pGeo, pMat);
+            particle.position.set(
+              (Math.random() - 0.5) * 4,
+              1.5 + (Math.random() - 0.5) * 2,
+              (Math.random() - 0.5) * 6,
+            );
+            particle.userData = {
+              velocity: new THREE.Vector3(
+                (Math.random() - 0.5) * 8,
+                Math.random() * 5,
+                (Math.random() - 0.5) * 8,
+              ),
+              delay: 0.3 + Math.random() * 0.2,
+            };
+            this.add(particle);
+            this.particles.push(particle);
+          }
+
+          // Impact ring
+          const ringGeo = new THREE.RingGeometry(0.5, 1, 32);
+          const ringMat = new THREE.MeshBasicMaterial({
+            color: 0x330000,
+            transparent: true,
+            opacity: 1,
+            side: THREE.DoubleSide,
+          });
+          this.impactRing = new THREE.Mesh(ringGeo, ringMat);
+          this.impactRing.rotation.x = -Math.PI / 2;
+          this.impactRing.position.y = 0.1;
+          this.add(this.impactRing);
+        }
+
+        update(delta) {
+          super.update(delta);
+
+          // Blades fall
+          this.blades.forEach((blade) => {
+            const age = this.age - blade.userData.delay;
+            if (age > 0) {
+              blade.position.y = Math.max(
+                0.5,
+                blade.userData.startY - age * 15,
+              );
+              blade.material.opacity = Math.max(0, 1 - age);
+            }
+          });
+
+          // Particles burst
+          this.particles.forEach((p) => {
+            if (this.age > p.userData.delay) {
+              p.position.add(p.userData.velocity.clone().multiplyScalar(delta));
+              p.userData.velocity.y -= delta * 10;
+              p.material.opacity *= 0.96;
+            }
+          });
+
+          // Impact ring
+          if (this.age > 0.3) {
+            const age = this.age - 0.3;
+            const scale = 1 + age * 10;
+            this.impactRing.scale.set(scale, scale, 1);
+            this.impactRing.material.opacity = Math.max(0, 1 - age * 2);
+          }
+
+          return this.age < this.maxAge;
+        }
+      }
+
+      // ==================== ARCHER SPELLS ====================
+
+      class QuickshotSpell extends SpellEffect {
+        constructor() {
+          super({ duration: 1 });
+
+          // Arrow
+          const arrowGeo = new THREE.ConeGeometry(0.08, 1.2, 6);
+          const arrowMat = new THREE.MeshBasicMaterial({
+            color: 0x66aa66,
+            transparent: true,
+            opacity: 1,
+          });
+          this.arrow = new THREE.Mesh(arrowGeo, arrowMat);
+          this.arrow.rotation.z = Math.PI / 2;
+          this.arrow.position.set(-10, 1.5, 0);
+          this.add(this.arrow);
+
+          // Trail
+          this.trail = [];
+          for (let i = 0; i < 20; i++) {
+            const pGeo = new THREE.SphereGeometry(
+              0.03 + Math.random() * 0.05,
+              4,
+              4,
+            );
+            const pMat = new THREE.MeshBasicMaterial({
+              color: 0x88cc88,
+              transparent: true,
+              opacity: 0.6,
+            });
+            const particle = new THREE.Mesh(pGeo, pMat);
+            particle.userData = { delay: Math.random() * 0.3 };
+            this.add(particle);
+            this.trail.push(particle);
+          }
+
+          this.startX = -10;
+          this.targetX = 12;
+        }
+
+        update(delta) {
+          super.update(delta);
+
+          const speed = 25;
+          this.arrow.position.x += delta * speed;
+
+          // Trail
+          this.trail.forEach((p) => {
+            if (this.age > p.userData.delay) {
+              p.position.x = this.arrow.position.x - 0.5 - Math.random() * 0.3;
+              p.position.y = 1.5 + (Math.random() - 0.5) * 0.2;
+              p.position.z = (Math.random() - 0.5) * 0.2;
+              p.material.opacity *= 0.9;
+            }
+          });
+
+          // Fade arrow
+          if (this.arrow.position.x > this.targetX) {
+            this.arrow.material.opacity *= 0.9;
+          }
+
+          return this.age < this.maxAge;
+        }
+      }
+
+      class MultishotSpell extends SpellEffect {
+        constructor() {
+          super({ duration: 1.2 });
+
+          // Multiple arrows
+          this.arrows = [];
+          const arrowCount = 7;
+          for (let i = 0; i < arrowCount; i++) {
+            const arrowGeo = new THREE.ConeGeometry(0.06, 0.8, 6);
+            const arrowMat = new THREE.MeshBasicMaterial({
+              color: 0x55aa55,
+              transparent: true,
+              opacity: 1,
+            });
+            const arrow = new THREE.Mesh(arrowGeo, arrowMat);
+            arrow.rotation.z = Math.PI / 2;
+            arrow.position.set(-8, 1.5, 0);
+
+            const angle = ((i / (arrowCount - 1) - 0.5) * Math.PI) / 3;
+            arrow.userData = {
+              velocity: new THREE.Vector3(
+                Math.cos(angle) * 20,
+                0,
+                Math.sin(angle) * 20,
+              ),
+            };
+            this.add(arrow);
+            this.arrows.push(arrow);
+          }
+
+          // Bow draw effect
+          const bowGeo = new THREE.TorusGeometry(1, 0.05, 8, 16, Math.PI);
+          const bowMat = new THREE.MeshBasicMaterial({
+            color: 0x886644,
+            transparent: true,
+            opacity: 0.8,
+          });
+          this.bow = new THREE.Mesh(bowGeo, bowMat);
+          this.bow.position.set(-8, 1.5, 0);
+          this.bow.rotation.z = Math.PI / 2;
+          this.add(this.bow);
+
+          // Release flash
+          this.flash = new THREE.PointLight(0x88ff88, 2, 8);
+          this.flash.position.set(-8, 1.5, 0);
+          this.add(this.flash);
+        }
+
+        update(delta) {
+          super.update(delta);
+
+          // Arrows fly
+          this.arrows.forEach((arrow) => {
+            arrow.position.add(
+              arrow.userData.velocity.clone().multiplyScalar(delta),
+            );
+            arrow.material.opacity *= 0.98;
+          });
+
+          // Bow fade
+          this.bow.material.opacity *= 0.9;
+
+          // Flash fade
+          this.flash.intensity *= 0.85;
+
+          return this.age < this.maxAge;
+        }
+      }
+
+      class PoisonarrowSpell extends SpellEffect {
+        constructor() {
+          super({ duration: 2 });
+
+          // Poison arrow with trail
+          const arrowGeo = new THREE.ConeGeometry(0.1, 1.2, 6);
+          const arrowMat = new THREE.MeshBasicMaterial({
+            color: 0x44ff44,
+            transparent: true,
+            opacity: 1,
+          });
+          this.arrow = new THREE.Mesh(arrowGeo, arrowMat);
+          this.arrow.rotation.z = Math.PI / 2;
+          this.arrow.position.set(-10, 1.5, 0);
+          this.add(this.arrow);
+
+          // Poison cloud trail
+          this.cloud = [];
+          for (let i = 0; i < 80; i++) {
+            const pGeo = new THREE.SphereGeometry(
+              0.15 + Math.random() * 0.2,
+              6,
+              6,
+            );
+            const pMat = new THREE.MeshBasicMaterial({
+              color: new THREE.Color().setHSL(
+                0.25 + Math.random() * 0.1,
+                0.8,
+                0.4,
+              ),
+              transparent: true,
+              opacity: 0.6,
+            });
+            const particle = new THREE.Mesh(pGeo, pMat);
+            particle.userData = {
+              delay: Math.random() * 0.8,
+              spread: (Math.random() - 0.5) * 1.5,
+            };
+            this.add(particle);
+            this.cloud.push(particle);
+          }
+
+          this.hasHit = false;
+          this.impactCloud = [];
+        }
+
+        update(delta) {
+          super.update(delta);
+
+          const flyDuration = 0.8;
+
+          if (this.age < flyDuration) {
+            this.arrow.position.x += delta * 22;
+
+            // Trail cloud
+            this.cloud.forEach((p) => {
+              if (this.age > p.userData.delay) {
+                p.position.x =
+                  this.arrow.position.x - 0.5 - Math.random() * 0.3;
+                p.position.y =
+                  1.5 + p.userData.spread + Math.sin(this.age * 5) * 0.2;
+                p.position.z = p.userData.spread + Math.cos(this.age * 5) * 0.2;
+              }
+              p.material.opacity *= 0.98;
+              p.scale.multiplyScalar(1.01);
+            });
+          } else if (!this.hasHit) {
+            this.hasHit = true;
+            this.createImpact();
+          }
+
+          if (this.hasHit) {
+            this.arrow.visible = false;
+
+            // Impact cloud spreads
+            this.impactCloud.forEach((p) => {
+              p.position.add(p.userData.velocity.clone().multiplyScalar(delta));
+              p.userData.velocity.multiplyScalar(0.95);
+              p.material.opacity *= 0.97;
+              p.scale.multiplyScalar(1.02);
+            });
+          }
+
+          return this.age < this.maxAge;
+        }
+
+        createImpact() {
+          for (let i = 0; i < 60; i++) {
+            const pGeo = new THREE.SphereGeometry(
+              0.2 + Math.random() * 0.3,
+              6,
+              6,
+            );
+            const pMat = new THREE.MeshBasicMaterial({
+              color: new THREE.Color().setHSL(
+                0.25 + Math.random() * 0.1,
+                0.8,
+                0.4,
+              ),
+              transparent: true,
+              opacity: 0.7,
+            });
+            const particle = new THREE.Mesh(pGeo, pMat);
+            particle.position.set(8, 1.5, 0);
+
+            const theta = Math.random() * Math.PI * 2;
+            const speed = 1 + Math.random() * 3;
+
+            particle.userData = {
+              velocity: new THREE.Vector3(
+                speed * Math.cos(theta),
+                Math.random() * 2,
+                speed * Math.sin(theta),
+              ),
+            };
+            this.add(particle);
+            this.impactCloud.push(particle);
+          }
+        }
+      }
+
+      class ArrowrainSpell extends SpellEffect {
+        constructor() {
+          super({ duration: 3 });
+
+          // Arrows falling
+          this.arrows = [];
+          for (let i = 0; i < 80; i++) {
+            const arrowGeo = new THREE.ConeGeometry(0.04, 0.6, 4);
+            const arrowMat = new THREE.MeshBasicMaterial({
+              color: 0x66aa66,
+              transparent: true,
+              opacity: 0.8,
+            });
+            const arrow = new THREE.Mesh(arrowGeo, arrowMat);
+            arrow.rotation.x = Math.PI;
+            arrow.position.set(
+              (Math.random() - 0.5) * 12,
+              15 + Math.random() * 8,
+              (Math.random() - 0.5) * 12,
+            );
+            arrow.userData = {
+              speed: 15 + Math.random() * 10,
+              delay: Math.random() * 1.5,
+              fallen: false,
+            };
+            this.add(arrow);
+            this.arrows.push(arrow);
+          }
+
+          // Impact particles
+          this.impacts = [];
+
+          // Target area indicator
+          const targetGeo = new THREE.RingGeometry(5, 5.3, 32);
+          const targetMat = new THREE.MeshBasicMaterial({
+            color: 0x44aa44,
+            transparent: true,
+            opacity: 0.5,
+            side: THREE.DoubleSide,
+          });
+          this.target = new THREE.Mesh(targetGeo, targetMat);
+          this.target.rotation.x = -Math.PI / 2;
+          this.target.position.y = 0.05;
+          this.add(this.target);
+        }
+
+        update(delta) {
+          super.update(delta);
+
+          // Arrows fall
+          this.arrows.forEach((arrow) => {
+            if (this.age > arrow.userData.delay && !arrow.userData.fallen) {
+              arrow.position.y -= delta * arrow.userData.speed;
+
+              if (arrow.position.y <= 0) {
+                arrow.userData.fallen = true;
+                arrow.visible = false;
+                this.createImpact(arrow.position.x, arrow.position.z);
+              }
+            }
+          });
+
+          // Impacts
+          this.impacts.forEach((p) => {
+            p.position.add(p.userData.velocity.clone().multiplyScalar(delta));
+            p.userData.velocity.y -= delta * 10;
+            p.material.opacity *= 0.95;
+          });
+
+          // Target fade
+          if (this.age > 2) {
+            this.target.material.opacity *= 0.95;
+          }
+
+          return this.age < this.maxAge;
+        }
+
+        createImpact(x, z) {
+          for (let i = 0; i < 5; i++) {
+            const pGeo = new THREE.SphereGeometry(
+              0.05 + Math.random() * 0.08,
+              4,
+              4,
+            );
+            const pMat = new THREE.MeshBasicMaterial({
+              color: 0x88aa66,
+              transparent: true,
+              opacity: 0.8,
+            });
+            const particle = new THREE.Mesh(pGeo, pMat);
+            particle.position.set(x, 0.2, z);
+
+            const theta = Math.random() * Math.PI * 2;
+            const speed = 1 + Math.random() * 2;
+
+            particle.userData = {
+              velocity: new THREE.Vector3(
+                speed * Math.cos(theta),
+                2 + Math.random() * 2,
+                speed * Math.sin(theta),
+              ),
+            };
+            this.add(particle);
+            this.impacts.push(particle);
+          }
+        }
+      }
+
+      class EvasionSpell extends SpellEffect {
+        constructor() {
+          super({ duration: 1.5 });
+
+          // Multiple afterimages
+          this.afterimages = [];
+          for (let i = 0; i < 8; i++) {
+            const silhouetteGeo = new THREE.CapsuleGeometry(0.3, 1, 4, 8);
+            const silhouetteMat = new THREE.MeshBasicMaterial({
+              color: 0x88dd88,
+              transparent: true,
+              opacity: 0.4,
+            });
+            const silhouette = new THREE.Mesh(silhouetteGeo, silhouetteMat);
+            const angle = (i / 8) * Math.PI * 2;
+            silhouette.position.set(
+              Math.cos(angle) * 2,
+              1,
+              Math.sin(angle) * 2,
+            );
+            silhouette.userData = { angle, delay: i * 0.05 };
+            this.add(silhouette);
+            this.afterimages.push(silhouette);
+          }
+
+          // Wind swirl particles
+          this.wind = [];
+          for (let i = 0; i < 100; i++) {
+            const pGeo = new THREE.SphereGeometry(
+              0.03 + Math.random() * 0.05,
+              4,
+              4,
+            );
+            const pMat = new THREE.MeshBasicMaterial({
+              color: 0xaaddaa,
+              transparent: true,
+              opacity: 0.6,
+            });
+            const particle = new THREE.Mesh(pGeo, pMat);
+            const theta = Math.random() * Math.PI * 2;
+            const r = 1 + Math.random() * 3;
+            const y = Math.random() * 2.5;
+            particle.position.set(r * Math.cos(theta), y, r * Math.sin(theta));
+            particle.userData = {
+              baseTheta: theta,
+              baseR: r,
+              baseY: y,
+              speed: 3 + Math.random() * 3,
+            };
+            this.add(particle);
+            this.wind.push(particle);
+          }
+
+          // Central glow
+          const glowGeo = new THREE.CircleGeometry(2, 32);
+          const glowMat = new THREE.MeshBasicMaterial({
+            color: 0x88ff88,
+            transparent: true,
+            opacity: 0.3,
+          });
+          this.glow = new THREE.Mesh(glowGeo, glowMat);
+          this.glow.rotation.x = -Math.PI / 2;
+          this.glow.position.y = 0.02;
+          this.add(this.glow);
+        }
+
+        update(delta) {
+          super.update(delta);
+
+          // Afterimages rotate and fade
+          this.afterimages.forEach((s) => {
+            s.userData.angle += delta * 4;
+            s.position.x = Math.cos(s.userData.angle) * 2;
+            s.position.z = Math.sin(s.userData.angle) * 2;
+            s.material.opacity = 0.4 * (1 - this.age / this.maxAge);
+          });
+
+          // Wind swirl
+          this.wind.forEach((p) => {
+            p.userData.baseTheta += delta * p.userData.speed;
+            const theta = p.userData.baseTheta;
+            const r = p.userData.baseR;
+            p.position.x = r * Math.cos(theta);
+            p.position.z = r * Math.sin(theta);
+            p.position.y = p.userData.baseY + Math.sin(this.age * 5) * 0.2;
+            p.material.opacity = 0.6 * (1 - this.age / this.maxAge);
+          });
+
+          // Glow pulse
+          this.glow.material.opacity =
+            0.3 * Math.sin(this.age * 8) * (1 - this.age / this.maxAge);
+
+          return this.age < this.maxAge;
+        }
+      }
+
+      class SnipeSpell extends SpellEffect {
+        constructor() {
+          super({ duration: 1.5 });
+
+          // Charge effect
+          this.chargeParticles = [];
+          for (let i = 0; i < 60; i++) {
+            const pGeo = new THREE.SphereGeometry(
+              0.05 + Math.random() * 0.08,
+              4,
+              4,
+            );
+            const pMat = new THREE.MeshBasicMaterial({
+              color: 0x88ff88,
+              transparent: true,
+              opacity: 0.8,
+            });
+            const particle = new THREE.Mesh(pGeo, pMat);
+            const theta = Math.random() * Math.PI * 2;
+            const r = 2 + Math.random() * 3;
+            particle.position.set(
+              -8 + r * Math.cos(theta),
+              1.5 + (Math.random() - 0.5) * 1.5,
+              r * Math.sin(theta),
+            );
+            particle.userData = {
+              targetX: -8,
+              speed: 3 + Math.random() * 3,
+            };
+            this.add(particle);
+            this.chargeParticles.push(particle);
+          }
+
+          // Arrow (appears after charge)
+          this.arrow = null;
+          this.hasFired = false;
+          this.impactParticles = [];
+        }
+
+        update(delta) {
+          super.update(delta);
+
+          const chargeTime = 0.8;
+
+          if (this.age < chargeTime) {
+            // Charge particles converge
+            this.chargeParticles.forEach((p) => {
+              p.position.x += (p.userData.targetX - p.position.x) * delta * 3;
+              p.material.opacity *= 0.98;
+            });
+          } else if (!this.hasFired) {
+            this.hasFired = true;
+            this.fireArrow();
+          }
+
+          if (this.arrow) {
+            this.arrow.position.x += delta * 40;
+            this.arrow.material.opacity *= 0.97;
+
+            // Trail
+            if (Math.random() > 0.5) {
+              const pGeo = new THREE.SphereGeometry(0.08, 4, 4);
+              const pMat = new THREE.MeshBasicMaterial({
+                color: 0x88ff88,
+                transparent: true,
+                opacity: 0.6,
+              });
+              const p = new THREE.Mesh(pGeo, pMat);
+              p.position.copy(this.arrow.position);
+              p.userData = { life: 0 };
+              this.add(p);
+              this.impactParticles.push(p);
+            }
+          }
+
+          // Fade trail particles
+          this.impactParticles.forEach((p) => {
+            p.userData.life += delta;
+            p.material.opacity *= 0.9;
+          });
+
+          return this.age < this.maxAge;
+        }
+
+        fireArrow() {
+          // Hide charge particles
+          this.chargeParticles.forEach((p) => (p.visible = false));
+
+          // Create arrow
+          const arrowGeo = new THREE.ConeGeometry(0.12, 1.5, 6);
+          const arrowMat = new THREE.MeshBasicMaterial({
+            color: 0xffffff,
+            transparent: true,
+            opacity: 1,
+          });
+          this.arrow = new THREE.Mesh(arrowGeo, arrowMat);
+          this.arrow.rotation.z = Math.PI / 2;
+          this.arrow.position.set(-8, 1.5, 0);
+          this.add(this.arrow);
+
+          // Flash
+          this.flash = new THREE.PointLight(0x88ff88, 5, 15);
+          this.flash.position.copy(this.arrow.position);
+          this.add(this.flash);
+        }
+      }
+
+      // ==================== DRUID SPELLS ====================
+
+      class WrathSpell extends SpellEffect {
+        constructor() {
+          super({ duration: 1.5 });
+
+          // Nature energy ball
+          const ballGeo = new THREE.SphereGeometry(0.4, 16, 16);
+          const ballMat = new THREE.MeshBasicMaterial({
+            color: 0x88dd44,
+            transparent: true,
+            opacity: 0.9,
+          });
+          this.ball = new THREE.Mesh(ballGeo, ballMat);
+          this.ball.position.set(-8, 2, 0);
+          this.add(this.ball);
+
+          // Orbiting leaves
+          this.leaves = [];
+          for (let i = 0; i < 12; i++) {
+            const leafGeo = new THREE.SphereGeometry(0.1, 4, 4);
+            const leafMat = new THREE.MeshBasicMaterial({
+              color: 0x66aa33,
+              transparent: true,
+              opacity: 0.8,
+            });
+            const leaf = new THREE.Mesh(leafGeo, leafMat);
+            leaf.userData = {
+              angle: (i / 12) * Math.PI * 2,
+              radius: 0.6,
+              speed: 5,
+            };
+            this.add(leaf);
+            this.leaves.push(leaf);
+          }
+
+          // Trail
+          this.trail = [];
+          for (let i = 0; i < 50; i++) {
+            const pGeo = new THREE.SphereGeometry(
+              0.05 + Math.random() * 0.08,
+              4,
+              4,
+            );
+            const pMat = new THREE.MeshBasicMaterial({
+              color: 0x99dd55,
+              transparent: true,
+              opacity: 0.6,
+            });
+            const particle = new THREE.Mesh(pGeo, pMat);
+            particle.userData = {
+              offset: new THREE.Vector3(
+                (Math.random() - 0.5) * 0.5,
+                (Math.random() - 0.5) * 0.5,
+                (Math.random() - 0.5) * 0.5,
+              ),
+              life: Math.random(),
+            };
+            this.add(particle);
+            this.trail.push(particle);
+          }
+
+          this.startX = -8;
+          this.targetX = 10;
+        }
+
+        update(delta) {
+          super.update(delta);
+
+          const flyDuration = 0.8;
+          const progress = Math.min(this.age / flyDuration, 1);
+
+          this.ball.position.x =
+            this.startX + progress * (this.targetX - this.startX);
+          this.ball.rotation.x += delta * 3;
+
+          // Leaves orbit
+          this.leaves.forEach((leaf) => {
+            leaf.userData.angle += delta * leaf.userData.speed;
+            const angle = leaf.userData.angle;
+            const r = leaf.userData.radius;
+            leaf.position.copy(this.ball.position);
+            leaf.position.x += Math.cos(angle) * r;
+            leaf.position.z += Math.sin(angle) * r;
+            leaf.position.y += Math.sin(angle * 2) * 0.3;
+          });
+
+          // Trail
+          this.trail.forEach((p) => {
+            p.userData.life += delta;
+            if (p.userData.life > 0.3) {
+              p.userData.life = 0;
+              p.position.copy(this.ball.position).add(p.userData.offset);
+            }
+            p.material.opacity = 0.6 * (1 - p.userData.life / 0.3);
+          });
+
+          if (progress >= 1) {
+            this.ball.material.opacity *= 0.9;
+            this.leaves.forEach((l) => (l.material.opacity *= 0.85));
+          }
+
+          return this.age < this.maxAge;
+        }
+      }
+
+      class RejuvenationSpell extends SpellEffect {
+        constructor() {
+          super({ duration: 3 });
+
+          // Rising healing particles
+          this.particles = [];
+          for (let i = 0; i < 120; i++) {
+            const pGeo = new THREE.SphereGeometry(
+              0.08 + Math.random() * 0.1,
+              4,
+              4,
+            );
+            const pMat = new THREE.MeshBasicMaterial({
+              color: new THREE.Color().setHSL(
+                0.3 + Math.random() * 0.1,
+                0.7,
+                0.5,
+              ),
+              transparent: true,
+              opacity: 0.8,
+            });
+            const particle = new THREE.Mesh(pGeo, pMat);
+            const theta = Math.random() * Math.PI * 2;
+            const r = Math.random() * 1.5;
+            particle.position.set(
+              r * Math.cos(theta),
+              Math.random() * 3,
+              r * Math.sin(theta),
+            );
+            particle.userData = {
+              baseTheta: theta,
+              baseR: r,
+              speed: 0.8 + Math.random() * 1.2,
+              phase: Math.random() * Math.PI * 2,
+            };
+            this.add(particle);
+            this.particles.push(particle);
+          }
+
+          // Leaf particles falling then rising
+          this.leaves = [];
+          for (let i = 0; i < 30; i++) {
+            const leafGeo = new THREE.SphereGeometry(0.1, 4, 4);
+            const leafMat = new THREE.MeshBasicMaterial({
+              color: 0x88bb44,
+              transparent: true,
+              opacity: 0.7,
+            });
+            const leaf = new THREE.Mesh(leafGeo, leafMat);
+            const theta = Math.random() * Math.PI * 2;
+            leaf.position.set(
+              Math.cos(theta) * 2,
+              3 + Math.random() * 2,
+              Math.sin(theta) * 2,
+            );
+            leaf.userData = {
+              theta,
+              fallSpeed: 0.5 + Math.random() * 0.5,
+              spinSpeed: 2 + Math.random() * 3,
+            };
+            this.add(leaf);
+            this.leaves.push(leaf);
+          }
+
+          // Ground glow
+          const glowGeo = new THREE.CircleGeometry(2, 32);
+          const glowMat = new THREE.MeshBasicMaterial({
+            color: 0x66bb44,
+            transparent: true,
+            opacity: 0.4,
+          });
+          this.glow = new THREE.Mesh(glowGeo, glowMat);
+          this.glow.rotation.x = -Math.PI / 2;
+          this.glow.position.y = 0.02;
+          this.add(this.glow);
+
+          // Healing rings
+          this.rings = [];
+          for (let i = 0; i < 3; i++) {
+            const ringGeo = new THREE.TorusGeometry(0.8 + i * 0.4, 0.06, 8, 32);
+            const ringMat = new THREE.MeshBasicMaterial({
+              color: 0x88cc55,
+              transparent: true,
+              opacity: 0.5,
+            });
+            const ring = new THREE.Mesh(ringGeo, ringMat);
+            ring.position.y = 0.5;
+            ring.userData = { delay: i * 0.3, baseY: 0.5 };
+            this.add(ring);
+            this.rings.push(ring);
+          }
+        }
+
+        update(delta) {
+          super.update(delta);
+
+          // Particles rise
+          this.particles.forEach((p) => {
+            p.position.y += delta * p.userData.speed;
+            if (p.position.y > 4) p.position.y = 0;
+
+            p.userData.baseTheta += delta;
+            const r = p.userData.baseR;
+            p.position.x = r * Math.cos(p.userData.baseTheta);
+            p.position.z = r * Math.sin(p.userData.baseTheta);
+
+            p.material.opacity =
+              0.8 *
+              Math.sin(this.age * 2 + p.userData.phase) *
+              (1 - this.age / this.maxAge);
+          });
+
+          // Leaves fall then rise
+          this.leaves.forEach((l) => {
+            l.position.y -= delta * l.userData.fallSpeed;
+            if (l.position.y < 0) l.position.y = 5;
+            l.rotation.x += delta * l.userData.spinSpeed;
+            l.rotation.z += delta * l.userData.spinSpeed * 0.7;
+            l.material.opacity = 0.7 * (1 - this.age / this.maxAge);
+          });
+
+          // Glow pulse
+          this.glow.material.opacity =
+            0.4 * Math.sin(this.age * 3) * (1 - this.age / this.maxAge);
+
+          // Rings rise
+          this.rings.forEach((r) => {
+            const age = this.age - r.userData.delay;
+            if (age > 0) {
+              r.position.y = r.userData.baseY + (age % 1) * 3;
+              r.rotation.z = age * 2;
+              r.material.opacity =
+                0.5 * (1 - (age % 1)) * (1 - this.age / this.maxAge);
+            }
+          });
+
+          return this.age < this.maxAge;
+        }
+      }
+
+      class ThornsSpell extends SpellEffect {
+        constructor() {
+          super({ duration: 2.5 });
+
+          // Thorn spikes around player
+          this.thorns = [];
+          for (let i = 0; i < 16; i++) {
+            const thornGeo = new THREE.ConeGeometry(0.15, 1.2, 4);
+            const thornMat = new THREE.MeshBasicMaterial({
+              color: 0x668844,
+              transparent: true,
+              opacity: 0.9,
+            });
+            const thorn = new THREE.Mesh(thornGeo, thornMat);
+            const angle = (i / 16) * Math.PI * 2;
+            thorn.position.set(Math.cos(angle) * 2, 0.6, Math.sin(angle) * 2);
+            thorn.rotation.z = Math.PI / 2 + (Math.random() - 0.5) * 0.3;
+            thorn.rotation.y = angle;
+            thorn.userData = { baseAngle: angle, delay: Math.random() * 0.3 };
+            this.add(thorn);
+            this.thorns.push(thorn);
+          }
+
+          // Spiky aura
+          this.auraParticles = [];
+          for (let i = 0; i < 80; i++) {
+            const pGeo = new THREE.OctahedronGeometry(
+              0.08 + Math.random() * 0.08,
+              0,
+            );
+            const pMat = new THREE.MeshBasicMaterial({
+              color: 0x88aa55,
+              transparent: true,
+              opacity: 0.7,
+            });
+            const particle = new THREE.Mesh(pGeo, pMat);
+            const theta = Math.random() * Math.PI * 2;
+            const r = 1.5 + Math.random() * 1.5;
+            const y = Math.random() * 2.5;
+            particle.position.set(r * Math.cos(theta), y, r * Math.sin(theta));
+            particle.userData = {
+              baseTheta: theta,
+              baseR: r,
+              baseY: y,
+              speed: 1 + Math.random() * 2,
+              spinSpeed: 2 + Math.random() * 4,
+            };
+            this.add(particle);
+            this.auraParticles.push(particle);
+          }
+
+          // Ground vine circle
+          const vineGeo = new THREE.TorusGeometry(2, 0.1, 8, 32);
+          const vineMat = new THREE.MeshBasicMaterial({
+            color: 0x557733,
+            transparent: true,
+            opacity: 0.7,
+          });
+          this.vine = new THREE.Mesh(vineGeo, vineMat);
+          this.vine.rotation.x = -Math.PI / 2;
+          this.vine.position.y = 0.05;
+          this.add(this.vine);
+        }
+
+        update(delta) {
+          super.update(delta);
+
+          // Thorns pulse
+          this.thorns.forEach((thorn) => {
+            const age = this.age - thorn.userData.delay;
+            if (age > 0) {
+              const scale = 1 + Math.sin(this.age * 6) * 0.15;
+              thorn.scale.setScalar(scale);
+              thorn.rotation.y =
+                thorn.userData.baseAngle + Math.sin(this.age * 2) * 0.1;
+            }
+            thorn.material.opacity = 0.9 * (1 - this.age / this.maxAge);
+          });
+
+          // Aura particles orbit
+          this.auraParticles.forEach((p) => {
+            p.userData.baseTheta += delta * p.userData.speed;
+            const theta = p.userData.baseTheta;
+            const r = p.userData.baseR;
+            p.position.x = r * Math.cos(theta);
+            p.position.z = r * Math.sin(theta);
+            p.rotation.x += delta * p.userData.spinSpeed;
+            p.rotation.y += delta * p.userData.spinSpeed * 0.7;
+            p.material.opacity = 0.7 * (1 - this.age / this.maxAge);
+          });
+
+          // Vine grow
+          this.vine.scale.setScalar(1 + this.age * 0.2);
+          this.vine.rotation.z += delta;
+          this.vine.material.opacity = 0.7 * (1 - this.age / this.maxAge);
+
+          return this.age < this.maxAge;
+        }
+      }
+
+      class SunfireSpell extends SpellEffect {
+        constructor() {
+          super({ duration: 2.5 });
+
+          // Sun core
+          const sunGeo = new THREE.SphereGeometry(0.6, 32, 32);
+          const sunMat = new THREE.MeshBasicMaterial({
+            color: 0xffcc00,
+            transparent: true,
+            opacity: 1,
+          });
+          this.sun = new THREE.Mesh(sunGeo, sunMat);
+          this.sun.position.y = 2;
+          this.add(this.sun);
+
+          // Solar flares
+          this.flares = [];
+          for (let i = 0; i < 200; i++) {
+            const pGeo = new THREE.SphereGeometry(
+              0.08 + Math.random() * 0.15,
+              4,
+              4,
+            );
+            const pMat = new THREE.MeshBasicMaterial({
+              color: new THREE.Color().setHSL(
+                0.1 + Math.random() * 0.05,
+                1,
+                0.5 + Math.random() * 0.3,
+              ),
+              transparent: true,
+              opacity: 0.9,
+            });
+            const particle = new THREE.Mesh(pGeo, pMat);
+
+            const theta = Math.random() * Math.PI * 2;
+            const phi = Math.random() * Math.PI;
+            const r = 0.7 + Math.random() * 0.5;
+
+            particle.position.set(
+              r * Math.sin(phi) * Math.cos(theta),
+              2 + r * Math.cos(phi),
+              r * Math.sin(phi) * Math.sin(theta),
+            );
+
+            const speed = 2 + Math.random() * 4;
+            particle.userData = {
+              velocity: new THREE.Vector3(
+                speed * Math.sin(phi) * Math.cos(theta),
+                speed * Math.cos(phi),
+                speed * Math.sin(phi) * Math.sin(theta),
+              ),
+            };
+            this.add(particle);
+            this.flares.push(particle);
+          }
+
+          // Ground burning circle
+          const burnGeo = new THREE.CircleGeometry(3, 32);
+          const burnMat = new THREE.MeshBasicMaterial({
+            color: 0xff6600,
+            transparent: true,
+            opacity: 0.5,
+          });
+          this.burn = new THREE.Mesh(burnGeo, burnMat);
+          this.burn.rotation.x = -Math.PI / 2;
+          this.burn.position.y = 0.02;
+          this.add(this.burn);
+
+          // Light
+          this.light = new THREE.PointLight(0xffaa00, 5, 20);
+          this.light.position.y = 2;
+          this.add(this.light);
+        }
+
+        update(delta) {
+          super.update(delta);
+
+          // Sun pulse
+          const scale = 1 + Math.sin(this.age * 8) * 0.2;
+          this.sun.scale.setScalar(scale);
+          this.sun.material.opacity = 1 * (1 - this.age / this.maxAge);
+
+          // Flares expand
+          this.flares.forEach((f) => {
+            f.position.add(f.userData.velocity.clone().multiplyScalar(delta));
+            f.userData.velocity.multiplyScalar(0.98);
+            f.material.opacity *= 0.98;
+          });
+
+          // Burn spread
+          this.burn.scale.setScalar(1 + this.age * 0.5);
+          this.burn.material.opacity =
+            0.5 * Math.sin(this.age * 4) * (1 - this.age / this.maxAge);
+
+          // Light flicker
+          this.light.intensity =
+            5 *
+            (1 + Math.sin(this.age * 10) * 0.3) *
+            (1 - this.age / this.maxAge);
+
+          return this.age < this.maxAge;
+        }
+      }
+
+      class BearformSpell extends SpellEffect {
+        constructor() {
+          super({ duration: 3 });
+
+          // Transformation particles
+          this.transformParticles = [];
+          for (let i = 0; i < 200; i++) {
+            const pGeo = new THREE.SphereGeometry(
+              0.1 + Math.random() * 0.15,
+              4,
+              4,
+            );
+            const pMat = new THREE.MeshBasicMaterial({
+              color: new THREE.Color().setHSL(
+                0.08 + Math.random() * 0.04,
+                0.5,
+                0.3 + Math.random() * 0.2,
+              ),
+              transparent: true,
+              opacity: 0.8,
+            });
+            const particle = new THREE.Mesh(pGeo, pMat);
+            const theta = Math.random() * Math.PI * 2;
+            const r = 3 + Math.random() * 3;
+            particle.position.set(
+              r * Math.cos(theta),
+              Math.random() * 4,
+              r * Math.sin(theta),
+            );
+            particle.userData = {
+              targetR: 0.5 + Math.random() * 0.5,
+              targetTheta: Math.random() * Math.PI * 2,
+              targetY: 0.5 + Math.random() * 2,
+              speed: 2 + Math.random() * 3,
+            };
+            this.add(particle);
+            this.transformParticles.push(particle);
+          }
+
+          // Bear silhouette (appears during transform)
+          const bearGeo = new THREE.CapsuleGeometry(0.8, 1.5, 8, 16);
+          const bearMat = new THREE.MeshBasicMaterial({
+            color: 0x665533,
+            transparent: true,
+            opacity: 0,
+          });
+          this.bear = new THREE.Mesh(bearGeo, bearMat);
+          this.bear.position.y = 1.3;
+          this.add(this.bear);
+
+          // Ground stomp effect
+          this.stompWave = null;
+        }
+
+        update(delta) {
+          super.update(delta);
+
+          // Particles converge to center
+          const convergeTime = 1;
+          if (this.age < convergeTime) {
+            this.transformParticles.forEach((p) => {
+              p.position.x +=
+                (p.userData.targetR * Math.cos(p.userData.targetTheta) -
+                  p.position.x) *
+                delta *
+                p.userData.speed;
+              p.position.y +=
+                (p.userData.targetY - p.position.y) * delta * p.userData.speed;
+              p.position.z +=
+                (p.userData.targetR * Math.sin(p.userData.targetTheta) -
+                  p.position.z) *
+                delta *
+                p.userData.speed;
+            });
+
+            // Bear fades in
+            this.bear.material.opacity = (this.age / convergeTime) * 0.9;
+          } else {
+            // Bear fully formed
+            this.bear.material.opacity = 0.9;
+
+            // Create stomp wave
+            if (!this.stompWave) {
+              this.createStomp();
+            }
+          }
+
+          // Fade out
+          if (this.age > 2) {
+            this.transformParticles.forEach((p) => {
+              p.material.opacity *= 0.95;
+            });
+            this.bear.material.opacity *= 0.95;
+          }
+
+          // Stomp wave
+          if (this.stompWave) {
+            const stompAge = this.age - 1;
+            const scale = 1 + stompAge * 5;
+            this.stompWave.scale.set(scale, scale, 1);
+            this.stompWave.material.opacity = Math.max(0, 0.8 - stompAge * 0.8);
+          }
+
+          return this.age < this.maxAge;
+        }
+
+        createStomp() {
+          const ringGeo = new THREE.RingGeometry(0.5, 0.8, 32);
+          const ringMat = new THREE.MeshBasicMaterial({
+            color: 0x887755,
+            transparent: true,
+            opacity: 0.8,
+            side: THREE.DoubleSide,
+          });
+          this.stompWave = new THREE.Mesh(ringGeo, ringMat);
+          this.stompWave.rotation.x = -Math.PI / 2;
+          this.stompWave.position.y = 0.05;
+          this.add(this.stompWave);
+        }
+      }
+
+      class TranquilitySpell extends SpellEffect {
+        constructor() {
+          super({ duration: 4 });
+
+          // Gentle falling petals
+          this.petals = [];
+          for (let i = 0; i < 100; i++) {
+            const petalGeo = new THREE.SphereGeometry(0.08, 4, 4);
+            const petalMat = new THREE.MeshBasicMaterial({
+              color: new THREE.Color().setHSL(
+                0.9 + Math.random() * 0.1,
+                0.5,
+                0.7 + Math.random() * 0.2,
+              ),
+              transparent: true,
+              opacity: 0.8,
+            });
+            const petal = new THREE.Mesh(petalGeo, petalMat);
+            const theta = Math.random() * Math.PI * 2;
+            const r = Math.random() * 5;
+            petal.position.set(
+              r * Math.cos(theta),
+              5 + Math.random() * 5,
+              r * Math.sin(theta),
+            );
+            petal.userData = {
+              fallSpeed: 0.5 + Math.random() * 0.5,
+              swayPhase: Math.random() * Math.PI * 2,
+              swaySpeed: 1 + Math.random() * 2,
+              swayAmount: 0.5 + Math.random() * 0.5,
+            };
+            this.add(petal);
+            this.petals.push(petal);
+          }
+
+          // Rising healing energy
+          this.healingEnergy = [];
+          for (let i = 0; i < 150; i++) {
+            const pGeo = new THREE.SphereGeometry(
+              0.05 + Math.random() * 0.08,
+              4,
+              4,
+            );
+            const pMat = new THREE.MeshBasicMaterial({
+              color: new THREE.Color().setHSL(
+                0.35 + Math.random() * 0.1,
+                0.7,
+                0.6,
+              ),
+              transparent: true,
+              opacity: 0.7,
+            });
+            const particle = new THREE.Mesh(pGeo, pMat);
+            const theta = Math.random() * Math.PI * 2;
+            const r = Math.random() * 4;
+            particle.position.set(
+              r * Math.cos(theta),
+              Math.random() * 3,
+              r * Math.sin(theta),
+            );
+            particle.userData = {
+              baseTheta: theta,
+              baseR: r,
+              speed: 0.5 + Math.random() * 1,
+              phase: Math.random() * Math.PI * 2,
+            };
+            this.add(particle);
+            this.healingEnergy.push(particle);
+          }
+
+          // Central tree of life symbol
+          const treeGeo = new THREE.CylinderGeometry(0.1, 0.15, 1.5, 6);
+          const treeMat = new THREE.MeshBasicMaterial({
+            color: 0x66aa44,
+            transparent: true,
+            opacity: 0.7,
+          });
+          this.tree = new THREE.Mesh(treeGeo, treeMat);
+          this.tree.position.y = 0.75;
+          this.add(this.tree);
+
+          // Canopy
+          const canopyGeo = new THREE.SphereGeometry(1.5, 8, 6);
+          const canopyMat = new THREE.MeshBasicMaterial({
+            color: 0x88cc55,
+            transparent: true,
+            opacity: 0.4,
+          });
+          this.canopy = new THREE.Mesh(canopyGeo, canopyMat);
+          this.canopy.position.y = 2;
+          this.canopy.scale.set(1, 0.6, 1);
+          this.add(this.canopy);
+
+          // Ground healing circle
+          const circleGeo = new THREE.RingGeometry(3, 4, 32);
+          const circleMat = new THREE.MeshBasicMaterial({
+            color: 0x88dd66,
+            transparent: true,
+            opacity: 0.4,
+            side: THREE.DoubleSide,
+          });
+          this.circle = new THREE.Mesh(circleGeo, circleMat);
+          this.circle.rotation.x = -Math.PI / 2;
+          this.circle.position.y = 0.02;
+          this.add(this.circle);
+
+          // Light
+          this.light = new THREE.PointLight(0x88ff66, 2, 15);
+          this.light.position.y = 2;
+          this.add(this.light);
+        }
+
+        update(delta) {
+          super.update(delta);
+
+          // Petals fall
+          this.petals.forEach((petal) => {
+            petal.position.y -= delta * petal.userData.fallSpeed;
+            petal.position.x +=
+              Math.sin(
+                this.age * petal.userData.swaySpeed + petal.userData.swayPhase,
+              ) *
+              delta *
+              petal.userData.swayAmount;
+            petal.position.z +=
+              Math.cos(
+                this.age * petal.userData.swaySpeed + petal.userData.swayPhase,
+              ) *
+              delta *
+              petal.userData.swayAmount;
+            petal.rotation.x += delta;
+            petal.rotation.z += delta * 0.7;
+
+            if (petal.position.y < 0) {
+              petal.position.y = 8;
+              const theta = Math.random() * Math.PI * 2;
+              const r = Math.random() * 5;
+              petal.position.x = r * Math.cos(theta);
+              petal.position.z = r * Math.sin(theta);
+            }
+
+            petal.material.opacity = 0.8 * (1 - this.age / this.maxAge);
+          });
+
+          // Healing energy rises
+          this.healingEnergy.forEach((p) => {
+            p.position.y += delta * p.userData.speed;
+            if (p.position.y > 4) p.position.y = 0;
+
+            p.userData.baseTheta += delta * 0.5;
+            const r = p.userData.baseR;
+            p.position.x = r * Math.cos(p.userData.baseTheta);
+            p.position.z = r * Math.sin(p.userData.baseTheta);
+
+            p.material.opacity =
+              0.7 *
+              Math.sin(this.age * 2 + p.userData.phase) *
+              (1 - this.age / this.maxAge);
+          });
+
+          // Tree pulse
+          const scale = 1 + Math.sin(this.age * 3) * 0.1;
+          this.tree.scale.set(scale, 1, scale);
+          this.canopy.scale.set(
+            1 + Math.sin(this.age * 2) * 0.1,
+            0.6,
+            1 + Math.sin(this.age * 2) * 0.1,
+          );
+
+          // Circle rotate
+          this.circle.rotation.z += delta * 0.3;
+          this.circle.material.opacity =
+            0.4 * Math.sin(this.age * 2) * (1 - this.age / this.maxAge);
+
+          // Light pulse
+          this.light.intensity =
+            2 *
+            (1 + Math.sin(this.age * 4) * 0.3) *
+            (1 - this.age / this.maxAge);
+
+          return this.age < this.maxAge;
+        }
+      }
+
+      // ==================== SPELL FACTORY ====================
+
+      function createSpell(className, skillKey) {
+        switch (className + "_" + skillKey) {
+          // Mage
+          case "mage_fireball":
+            return new FireballSpell();
+          case "mage_icebolt":
+            return new IceBoltSpell();
+          case "mage_meteor":
+            return new MeteorSpell();
+          case "mage_chainlightning":
+            return new ChainLightningSpell();
+          case "mage_heal":
+            return new HealSpell();
+          case "mage_nova":
+            return new NovaSpell();
+
+          // Warrior
+          case "warrior_slash":
+            return new SlashSpell();
+          case "warrior_charge":
+            return new ChargeSpell();
+          case "warrior_whirlwind":
+            return new WhirlwindSpell();
+          case "warrior_shieldbash":
+            return new ShieldBashSpell();
+          case "warrior_battlecry":
+            return new BattlecrySpell();
+          case "warrior_execute":
+            return new ExecuteSpell();
+
+          // Archer
+          case "archer_quickshot":
+            return new QuickshotSpell();
+          case "archer_multishot":
+            return new MultishotSpell();
+          case "archer_poisonarrow":
+            return new PoisonarrowSpell();
+          case "archer_arrowrain":
+            return new ArrowrainSpell();
+          case "archer_evasion":
+            return new EvasionSpell();
+          case "archer_snipe":
+            return new SnipeSpell();
+
+          // Druid
+          case "druid_wrath":
+            return new WrathSpell();
+          case "druid_rejuvenation":
+            return new RejuvenationSpell();
+          case "druid_thorns":
+            return new ThornsSpell();
+          case "druid_sunfire":
+            return new SunfireSpell();
+          case "druid_bearform":
+            return new BearformSpell();
+          case "druid_tranquility":
+            return new TranquilitySpell();
+
+          default:
+            return new FireballSpell();
+        }
+      }
+
+      // ==================== ANIMATION LOOP ====================
+
+      function animate() {
+        requestAnimationFrame(animate);
+
+        const delta = clock.getDelta();
+
+        controls.update();
+
+        if (currentEffect) {
+          if (!currentEffect.update(delta)) {
+            currentEffect.dispose();
+            currentEffect = null;
+          }
+        }
+
+        renderer.render(scene, camera);
+      }
+
+      // ==================== UI FUNCTIONS ====================
+
+      function updateClassInfo(className) {
+        const config = classConfigs[className];
+        document.getElementById("class-icon").textContent = config.icon;
+        document.getElementById("class-name").textContent = config.name;
+        document.getElementById("class-name-en").textContent = config.nameEn;
+        document.getElementById("class-description").textContent =
+          config.description;
+        document.getElementById("stat-hp").textContent = config.baseHP;
+        document.getElementById("stat-mp").textContent = config.baseMP;
+        document.getElementById("stat-atk").textContent = config.baseAttack;
+
+        const infoBox = document.getElementById("class-info");
+        infoBox.style.borderColor = config.color + "30";
+      }
+
+      function renderSkillsList(className) {
+        const config = classConfigs[className];
+        const list = document.getElementById("skills-list");
+        list.innerHTML = "";
+
+        Object.entries(config.skills).forEach(([key, skill], index) => {
+          const btn = document.createElement("button");
+          btn.className =
+            "skill-btn w-full p-3 rounded-xl bg-black/30 border border-white/5 text-left flex items-center gap-3 hover:bg-black/50 animate-slideIn";
+          btn.style.animationDelay = `${index * 0.05}s`;
+          btn.style.borderLeft = `3px solid ${config.color}`;
+
+          btn.innerHTML = `
+                    <span class="text-xl">${skill.icon}</span>
+                    <div class="flex-1 min-w-0">
+                        <p class="font-medium text-sm truncate">${skill.name}</p>
+                        <p class="text-xs text-gray-500 truncate">${skill.description}</p>
+                    </div>
+                    <span class="text-xs text-gray-600 shrink-0">${skill.manaCost || 0} MP</span>
+                `;
+
+          btn.addEventListener("click", () => triggerSkill(className, key));
+          list.appendChild(btn);
+        });
+      }
+
+      function triggerSkill(className, skillKey) {
+        const config = classConfigs[className];
+        const skill = config.skills[skillKey];
+
+        // Clear previous
+        if (currentEffect) {
+          currentEffect.dispose();
+          currentEffect = null;
+        }
+
+        // Show cast indicator
+        const indicator = document.getElementById("cast-indicator");
+        indicator.classList.remove("hidden");
+        indicator.querySelector(".cast-ring").style.borderColor = config.color;
+        setTimeout(() => indicator.classList.add("hidden"), 500);
+
+        // Create spell
+        currentEffect = createSpell(className, skillKey);
+
+        // Update display
+        const display = document.getElementById("skill-display");
+        document.getElementById("skill-icon-display").textContent = skill.icon;
+        document.getElementById("skill-name-display").textContent = skill.name;
+        document.getElementById("skill-desc-display").textContent =
+          skill.description;
+        display.style.opacity = "1";
+        display.style.borderColor = config.color + "40";
+
+        document.getElementById("hint").style.opacity = "0";
+
+        // Update details
+        const panel = document.getElementById("skill-detail-panel");
+        const content = document.getElementById("skill-detail-content");
+        panel.style.opacity = "1";
+
+        content.innerHTML = `
+                <div class="flex items-center gap-3 mb-4 p-3 rounded-xl bg-black/40 border border-white/5">
+                    <span class="text-3xl">${skill.icon}</span>
+                    <div>
+                        <h4 class="font-display text-sm font-bold">${skill.name}</h4>
+                        <p class="text-xs text-gray-500">${skill.description}</p>
+                    </div>
+                </div>
+                <div class="space-y-2 text-sm">
+                    ${skill.damage ? `<div class="flex justify-between p-2 rounded-lg bg-black/20"><span class="text-gray-400">Damage</span><span style="color:${config.color}">${skill.damage}</span></div>` : ""}
+                    ${skill.healAmount ? `<div class="flex justify-between p-2 rounded-lg bg-black/20"><span class="text-gray-400">Heal</span><span class="text-green-400">${skill.healAmount}</span></div>` : ""}
+                    <div class="flex justify-between p-2 rounded-lg bg-black/20"><span class="text-gray-400">Cooldown</span><span>${skill.maxCooldown}s</span></div>
+                    <div class="flex justify-between p-2 rounded-lg bg-black/20"><span class="text-gray-400">Mana</span><span class="text-blue-400">${skill.manaCost || 0}</span></div>
+                </div>
+            `;
+
+        setTimeout(() => (display.style.opacity = "0"), 2500);
+      }
+
+      function setupUI() {
+        const tabs = document.querySelectorAll(".class-tab");
+
+        tabs.forEach((tab) => {
+          tab.addEventListener("click", () => {
+            const cls = tab.dataset.class;
+
+            tabs.forEach((t) => {
+              t.classList.remove("active");
+              t.style.backgroundColor = "";
+            });
+            tab.classList.add("active");
+            tab.style.backgroundColor = classConfigs[cls].color + "20";
+
+            updateClassInfo(cls);
+            renderSkillsList(cls);
+            document.getElementById("skill-detail-panel").style.opacity = "0";
+          });
+        });
+
+        // Init first class
+        tabs[0].click();
+      }
+
+      // Initialize
+      init();
+      setupUI();
+    </script>
+  </body>
+</html>

@@ -1,12 +1,18 @@
 // src/game/SkillsManager.jsx
 import { useFrame } from '@react-three/fiber';
 import { useEffect, useCallback, useRef } from 'react';
-import { Html } from '@react-three/drei';
 import { useThree } from '@react-three/fiber';
 import useGameState from '../hooks/useGameState';
 import { createProjectile } from './Projectiles';
 import { createParticles } from './Particles';
-import { LightningEffect, FrozenOrbEffect, BlizzardEffect, MeteorEffect, IceNovaEffect, FireballEffect, FireExplosion, PlagueSpikeEffect, PoisonCloudEffect, SerpentSweepEffect, WindBladesEffect, TornadoEffect, TornadoRingEffect } from './SkillEffects';
+import { 
+    LightningEffect, FrozenOrbEffect, BlizzardEffect, MeteorEffect, IceNovaEffect, 
+    FireballEffect, FireExplosion, PlagueSpikeEffect, PoisonCloudEffect, SerpentSweepEffect, 
+    WindBladesEffect, TornadoEffect, TornadoRingEffect,
+    SlashEffect, ChargeEffect, WhirlwindEffect, ShieldBashEffect, BattlecryEffect, ExecuteEffect,
+    QuickshotEffect, MultishotEffect, ArrowrainEffect, EvasionEffect, SnipeEffect,
+    WrathEffect, RejuvenationEffect, ThornsEffect, SunfireEffect, BearformEffect, TranquilityEffect
+} from './effects';
 import * as THREE from 'three';
 
 function SkillsManager() {
@@ -14,16 +20,19 @@ function SkillsManager() {
 
     const {
         skills, playerMana, playerPos, playerRotation, targetEnemy, enemies,
-        playerHP, playerMaxHP, castSkill, updateEnemy, setTargetEnemy,
+        playerHP, playerMaxHP, playerAttackPower, playerCritChance,
+        castSkill, updateEnemy, setTargetEnemy,
         updatePlayer, updateSkillsCooldown, addFloatingNumber,
-        skillKeybinds, talentUnlocks
+        skillKeybinds, talentUnlocks, classSelected
     } = useGameState();
 
     const effectsRef = useRef([]);
-    const dotRef = useRef({}); // DOT 追蹤: { enemyId: { damage, duration, source, lastTick } }
+    const dotRef = useRef({});
+    const handleSkillCastRef = useRef(null);
 
     const handleSkillCast = useCallback((skillKey) => {
-        // 鎖定邏輯
+        if (!classSelected) return;
+        
         let currentTarget = targetEnemy;
         if (!currentTarget || currentTarget.hp <= 0) {
             let closest = null, minDist = Infinity;
@@ -37,24 +46,22 @@ function SkillsManager() {
         }
 
         const result = castSkill(skillKey);
-        if (!result.success) return;
+        if (!result || !result.success) return;
 
         const playerPosY = playerPos.clone().add(new THREE.Vector3(0, 4, 0));
         const forwardDir = new THREE.Vector3(0, 0, -1).applyAxisAngle(new THREE.Vector3(0, 1, 0), playerRotation?.y || 0);
         const defaultTargetPos = playerPos.clone().add(forwardDir.multiplyScalar(20));
-
+        
         switch (skillKey) {
             case 'fireball': {
                 const targetPos = currentTarget ? currentTarget.position.clone() : defaultTargetPos;
                 
-                // 創建新的火球特效
                 const fireball = new FireballEffect(playerPosY, targetPos, result.damage);
                 scene.add(fireball.group);
                 effectsRef.current.push(fireball);
                 
-                // 延遲處理傷害和爆炸
                 const distance = playerPosY.distanceTo(targetPos);
-                const travelTime = distance / 18; // 火球速度為 18
+                const travelTime = distance / 18;
                 
                 setTimeout(() => {
                     // 創建爆炸
@@ -495,20 +502,383 @@ function SkillsManager() {
                 }, 200);
                 break;
             }
-            
+
+            // ==================== 戰士技能 ====================
+            case 'slash': {
+                const skill = skills.slash;
+                const range = skill.range || 5;
+                
+                const slash = new SlashEffect(playerPos, forwardDir, skill.damage || 200, range);
+                scene.add(slash.group);
+                effectsRef.current.push(slash);
+                
+                setTimeout(() => {
+                    enemies.forEach(enemy => {
+                        const toEnemy = enemy.position.clone().sub(playerPos);
+                        const dist = toEnemy.length();
+                        if (dist <= range && enemy.hp > 0) {
+                            const enemyAngle = Math.atan2(toEnemy.x, -toEnemy.z);
+                            const playerAngle = Math.atan2(forwardDir.x, -forwardDir.z);
+                            let angleDiff = enemyAngle - playerAngle;
+                            while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+                            while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+                            if (Math.abs(angleDiff) <= Math.PI / 3) {
+                                const dmg = skill.damage || 200;
+                                updateEnemy(enemy.id, { hp: Math.max(0, enemy.hp - dmg) });
+                                addFloatingNumber(enemy.position.clone().add(new THREE.Vector3(0, enemy.size / 2, 0)), dmg, 'damage');
+                            }
+                        }
+                    });
+                }, 100);
+                break;
+            }
+
+            case 'charge': {
+                const skill = skills.charge;
+                const targetPos = currentTarget ? currentTarget.position.clone() : defaultTargetPos;
+                
+                const charge = new ChargeEffect(playerPos, targetPos, skill.damage || 300);
+                scene.add(charge.group);
+                effectsRef.current.push(charge);
+                
+                const direction = targetPos.clone().sub(playerPos).normalize();
+                const chargeEndPos = targetPos.clone().sub(direction.multiplyScalar(2));
+                updatePlayer({ playerPos: chargeEndPos });
+                
+                setTimeout(() => {
+                    if (currentTarget) {
+                        const dmg = skill.damage || 300;
+                        updateEnemy(currentTarget.id, { hp: Math.max(0, currentTarget.hp - dmg) });
+                        addFloatingNumber(currentTarget.position.clone().add(new THREE.Vector3(0, currentTarget.size / 2, 0)), dmg, 'damage');
+                    }
+                }, 400);
+                break;
+            }
+
+            case 'whirlwind': {
+                const skill = skills.whirlwind;
+                const radius = skill.radius || 4;
+                
+                const whirlwind = new WhirlwindEffect(playerPos, skill.damage || 180, radius);
+                scene.add(whirlwind.group);
+                effectsRef.current.push(whirlwind);
+                
+                setTimeout(() => {
+                    enemies.forEach(enemy => {
+                        const dist = enemy.position.distanceTo(playerPos);
+                        if (dist <= radius && enemy.hp > 0) {
+                            const dmg = skill.damage || 180;
+                            updateEnemy(enemy.id, { hp: Math.max(0, enemy.hp - dmg) });
+                            addFloatingNumber(enemy.position.clone().add(new THREE.Vector3(0, enemy.size / 2, 0)), dmg, 'damage');
+                        }
+                    });
+                }, 200);
+                break;
+            }
+
+            case 'shieldbash': {
+                const skill = skills.shieldbash;
+                const targetPos = currentTarget ? currentTarget.position.clone() : playerPos.clone().add(forwardDir.clone().multiplyScalar(3));
+                
+                const shieldBash = new ShieldBashEffect(playerPos, targetPos, skill.damage || 150);
+                scene.add(shieldBash.group);
+                effectsRef.current.push(shieldBash);
+                
+                setTimeout(() => {
+                    if (currentTarget) {
+                        const dmg = skill.damage || 150;
+                        updateEnemy(currentTarget.id, { hp: Math.max(0, currentTarget.hp - dmg) });
+                        addFloatingNumber(currentTarget.position.clone().add(new THREE.Vector3(0, currentTarget.size / 2, 0)), dmg, 'damage');
+                    }
+                }, 300);
+                const shieldAmt = skill.shield || 100;
+                updatePlayer({ playerHP: Math.min(playerMaxHP, playerHP + shieldAmt) });
+                break;
+            }
+
+            case 'battlecry': {
+                const skill = skills.battlecry;
+                const attackBoost = skill.attackBoost || 0.5;
+                
+                const battlecry = new BattlecryEffect(playerPos);
+                scene.add(battlecry.group);
+                effectsRef.current.push(battlecry);
+                
+                addFloatingNumber(playerPos.clone().add(new THREE.Vector3(0, 8, 0)), '+' + Math.floor(attackBoost * 100) + '% ATK', 'buff');
+                break;
+            }
+
+            case 'execute': {
+                const skill = skills.execute;
+                if (currentTarget && currentTarget.hp / currentTarget.maxHp <= (skill.executeThreshold || 0.2)) {
+                    const targetPos = currentTarget.position.clone();
+                    
+                    const execute = new ExecuteEffect(playerPos, targetPos, skill.damage || 500);
+                    scene.add(execute.group);
+                    effectsRef.current.push(execute);
+                    
+                    setTimeout(() => {
+                        const dmg = skill.damage || 500;
+                        updateEnemy(currentTarget.id, { hp: Math.max(0, currentTarget.hp - dmg) });
+                        addFloatingNumber(currentTarget.position.clone().add(new THREE.Vector3(0, currentTarget.size / 2, 0)), dmg, 'crit');
+                    }, 300);
+                }
+                break;
+            }
+
+            // ==================== 弓箭手技能 ====================
+            case 'quickshot': {
+                const skill = skills.quickshot;
+                const targetPos = currentTarget ? currentTarget.position.clone() : defaultTargetPos;
+                
+                const quickshot = new QuickshotEffect(playerPosY, targetPos, skill.damage || 100);
+                scene.add(quickshot.group);
+                effectsRef.current.push(quickshot);
+                
+                const distance = playerPosY.distanceTo(targetPos);
+                setTimeout(() => {
+                    if (currentTarget) {
+                        const dmg = skill.damage || 100;
+                        updateEnemy(currentTarget.id, { hp: Math.max(0, currentTarget.hp - dmg) });
+                        addFloatingNumber(currentTarget.position.clone().add(new THREE.Vector3(0, currentTarget.size / 2, 0)), dmg, 'damage');
+                    }
+                }, distance / 25 * 1000);
+                break;
+            }
+
+            case 'multishot': {
+                const skill = skills.multishot;
+                const targetPos = currentTarget ? currentTarget.position.clone() : defaultTargetPos;
+                const arrowCount = skill.arrowCount || 5;
+                
+                const multishot = new MultishotEffect(playerPosY, targetPos, skill.damage || 80, arrowCount);
+                scene.add(multishot.group);
+                effectsRef.current.push(multishot);
+                
+                const angleSpread = Math.PI / 3;
+                const baseAngle = Math.atan2(forwardDir.x, forwardDir.z);
+                setTimeout(() => {
+                    enemies.forEach(enemy => {
+                        const toEnemy = enemy.position.clone().sub(playerPos);
+                        const dist = toEnemy.length();
+                        if (dist <= 30 && enemy.hp > 0) {
+                            const enemyAngle = Math.atan2(toEnemy.x, toEnemy.z);
+                            let angleDiff = enemyAngle - baseAngle;
+                            while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+                            while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+                            if (Math.abs(angleDiff) <= angleSpread / 2) {
+                                const dmg = skill.damage || 80;
+                                updateEnemy(enemy.id, { hp: Math.max(0, enemy.hp - dmg) });
+                                addFloatingNumber(enemy.position.clone().add(new THREE.Vector3(0, enemy.size / 2, 0)), dmg, 'damage');
+                            }
+                        }
+                    });
+                }, 500);
+                break;
+            }
+
+            case 'poisonarrow': {
+                const skill = skills.poisonarrow;
+                const targetPos = currentTarget ? currentTarget.position.clone() : defaultTargetPos;
+                
+                const poisonarrow = new QuickshotEffect(playerPosY, targetPos, skill.damage || 60);
+                poisonarrow.arrow.material.color.setHex(0x44ff44);
+                scene.add(poisonarrow.group);
+                effectsRef.current.push(poisonarrow);
+                
+                setTimeout(() => {
+                    if (currentTarget) {
+                        const dmg = skill.damage || 60;
+                        updateEnemy(currentTarget.id, { hp: Math.max(0, currentTarget.hp - dmg) });
+                        addFloatingNumber(currentTarget.position.clone().add(new THREE.Vector3(0, currentTarget.size / 2, 0)), dmg, 'damage');
+                        dotRef.current[currentTarget.id] = {
+                            damage: skill.dotDamage || 30,
+                            duration: skill.dotDuration || 5,
+                            lastTick: 1,
+                            source: 'poisonarrow'
+                        };
+                    }
+                    createParticles(targetPos, 0x44ff44, 20, 5, 1, 'smoke');
+                }, 500);
+                break;
+            }
+
+            case 'arrowrain': {
+                const skill = skills.arrowrain;
+                const radius = skill.radius || 10;
+                const targetPos = currentTarget ? currentTarget.position.clone() : defaultTargetPos;
+                
+                const arrowrain = new ArrowrainEffect(targetPos, skill.damage || 150, radius);
+                scene.add(arrowrain.group);
+                effectsRef.current.push(arrowrain);
+                
+                for (let i = 0; i < 15; i++) {
+                    setTimeout(() => {
+                        enemies.forEach(enemy => {
+                            const dist = enemy.position.distanceTo(targetPos);
+                            if (dist < radius && enemy.hp > 0) {
+                                const dmg = skill.damage || 150;
+                                updateEnemy(enemy.id, { hp: Math.max(0, enemy.hp - dmg) });
+                                addFloatingNumber(enemy.position.clone().add(new THREE.Vector3(0, enemy.size / 2, 0)), dmg, 'damage');
+                            }
+                        });
+                    }, 500 + i * 100);
+                }
+                break;
+            }
+
+            case 'evasion': {
+                const skill = skills.evasion;
+                
+                const evasion = new EvasionEffect(playerPos);
+                scene.add(evasion.group);
+                effectsRef.current.push(evasion);
+                
+                addFloatingNumber(playerPos.clone().add(new THREE.Vector3(0, 8, 0)), '閃避', 'buff');
+                break;
+            }
+
+            case 'snipe': {
+                const skill = skills.snipe;
+                const targetPos = currentTarget ? currentTarget.position.clone() : defaultTargetPos;
+                
+                const snipe = new SnipeEffect(playerPosY, targetPos, skill.damage || 400);
+                scene.add(snipe.group);
+                effectsRef.current.push(snipe);
+                
+                setTimeout(() => {
+                    if (currentTarget) {
+                        const dmg = skill.damage || 400;
+                        const critBonus = skill.critBonus || 0.5;
+                        const isCrit = Math.random() < (playerCritChance + critBonus);
+                        const finalDmg = isCrit ? dmg * 2 : dmg;
+                        updateEnemy(currentTarget.id, { hp: Math.max(0, currentTarget.hp - finalDmg) });
+                        addFloatingNumber(currentTarget.position.clone().add(new THREE.Vector3(0, currentTarget.size / 2, 0)), finalDmg, isCrit ? 'crit' : 'damage');
+                    }
+                }, 800);
+                break;
+            }
+
+            // ==================== 德魯伊技能 ====================
+            case 'wrath': {
+                const skill = skills.wrath;
+                const targetPos = currentTarget ? currentTarget.position.clone() : defaultTargetPos;
+                
+                const wrath = new WrathEffect(playerPosY, targetPos, skill.damage || 150);
+                scene.add(wrath.group);
+                effectsRef.current.push(wrath);
+                
+                setTimeout(() => {
+                    if (currentTarget) {
+                        const dmg = skill.damage || 150;
+                        updateEnemy(currentTarget.id, { hp: Math.max(0, currentTarget.hp - dmg) });
+                        addFloatingNumber(currentTarget.position.clone().add(new THREE.Vector3(0, currentTarget.size / 2, 0)), dmg, 'damage');
+                    }
+                }, 800);
+                break;
+            }
+
+            case 'rejuvenation': {
+                const skill = skills.rejuvenation;
+                const healAmt = skill.healAmount || 80;
+                
+                const rejuvenation = new RejuvenationEffect(playerPos, healAmt);
+                scene.add(rejuvenation.group);
+                effectsRef.current.push(rejuvenation);
+                
+                updatePlayer({ playerHP: Math.min(playerMaxHP, playerHP + healAmt) });
+                addFloatingNumber(playerPos.clone().add(new THREE.Vector3(0, 8, 0)), healAmt, 'heal');
+                dotRef.current['player_heal'] = {
+                    damage: -(skill.hotAmount || 20),
+                    duration: skill.hotDuration || 6,
+                    lastTick: 1,
+                    source: 'rejuvenation'
+                };
+                break;
+            }
+
+            case 'thorns': {
+                const skill = skills.thorns;
+                
+                const thorns = new ThornsEffect(playerPos, skill.damage || 50);
+                scene.add(thorns.group);
+                effectsRef.current.push(thorns);
+                
+                addFloatingNumber(playerPos.clone().add(new THREE.Vector3(0, 8, 0)), '荊棘', 'buff');
+                break;
+            }
+
+            case 'sunfire': {
+                const skill = skills.sunfire;
+                const radius = skill.radius || 8;
+                const targetPos = currentTarget ? currentTarget.position.clone() : defaultTargetPos;
+                targetPos.y = playerPos.y;
+                
+                const sunfire = new SunfireEffect(targetPos, skill.damage || 200, radius);
+                scene.add(sunfire.group);
+                effectsRef.current.push(sunfire);
+                
+                enemies.forEach(enemy => {
+                    if (enemy.position.distanceTo(targetPos) < radius && enemy.hp > 0) {
+                        const dmg = skill.damage || 200;
+                        updateEnemy(enemy.id, { hp: Math.max(0, enemy.hp - dmg) });
+                        addFloatingNumber(enemy.position.clone().add(new THREE.Vector3(0, enemy.size / 2, 0)), dmg, 'damage');
+                        dotRef.current[`${enemy.id}_sunfire`] = {
+                            damage: skill.dotDamage || 40,
+                            duration: skill.dotDuration || 4,
+                            lastTick: 1,
+                            source: 'sunfire'
+                        };
+                    }
+                });
+                break;
+            }
+
+            case 'bearform': {
+                const skill = skills.bearform;
+                
+                const beaform = new BearformEffect(playerPos);
+                scene.add(beaform.group);
+                effectsRef.current.push(beaform);
+                
+                const hpBoost = skill.hpBoost || 500;
+                const attackBoost = skill.attackBoost || 50;
+                updatePlayer({ 
+                    playerHP: Math.min(playerMaxHP + hpBoost, playerHP + hpBoost),
+                    playerAttackPower: playerAttackPower + attackBoost
+                });
+                addFloatingNumber(playerPos.clone().add(new THREE.Vector3(0, 10, 0)), '熊形態!', 'buff');
+                break;
+            }
+
+            case 'tranquility': {
+                const skill = skills.tranquility;
+                const healAmt = skill.healAmount || 200;
+                const radius = skill.radius || 15;
+                
+                const tranquility = new TranquilityEffect(playerPos, healAmt, radius);
+                scene.add(tranquility.group);
+                effectsRef.current.push(tranquility);
+                
+                updatePlayer({ playerHP: Math.min(playerMaxHP, playerHP + healAmt) });
+                addFloatingNumber(playerPos.clone().add(new THREE.Vector3(0, 10, 0)), healAmt, 'heal');
+                break;
+            }
+
             default: break;
         }
-    }, [playerPos, targetEnemy, enemies, castSkill, scene, playerRotation, playerHP, playerMaxHP, updatePlayer, updateEnemy, addFloatingNumber]);
+    }, [skills, playerPos, targetEnemy, enemies, castSkill, scene, playerRotation, playerHP, playerMaxHP, playerAttackPower, playerCritChance, updatePlayer, updateEnemy, addFloatingNumber, classSelected]);
+
+    handleSkillCastRef.current = handleSkillCast;
 
     const frameCount = useRef(0);
     
     useFrame((state, delta) => {
+        updateSkillsCooldown(delta);
+        
         frameCount.current++;
         
-        // 限制更新頻率：每2幀更新一次 (30fps)
         if (frameCount.current % 2 !== 0) return;
-        
-        updateSkillsCooldown(delta);
 
         // 處理 DOT 傷害
         Object.keys(dotRef.current).forEach(enemyId => {
@@ -558,114 +928,22 @@ function SkillsManager() {
         }
     });
 
-    // 動態生成 keyMap 基於 skillKeybinds
     useEffect(() => {
+        if (!classSelected) return;
+        
         const keyMap = skillKeybinds;
         const handleKey = (e) => {
             const skillKey = keyMap[e.key];
-            if (skillKey) {
+            if (skillKey && handleSkillCastRef.current) {
                 e.preventDefault();
-                handleSkillCast(skillKey);
+                handleSkillCastRef.current(skillKey);
             }
         };
         window.addEventListener('keydown', handleKey);
         return () => window.removeEventListener('keydown', handleKey);
-    }, [handleSkillCast, skillKeybinds]);
+    }, [skillKeybinds, classSelected]);
 
-    // 動態生成技能列表基於 skillKeybinds
-    const skillList = Object.entries(skillKeybinds).map(([hotkey, skillKey]) => {
-        const skill = skills[skillKey];
-        return {
-            key: skillKey,
-            icon: skill?.icon || '❓',
-            name: skill?.name || skillKey,
-            hotkey: hotkey
-        };
-    });
-
-    return (
-        <Html fullscreen>
-            <div style={{ 
-                position: 'fixed', 
-                bottom: '20px', 
-                left: '50%', 
-                transform: 'translateX(-50%)', 
-                display: 'flex', 
-                gap: '10px', 
-                zIndex: 50,
-                flexWrap: 'wrap',
-                justifyContent: 'center',
-                maxWidth: '90vw'
-            }}>
-                {skillList.map(({ key, icon, name, hotkey }) => {
-                    const skill = skills[key] || { unlocked: false, cooldown: 0, maxCooldown: 1, manaCost: 0 };
-                    // 天賦解鎖的技能視為已解鎖
-                    const talentUnlocked = talentUnlocks && talentUnlocks[key];
-                    const isUnlocked = skill.unlocked || talentUnlocked;
-                    const canUse = isUnlocked && skill.cooldown <= 0 && playerMana >= skill.manaCost;
-                    return (
-                        <div key={key} onClick={() => handleSkillCast(key)} style={{
-                            width: '65px', 
-                            height: '65px', 
-                            background: canUse ? '#004400' : '#222222',
-                            border: `3px solid ${isUnlocked ? '#00ff00' : '#666666'}`, 
-                            borderRadius: '12px',
-                            position: 'relative', 
-                            cursor: canUse ? 'pointer' : 'not-allowed', 
-                            display: 'flex', 
-                            flexDirection: 'column',
-                            justifyContent: 'center', 
-                            alignItems: 'center', 
-                            transition: 'all 0.2s', 
-                            opacity: isUnlocked ? 1 : 0.5,
-                            userSelect: 'none'
-                        }} title={`${name} (Mana: ${skill.manaCost})${talentUnlocked ? ' [天賦解鎖]' : ''}`}>
-                            <div style={{ fontSize: '28px' }}>{icon}</div>
-                            <div style={{ 
-                                position: 'absolute', 
-                                top: '2px', 
-                                right: '4px',
-                                fontSize: '12px', 
-                                color: '#ffff00',
-                                fontWeight: 'bold',
-                                textShadow: '1px 1px 2px black'
-                            }}>{hotkey}</div>
-                            {skill.cooldown > 0 && (
-                                <div style={{ 
-                                    position: 'absolute', 
-                                    top: 0, 
-                                    left: 0, 
-                                    width: '100%', 
-                                    height: '100%', 
-                                    background: 'rgba(0,0,0,0.7)', 
-                                    display: 'flex', 
-                                    justifyContent: 'center', 
-                                    alignItems: 'center', 
-                                    color: 'white', 
-                                    fontSize: '16px', 
-                                    borderRadius: '9px',
-                                    fontWeight: 'bold'
-                                }}>
-                                    {skill.cooldown.toFixed(1)}
-                                </div>
-                            )}
-                            {playerMana < skill.manaCost && skill.cooldown <= 0 && (
-                                <div style={{
-                                    position: 'absolute',
-                                    bottom: '2px',
-                                    left: '50%',
-                                    transform: 'translateX(-50%)',
-                                    fontSize: '10px',
-                                    color: '#ff4444',
-                                    fontWeight: 'bold'
-                                }}>⚠️</div>
-                            )}
-                        </div>
-                    );
-                })}
-            </div>
-        </Html>
-    );
+    return null;
 }
 
 export default SkillsManager;
