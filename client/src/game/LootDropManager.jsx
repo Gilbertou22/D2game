@@ -361,7 +361,6 @@ function DroppedItem({ data, onPickup }) {
 function LootDropManager() {
     const { scene } = useThree();
     const droppedItems = useGameState(state => state.droppedItems);
-    const addDroppedItem = useGameState(state => state.addDroppedItem);
     const removeDroppedItem = useGameState(state => state.removeDroppedItem);
     const addToInventory = useGameState(state => state.addToInventory);
     const playerPos = useGameState(state => state.playerPos);
@@ -374,7 +373,7 @@ function LootDropManager() {
         useGameState.setState({
             spawnDroppedItem: (item, position) => {
                 const id = Date.now() + Math.random();
-                addDroppedItem({ id, item, position });
+                useGameState.getState().addDroppedItem({ id, item, position });
             }
         });
     }, []);
@@ -382,7 +381,8 @@ function LootDropManager() {
     useFrame(() => {
         if (!playerPos || !droppedItems || droppedItems.length === 0) return;
         
-        const pickupRange = 2;
+        const pickupRange = 2.5;
+        const state = useGameState.getState();
         
         droppedItems.forEach(drop => {
             if (!drop.position) return;
@@ -390,18 +390,18 @@ function LootDropManager() {
             const dist = playerPos.distanceTo(new THREE.Vector3(drop.position.x, playerPos.y, drop.position.z));
             
             if (dist < pickupRange) {
-                addToInventory(drop.item);
-                removeDroppedItem(drop.id);
+                state.addToInventory(drop.item);
+                state.removeDroppedItem(drop.id);
                 
                 const item = drop.item;
                 if (item.type === 'gold') {
-                    addFloatingNumber(playerPos.clone().add(new THREE.Vector3(0, 3, 0)), item.amount || item.value, 'gold');
+                    state.addFloatingNumber(playerPos.clone().add(new THREE.Vector3(0, 3, 0)), item.amount || item.value, 'gold');
                 } else {
-                    addFloatingNumber(playerPos.clone().add(new THREE.Vector3(0, 3, 0)), item.name, 'item');
+                    state.addFloatingNumber(playerPos.clone().add(new THREE.Vector3(0, 3, 0)), item.name, 'item');
                 }
                 
                 if (item.rarity === 'legendary') {
-                    addEvent(`✨ ${item.name}`, '#ff8000', 'legendary_pickup');
+                    state.addEvent(`✨ ${item.name}`, '#ff8000', 'legendary_pickup');
                 }
             }
         });

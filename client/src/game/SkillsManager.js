@@ -229,8 +229,10 @@ function SkillsManager() {
                 const targetPos = currentTarget ? currentTarget.position.clone() : defaultTargetPos;
                 targetPos.y = 0;
                 
-                // 創建隕石特效 (現在會自動處理爆炸)
-                const meteorEffect = new MeteorEffect(targetPos, result.damage, result.radius);
+                const meteorStartPos = targetPos.clone();
+                meteorStartPos.y = 50;
+                
+                const meteorEffect = new MeteorEffect(meteorStartPos, targetPos, result.damage);
                 scene.add(meteorEffect.group);
                 effectsRef.current.push(meteorEffect);
                 

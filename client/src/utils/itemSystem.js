@@ -14,7 +14,7 @@ export const RARITIES = {
         particleColor: 0x888888,
         multiplier: 1.0,
         maxAffixes: 0,
-        dropWeight: 60,
+        dropWeight: 15,
         goldMin: 20,
         goldMax: 80,
         rewardMin: 1,
@@ -29,7 +29,7 @@ export const RARITIES = {
         particleColor: 0x4444ff,
         multiplier: 1.3,
         maxAffixes: 2,
-        dropWeight: 25,
+        dropWeight: 30,
         goldMin: 80,
         goldMax: 200,
         rewardMin: 2,
@@ -44,7 +44,7 @@ export const RARITIES = {
         particleColor: 0xffff44,
         multiplier: 1.6,
         maxAffixes: 4,
-        dropWeight: 12,
+        dropWeight: 30,
         goldMin: 150,
         goldMax: 400,
         rewardMin: 3,
@@ -59,7 +59,7 @@ export const RARITIES = {
         particleColor: 0xff8800,
         multiplier: 2.0,
         maxAffixes: 5,
-        dropWeight: 2.5,
+        dropWeight: 18,
         goldMin: 300,
         goldMax: 600,
         rewardMin: 4,
@@ -74,7 +74,7 @@ export const RARITIES = {
         particleColor: 0xff00ff,
         multiplier: 2.5,
         maxAffixes: 6,
-        dropWeight: 0.5,
+        dropWeight: 7,
         goldMin: 500,
         goldMax: 1000,
         rewardMin: 5,
@@ -93,6 +93,7 @@ export const EQUIPMENT_TYPES = {
         name: '武器',
         icon: '⚔️',
         slot: 'weapon',
+        size: [1, 3],
         baseStats: ['attack', 'critChance'],
         possibleAffixes: ['attack', 'attackPercent', 'fireDamage', 'iceDamage', 'lightningDamage', 'critChance', 'critDamage', 'attackSpeed', 'castSpeed', 'lifeSteal', 'igniteChance', 'freezeChance', 'shockChance', 'skillLevel']
     },
@@ -100,6 +101,7 @@ export const EQUIPMENT_TYPES = {
         name: '護甲',
         icon: '🛡️',
         slot: 'armor',
+        size: [2, 3],
         baseStats: ['defense', 'hp'],
         possibleAffixes: ['defense', 'defensePercent', 'hp', 'hpPercent', 'hpRegen', 'damageReduction', 'resistance', 'fireResist', 'iceResist', 'lightningResist', 'strength', 'allStats']
     },
@@ -107,6 +109,7 @@ export const EQUIPMENT_TYPES = {
         name: '頭盔',
         icon: '⛑️',
         slot: 'helmet',
+        size: [1, 2],
         baseStats: ['defense', 'mana'],
         possibleAffixes: ['defense', 'hp', 'hpRegen', 'mana', 'manaRegen', 'resistance', 'cooldownReduction', 'manaCostReduction', 'intelligence', 'allStats']
     },
@@ -114,6 +117,7 @@ export const EQUIPMENT_TYPES = {
         name: '戒指',
         icon: '💍',
         slot: 'ring',
+        size: [1, 1],
         baseStats: ['attack', 'defense'],
         possibleAffixes: ['attack', 'defense', 'hp', 'mana', 'critChance', 'critDamage', 'attackSpeed', 'goldFind', 'expBonus', 'allStats']
     },
@@ -121,10 +125,27 @@ export const EQUIPMENT_TYPES = {
         name: '項鍊',
         icon: '📿',
         slot: 'amulet',
+        size: [1, 1],
         baseStats: ['hp', 'mana'],
         possibleAffixes: ['hp', 'hpPercent', 'mana', 'manaPercent', 'allStats', 'lifeSteal', 'manaSteal', 'cooldownReduction', 'manaCostReduction', 'areaIncrease', 'skillLevel', 'movementSpeed']
     }
 };
+
+export const ITEM_SIZES = {
+    weapon: [1, 3],
+    armor: [2, 3],
+    helmet: [1, 2],
+    ring: [1, 1],
+    amulet: [1, 1],
+    hp_potion: [1, 1],
+    mana_potion: [1, 1],
+    gold: [1, 1]
+};
+
+export function getItemSize(item) {
+    if (item.size) return item.size;
+    return ITEM_SIZES[item.type] || [1, 1];
+}
 
 // ==========================================
 // 3. 詞綴群組定義 (移動端優化)
@@ -818,7 +839,22 @@ export function applyLevelUpReward(currentStats, reward) {
 // ==========================================
 // 7. 生成隨機稀有度
 // ==========================================
+const TEST_MODE_ALWAYS_RARE = true;
+
 export function getRandomRarity(bonus = 0) {
+    if (TEST_MODE_ALWAYS_RARE) {
+        const rareOrBetter = ['rare', 'epic', 'legendary'];
+        const weights = [50, 35, 15];
+        const totalWeight = weights.reduce((a, b) => a + b, 0);
+        let rand = Math.random() * totalWeight;
+        
+        for (let i = 0; i < rareOrBetter.length; i++) {
+            rand -= weights[i];
+            if (rand <= 0) return rareOrBetter[i];
+        }
+        return 'rare';
+    }
+    
     const totalWeight = Object.values(RARITIES).reduce((sum, r) => sum + r.dropWeight, 0);
     let rand = Math.random() * totalWeight * (1 - bonus);
     

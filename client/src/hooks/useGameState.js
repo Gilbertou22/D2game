@@ -1,10 +1,51 @@
 import { create } from 'zustand';
 import * as THREE from 'three';
-import { calculateTotalStats, stackItems, RARITIES, generateLevelUpRewards, applyLevelUpReward } from '../utils/itemSystem';
+import { calculateTotalStats, stackItems, RARITIES, generateLevelUpRewards, applyLevelUpReward, getItemSize, ITEM_SIZES } from '../utils/itemSystem';
 import { calculateTalentBonuses } from '../utils/talentTree';
 import classConfigs from '../configs/classConfigs';
 
 const expPerLevel = (level) => Math.floor(100 * Math.pow(1.15, level - 1));
+
+const GRID_COLS = 7;
+const GRID_ROWS = 8;
+
+const findFreeSlot = (backpack, itemSize) => {
+    const grid = Array(GRID_ROWS).fill(null).map(() => Array(GRID_COLS).fill(false));
+    
+    backpack.forEach(bpItem => {
+        if (!bpItem || !bpItem.gridPos) return;
+        const size = getItemSize(bpItem);
+        for (let r = 0; r < size[1]; r++) {
+            for (let c = 0; c < size[0]; c++) {
+                const row = bpItem.gridPos.row + r;
+                const col = bpItem.gridPos.col + c;
+                if (row < GRID_ROWS && col < GRID_COLS) {
+                    grid[row][col] = true;
+                }
+            }
+        }
+    });
+    
+    for (let row = 0; row < GRID_ROWS; row++) {
+        for (let col = 0; col < GRID_COLS; col++) {
+            let canPlace = true;
+            for (let r = 0; r < itemSize[1] && canPlace; r++) {
+                for (let c = 0; c < itemSize[0] && canPlace; c++) {
+                    const checkRow = row + r;
+                    const checkCol = col + c;
+                    if (checkRow >= GRID_ROWS || checkCol >= GRID_COLS || grid[checkRow][checkCol]) {
+                        canPlace = false;
+                    }
+                }
+            }
+            if (canPlace) {
+                return { row, col };
+            }
+        }
+    }
+    
+    return null;
+};
 
 const recalculateStats = (state, { backpack, equipped }) => {
     const totalStats = calculateTotalStats(equipped);
@@ -915,24 +956,8 @@ const useGameState = create((set, get) => ({
     // 切換視角
     setCameraMode: (mode) => set({ cameraMode: mode }),
 
-    // 添加物品到背包（改進版：支援堆疊和容量限制）
+    // 添加物品到背包（改進版：支援堆疊和網格系統）
     addToInventory: (item) => set((state) => {
-        // 檢查背包容量
-        const nonStackableCount = state.backpack.filter(i => !i.stackable).length;
-        const stackableItems = state.backpack.filter(i => i.stackable);
-        
-        if (nonStackableCount >= state.backpackMaxSize) {
-            // 背包已滿，顯示提示
-            return {
-                eventLog: [...state.eventLog, {
-                    message: '背包已滿！無法拾取物品。',
-                    color: '#ff4444',
-                    type: 'warning',
-                    time: Date.now()
-                }].slice(-50)
-            };
-        }
-        
         // 處理可堆疊物品
         if (item.stackable) {
             const existingIndex = state.backpack.findIndex(i => 
@@ -955,15 +980,32 @@ const useGameState = create((set, get) => ({
             }
         }
         
+        // 找到合適的網格位置
+        const itemSize = getItemSize(item);
+        const freeSlot = findFreeSlot(state.backpack, itemSize);
+        
+        if (!freeSlot) {
+            // 背包已滿，顯示提示
+            return {
+                eventLog: [...state.eventLog, {
+                    message: '背包已滿！無法拾取物品。',
+                    color: '#ff4444',
+                    type: 'warning',
+                    time: Date.now()
+                }].slice(-50)
+            };
+        }
+        
         // 添加新物品
-        return {
-            backpack: [...state.backpack, {
-                ...item,
-                id: item.id || Math.random().toString(36).substr(2, 9),
-                rarityColor: RARITIES[item.rarity]?.color || '#ffffff',
-                rarityName: RARITIES[item.rarity]?.name || '普通'
-            }]
-        };
+        const newBackpack = [...state.backpack, {
+            ...item,
+            id: item.id || Math.random().toString(36).substr(2, 9),
+            rarityColor: RARITIES[item.rarity]?.color || '#ffffff',
+            rarityName: RARITIES[item.rarity]?.name || '普通',
+            gridPos: freeSlot
+        }];
+        
+        return { backpack: newBackpack };
     }),
 
     // 重新計算所有裝備屬性
@@ -1052,21 +1094,29 @@ const useGameState = create((set, get) => ({
         };
     }),
 
-    // 脫裝備（點擊已裝備槽）
-    unequipItem: (slot) => set((state) => {
+    // 脫裝備（點擊已裝備槽或拖到背包）
+    unequipItem: (slot, targetRow = null, targetCol = null) => set((state) => {
         const item = state.equipped[slot];
         if (!item) return state;
 
-        // 檢查背包空間
-        if (state.backpack.filter(i => !i.stackable).length >= state.backpackMaxSize) {
-            return {
-                eventLog: [...state.eventLog, {
-                    message: '背包已滿！無法脫下裝備。',
-                    color: '#ff4444',
-                    type: 'warning',
-                    time: Date.now()
-                }].slice(-50)
-            };
+        const itemSize = getItemSize(item);
+        let gridPos = null;
+        
+        if (targetRow !== null && targetCol !== null) {
+            gridPos = { row: targetRow, col: targetCol };
+        } else {
+            const freeSlot = findFreeSlot(state.backpack, itemSize);
+            if (!freeSlot) {
+                return {
+                    eventLog: [...state.eventLog, {
+                        message: '背包已滿！無法脫下裝備。',
+                        color: '#ff4444',
+                        type: 'warning',
+                        time: Date.now()
+                    }].slice(-50)
+                };
+            }
+            gridPos = freeSlot;
         }
 
         // 移除裝備並重新計算屬性
@@ -1082,7 +1132,7 @@ const useGameState = create((set, get) => ({
         const allStatsBonus = totalStats.allStats || 0;
 
         return {
-            backpack: [...state.backpack, item],
+            backpack: [...state.backpack, { ...item, gridPos }],
             equipped: newEquipped,
             playerAttackPower: baseAttack + (totalStats.attack || 0) + allStatsBonus * 2,
             playerDefense: (totalStats.defense || 0) + allStatsBonus,
@@ -1145,18 +1195,35 @@ const useGameState = create((set, get) => ({
             // 再按類型排序
             return (a.type || '').localeCompare(b.type || '');
         });
-        return { backpack: sorted };
+        
+        // 重新分配網格位置
+        const sortedWithPos = [];
+        sorted.forEach(item => {
+            const size = getItemSize(item);
+            const freeSlot = findFreeSlot(sortedWithPos, size);
+            if (freeSlot) {
+                sortedWithPos.push({ ...item, gridPos: freeSlot });
+            } else {
+                sortedWithPos.push(item);
+            }
+        });
+        
+        return { backpack: sortedWithPos };
     }),
 
-    // 移動背包物品（交換位置）
-    moveBackpackItem: (fromIndex, toIndex) => set((state) => {
-        if (fromIndex === toIndex) return state;
+    // 移動背包物品（網格位置）
+    moveBackpackItem: (fromIndex, toRow, toCol) => set((state) => {
         if (fromIndex < 0 || fromIndex >= state.backpack.length) return state;
-        if (toIndex < 0 || toIndex >= state.backpack.length) return state;
-
+        
         const newBackpack = [...state.backpack];
-        const [movedItem] = newBackpack.splice(fromIndex, 1);
-        newBackpack.splice(toIndex, 0, movedItem);
+        const item = newBackpack[fromIndex];
+        
+        if (!item) return state;
+        
+        newBackpack[fromIndex] = {
+            ...item,
+            gridPos: { row: toRow, col: toCol }
+        };
         
         return { backpack: newBackpack };
     }),

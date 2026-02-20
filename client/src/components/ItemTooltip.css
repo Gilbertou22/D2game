@@ -1,17 +1,17 @@
-/* ItemTooltip.css - 物品提示框樣式 */
+/* Diablo IV Style Item Tooltip */
 
 .item-tooltip {
     position: fixed;
-    width: 300px;
-    background: rgba(15, 15, 25, 0.98);
-    border: 2px solid;
-    border-radius: 10px;
+    background: linear-gradient(180deg, #12100d 0%, rgba(8, 8, 8, 0.98) 100%);
+    border: 1px solid #6b5a3e;
     padding: 0;
+    min-width: 260px;
+    max-width: 320px;
     z-index: 5000;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8),
-                0 0 20px rgba(0, 0, 0, 0.5);
-    font-size: 13px;
     pointer-events: none;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.9), 0 0 20px rgba(107, 90, 62, 0.2);
+    font-family: 'EB Garamond', 'Times New Roman', serif;
+    font-size: 14px;
     animation: tooltipFadeIn 0.15s ease-out;
 }
 
@@ -26,20 +26,25 @@
     }
 }
 
-/* 頭部 */
+.item-tooltip::before {
+    content: '';
+    position: absolute;
+    inset: 2px;
+    border: 1px solid rgba(107, 90, 62, 0.3);
+    pointer-events: none;
+}
+
 .tooltip-header {
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 15px;
-    background: rgba(255, 255, 255, 0.05);
-    border-radius: 8px 8px 0 0;
-    margin: -2px -2px 0 -2px;
+    padding: 14px;
+    border-bottom: 1px solid #3d352a;
 }
 
 .item-icon-large {
-    font-size: 36px;
-    filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.3));
+    font-size: 32px;
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
 }
 
 .item-title {
@@ -47,58 +52,52 @@
 }
 
 .item-title h3 {
-    margin: 0 0 5px 0;
+    margin: 0 0 4px 0;
+    font-family: 'Cinzel', 'Times New Roman', serif;
+    font-weight: 700;
     font-size: 16px;
-    font-weight: bold;
+    letter-spacing: 1px;
     text-shadow: 0 0 10px currentColor;
 }
 
 .rarity-label {
     font-size: 11px;
-    color: #888;
+    color: #6a5d4a;
     text-transform: uppercase;
-    letter-spacing: 1px;
+    letter-spacing: 2px;
 }
 
-/* 基礎信息 */
 .tooltip-info {
-    padding: 12px 15px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 10px 14px;
+    border-bottom: 1px solid #3d352a;
 }
 
 .info-row {
     display: flex;
     justify-content: space-between;
-    margin-bottom: 6px;
-}
-
-.info-row:last-child {
-    margin-bottom: 0;
+    padding: 3px 0;
+    font-size: 13px;
 }
 
 .info-label {
-    color: #888;
-    font-size: 12px;
+    color: #6a5d4a;
 }
 
 .info-value {
-    color: #ccc;
-    font-weight: 500;
+    color: #e8dcc8;
 }
 
 .info-value.gold {
-    color: #ffd700;
+    color: #e0c040;
 }
 
-/* 屬性區域 */
 .tooltip-stats,
 .tooltip-affixes,
 .tooltip-set,
 .tooltip-special,
-.tooltip-effect,
-.tooltip-comparison {
-    padding: 12px 15px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+.tooltip-effect {
+    padding: 10px 14px;
+    border-bottom: 1px solid #3d352a;
 }
 
 .tooltip-stats h4,
@@ -107,21 +106,21 @@
 .tooltip-special h4,
 .tooltip-effect h4,
 .tooltip-comparison h4 {
-    margin: 0 0 10px 0;
-    font-size: 12px;
-    color: #aaa;
+    margin: 0 0 8px 0;
+    font-family: 'Cinzel', serif;
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: #a08050;
     text-transform: uppercase;
-    letter-spacing: 1px;
 }
 
-/* 屬性行 */
-.stat-row {
+.stat-row,
+.affix-row {
+    padding: 3px 0;
+    color: #e8dcc8;
     display: flex;
     justify-content: space-between;
-    align-items: center;
-    padding: 4px 0;
-    color: #aaddff;
-    font-size: 12px;
+    font-size: 13px;
 }
 
 .stat-row.better {
@@ -138,46 +137,44 @@
 
 .stat-comparison {
     margin-left: 8px;
-    font-size: 10px;
+    font-size: 11px;
     font-weight: bold;
 }
 
-/* 詞綴 */
-.affix-row {
-    padding: 4px 0;
-    color: #88ccff;
-    font-size: 12px;
+.affix-name {
+    color: #c090d0;
 }
 
-/* 套裝效果 */
 .set-description {
-    margin: 5px 0 0 0;
-    font-size: 11px;
-    color: #888;
+    color: #6a5d4a;
+    font-size: 12px;
+    margin: 5px 0 0;
     font-style: italic;
 }
 
-/* 特殊效果 */
 .tooltip-special p {
     margin: 0;
-    font-size: 12px;
-    font-weight: bold;
+    font-size: 13px;
+    font-weight: 600;
 }
 
-/* 效果 */
 .tooltip-effect p {
     margin: 0;
-    font-size: 12px;
+    font-size: 13px;
 }
 
-/* 比較區域 */
+.tooltip-comparison {
+    padding: 10px 14px;
+    border-bottom: 1px solid #3d352a;
+    background: rgba(0, 0, 0, 0.3);
+}
+
 .comparison-summary {
-    margin-bottom: 10px;
-    padding: 8px;
-    background: rgba(255, 255, 255, 0.05);
-    border-radius: 5px;
+    margin-bottom: 8px;
+    padding: 6px;
+    background: rgba(0, 0, 0, 0.3);
     text-align: center;
-    font-weight: bold;
+    font-weight: 600;
     font-size: 12px;
 }
 
@@ -192,15 +189,14 @@
 .comparison-details {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 3px;
 }
 
 .comparison-stat {
     display: flex;
     justify-content: space-between;
-    font-size: 11px;
-    padding: 3px 5px;
-    border-radius: 3px;
+    font-size: 12px;
+    padding: 3px 6px;
 }
 
 .comparison-stat.better {
@@ -214,37 +210,33 @@
 }
 
 .more-differences {
-    margin: 5px 0 0 0;
-    font-size: 10px;
-    color: #666;
-    text-align: center;
+    color: #6a5d4a;
+    font-size: 11px;
     font-style: italic;
+    margin: 5px 0 0;
+    text-align: center;
 }
 
 .no-difference {
-    margin: 0;
-    font-size: 11px;
-    color: #888;
-    text-align: center;
+    color: #6a5d4a;
     font-style: italic;
+    margin: 0;
+    text-align: center;
 }
 
-/* 提示文字 */
 .tooltip-hint {
-    padding: 12px 15px;
-    background: rgba(255, 255, 255, 0.03);
-    border-radius: 0 0 8px 8px;
-    margin: 0 -2px -2px -2px;
+    padding: 10px 14px;
+    background: rgba(0, 0, 0, 0.2);
 }
 
 .tooltip-hint p {
     margin: 0;
+    color: #6a5d4a;
     font-size: 11px;
-    color: #666;
+    font-style: italic;
     text-align: center;
 }
 
-/* 滾動支持（當內容過多時） */
 .item-tooltip {
     max-height: 80vh;
     overflow-y: auto;
@@ -260,17 +252,12 @@
 }
 
 .item-tooltip::-webkit-scrollbar-thumb {
-    background: #444;
+    background: #6b5a3e;
     border-radius: 3px;
 }
 
-.item-tooltip::-webkit-scrollbar-thumb:hover {
-    background: #666;
+@media (prefers-reduced-motion: reduce) {
+    .item-tooltip {
+        animation: none;
+    }
 }
-
-/* 稀有度特定樣式 */
-.item-tooltip.rarity-common { border-color: #9d9d9d; }
-.item-tooltip.rarity-uncommon { border-color: #1eff00; }
-.item-tooltip.rarity-rare { border-color: #0070dd; }
-.item-tooltip.rarity-epic { border-color: #a335ee; }
-.item-tooltip.rarity-legendary { border-color: #ff8000; }

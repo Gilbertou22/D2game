@@ -1,576 +1,457 @@
-// src/components/Inventory.js - 優化版：完整的物品裝備系統 + 拖拽支援
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import useGameState from '../hooks/useGameState';
-import { RARITIES, EQUIPMENT_TYPES, compareItems } from '../utils/itemSystem';
-import { DragManager } from '../utils/DragManager';
+import { RARITIES, EQUIPMENT_TYPES, getItemSize } from '../utils/itemSystem';
 import ItemTooltip from './ItemTooltip';
 import './Inventory.css';
 
-// 裝備槽配置
-const EQUIPMENT_SLOTS = [
-    { key: 'weapon', name: '武器', icon: '⚔️', description: '增加攻擊力和暴擊' },
-    { key: 'armor', name: '護甲', icon: '🛡️', description: '增加防禦和生命' },
-    { key: 'helmet', name: '頭盔', icon: '⛑️', description: '增加防禦和魔力' },
-    { key: 'ring', name: '戒指', icon: '💍', description: '增加多種屬性' },
-    { key: 'amulet', name: '項鍊', icon: '📿', description: '增加高級屬性' }
+const GRID_COLS = 7;
+const GRID_ROWS = 8;
+
+const EQUIP_SLOTS = [
+    { id: 'helmet', label: '頭盔', pos: { top: 20, left: '50%', transform: 'translateX(-50%)' }, size: [1, 2] },
+    { id: 'amulet', label: '項鍊', pos: { top: 20, right: 20 }, size: [1, 1] },
+    { id: 'weapon', label: '武器', pos: { top: 90, left: 15 }, size: [1, 3] },
+    { id: 'armor', label: '護甲', pos: { top: 85, left: '50%', transform: 'translateX(-50%)' }, size: [2, 3] },
+    { id: 'ring', label: '戒指', pos: { top: 200, left: 25 }, size: [1, 1] }
 ];
 
-// 背包每頁大小
-const BACKPACK_PAGE_SIZE = 36;
+const SLOT_ICONS = {
+    helmet: '⛑️',
+    amulet: '📿',
+    weapon: '⚔️',
+    armor: '🛡️',
+    ring: '💍'
+};
 
-function Inventory({ open, onClose }) {
-    const {
-        backpack,
-        equipped,
-        equipItem,
-        unequipItem,
-        inventory,
-        consumePotion,
-        dropItem,
-        sellItem,
-        sortBackpack,
-        playerGold,
-        moveBackpackItem,
-        mergeStackItem,
-        splitStackItem,
-        dragToEquip,
-        dragFromEquip
-    } = useGameState();
+function Inventory({ open, setOpen }) {
+    const onClose = () => setOpen(false);
+    const backpack = useGameState((state) => state.backpack);
+    const equipped = useGameState((state) => state.equipped);
+    const playerGold = useGameState((state) => state.playerGold);
+    const playerHP = useGameState((state) => state.playerHP);
+    const playerMaxHP = useGameState((state) => state.playerMaxHP);
+    const playerMana = useGameState((state) => state.playerMana);
+    const playerMaxMana = useGameState((state) => state.playerMaxMana);
+    const playerLevel = useGameState((state) => state.playerLevel);
+    const playerAttackPower = useGameState((state) => state.playerAttackPower);
+    const playerDefense = useGameState((state) => state.playerDefense);
+    const playerCritChance = useGameState((state) => state.playerCritChance);
+    const playerCritDamage = useGameState((state) => state.playerCritDamage);
+    const playerClass = useGameState((state) => state.playerClass);
+    const equipItem = useGameState((state) => state.equipItem);
+    const unequipItem = useGameState((state) => state.unequipItem);
+    const dropItem = useGameState((state) => state.dropItem);
+    const sellItem = useGameState((state) => state.sellItem);
+    const sortBackpack = useGameState((state) => state.sortBackpack);
+    const moveBackpackItem = useGameState((state) => state.moveBackpackItem);
 
-    // UI 狀態
     const [hoveredItem, setHoveredItem] = useState(null);
-    const [selectedItem, setSelectedItem] = useState(null);
-    const [compareItem, setCompareItem] = useState(null);
-    const [currentPage, setCurrentPage] = useState(0);
     const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
-    const [showSellConfirm, setShowSellConfirm] = useState(false);
-    const [dragOverIndex, setDragOverIndex] = useState(null);
-    const [dragOverSlot, setDragOverSlot] = useState(null);
-    const [showSplitDialog, setShowSplitDialog] = useState(false);
-    const [splitInfo, setSplitInfo] = useState({ index: 0, quantity: 1 });
-
-    // 計算背包分頁
-    const totalPages = Math.ceil(backpack.length / BACKPACK_PAGE_SIZE);
-    const currentItems = backpack.slice(
-        currentPage * BACKPACK_PAGE_SIZE,
-        (currentPage + 1) * BACKPACK_PAGE_SIZE
-    );
-
-    // 獲取對應槽位的已裝備物品
-    const getEquippedForComparison = useCallback((itemType) => {
-        return equipped[itemType] || null;
-    }, [equipped]);
-
-    // 處理物品懸停
-    const handleItemHover = (item, e) => {
-        setHoveredItem(item);
-        setCompareItem(getEquippedForComparison(item.type));
-        setTooltipPos({ x: e.clientX + 15, y: e.clientY + 15 });
-    };
-
-    // 處理裝備槽懸停
-    const handleSlotHover = (slot, e) => {
-        const item = equipped[slot.key];
-        if (item) {
-            setHoveredItem(item);
-            setCompareItem(null);
-            setTooltipPos({ x: e.clientX + 15, y: e.clientY + 15 });
-        }
-    };
-
-    // 處理鼠標移出
-    const handleMouseLeave = () => {
-        setHoveredItem(null);
-        setCompareItem(null);
-        setDragOverIndex(null);
-        setDragOverSlot(null);
-    };
-
-    // ========== 拖拽處理 ==========
+    const [dragItem, setDragItem] = useState(null);
+    const [dragSource, setDragSource] = useState(null);
+    const [dragPos, setDragPos] = useState({ x: 0, y: 0 });
+    const [dragOverGrid, setDragOverGrid] = useState(null);
+    const [dragOverEquipSlot, setDragOverEquipSlot] = useState(null);
     
-    // 開始拖拽
-    const handleDragStart = (item, index, sourceContainer, e) => {
-        if (e.button === 2) return; // 右鍵不拖拽
-        e.preventDefault();
-        DragManager.startDrag(item, index, sourceContainer, e);
-    };
+    const gridRef = useRef(null);
+    const equipSlotsRef = useRef([]);
 
-    // 拖拽移動
-    const handleDragMove = useCallback((e) => {
-        if (!DragManager.getDragState().isDragging) return;
-        DragManager.moveDrag(e);
-    }, []);
+    const backpackArray = Array.isArray(backpack) ? backpack : [];
+    const equippedObj = equipped || {};
 
-    // 拖拽結束
-    const handleDragEnd = useCallback((e) => {
-        if (!DragManager.getDragState().isDragging) return;
-        
-        // 獲取目標元素
-        const clientX = e.changedTouches ? e.changedTouches[0].clientX : e.clientX;
-        const clientY = e.changedTouches ? e.changedTouches[0].clientY : e.clientY;
-        
-        // 隱藏拖拽元素以進行元素檢測
-        const ghost = document.querySelector('.drag-ghost');
-        if (ghost) ghost.style.display = 'none';
-        
-        // 檢測目標格子
-        const elementUnder = document.elementFromPoint(clientX, clientY);
-        if (ghost) ghost.style.display = 'flex';
-        
-        const targetSlot = elementUnder?.closest('.equipment-slot');
-        const targetBackpack = elementUnder?.closest('.backpack-item');
-        const targetIndex = targetBackpack?.dataset.index ? parseInt(targetBackpack.dataset.index) : null;
-        
-        const dragState = DragManager.getDragState();
-        
-        if (targetSlot) {
-            // 拖到裝備槽
-            const slotKey = targetSlot.dataset.slot;
-            if (dragState.sourceContainer === 'backpack' && dragState.item.type === slotKey) {
-                dragToEquip(dragState.index, slotKey);
-            } else if (dragState.sourceContainer === 'equipment' && dragState.item.type === slotKey) {
-                // 從裝備槽拖到同類型裝備槽，不處理
-            }
-        } else if (targetIndex !== null) {
-            // 拖到背包格子
-            const actualIndex = currentPage * BACKPACK_PAGE_SIZE + targetIndex;
-            const targetItem = backpack[actualIndex];
-            
-            if (dragState.sourceContainer === 'backpack') {
-                if (!targetItem) {
-                    // 目標為空，直接移動
-                    moveBackpackItem(dragState.index, actualIndex);
-                } else if (targetItem.stackable && targetItem.type === dragState.item.type && targetItem.rarity === dragState.item.rarity) {
-                    // 可堆疊且類型相同，嘗試合併
-                    mergeStackItem(dragState.index, actualIndex);
-                } else if (targetItem.type === dragState.item.type) {
-                    // 同類型物品，交換
-                    moveBackpackItem(dragState.index, actualIndex);
-                }
-            } else if (dragState.sourceContainer === 'equipment') {
-                // 從裝備槽拖到背包
-                dragFromEquip(actualIndex, dragState.item.type);
-            }
-        }
-        
-        // 拖到背包外部視為丟棄（可選功能）
-        // if (!elementUnder?.closest('.inventory-container')) {
-        //     dropItem(dragState.index);
-        // }
-        
-        DragManager.endDrag(targetIndex, targetSlot?.dataset.slot || 'backpack');
-        setDragOverIndex(null);
-        setDragOverSlot(null);
-    }, [backpack, currentPage, dragToEquip, dragFromEquip, moveBackpackItem, mergeStackItem]);
+    const hpPercent = playerMaxHP > 0 ? (playerHP / playerMaxHP) * 100 : 0;
+    const manaPercent = playerMaxMana > 0 ? (playerMana / playerMaxMana) * 100 : 0;
 
-    // 觸控長按處理
-    const [touchTimer, setTouchTimer] = useState(null);
-    const [longPressedItem, setLongPressedItem] = useState(null);
-
-    const handleTouchStart = (item, index, sourceContainer, e) => {
-        const touch = e.touches[0];
-        
-        // 設定長按計時器 (500ms)
-        const timer = setTimeout(() => {
-            setLongPressedItem({ item, index, sourceContainer });
-            handleDragStart(item, index, sourceContainer, { 
-                touches: [touch], 
-                preventDefault: () => {},
-                target: e.target 
-            });
-        }, 300);
-        
-        setTouchTimer(timer);
-    };
-
-    const handleTouchEnd = (e) => {
-        if (touchTimer) {
-            clearTimeout(touchTimer);
-            setTouchTimer(null);
-        }
-        
-        if (DragManager.getDragState().isDragging) {
-            handleDragEnd(e);
-        }
-        
-        setLongPressedItem(null);
-    };
-
-    const handleTouchMove = (e) => {
-        // 移動時取消長按
-        if (touchTimer) {
-            clearTimeout(touchTimer);
-            setTouchTimer(null);
-        }
-        
-        // 如果正在拖拽，移動拖拽元素
-        if (DragManager.getDragState().isDragging) {
-            e.preventDefault();
-            handleDragMove(e);
-        }
-    };
-
-    // 綁定全局事件
-    useEffect(() => {
-        const onMouseMove = (e) => handleDragMove(e);
-        const onMouseUp = (e) => {
-            if (DragManager.getDragState().isDragging) {
-                handleDragEnd(e);
-            }
-        };
-        const onTouchMove = (e) => handleTouchMove(e);
-        const onTouchEnd = (e) => handleTouchEnd(e);
-
-        window.addEventListener('mousemove', onMouseMove);
-        window.addEventListener('mouseup', onMouseUp);
-        window.addEventListener('touchmove', onTouchMove, { passive: false });
-        window.addEventListener('touchend', onTouchEnd);
-
-        return () => {
-            window.removeEventListener('mousemove', onMouseMove);
-            window.removeEventListener('mouseup', onMouseUp);
-            window.removeEventListener('touchmove', onTouchMove);
-            window.removeEventListener('touchend', onTouchEnd);
-        };
-    }, [handleDragMove, handleDragEnd]);
-
-    // 處理拖拽進入目標格子
-    const handleDragEnter = (index) => {
-        setDragOverIndex(index);
-    };
-
-    const handleSlotDragEnter = (slotKey) => {
-        setDragOverSlot(slotKey);
-    };
-
-    // 分割堆疊
-    const handleSplitStack = (item, index) => {
-        if (!item.stackable || item.quantity <= 1) return;
-        setSplitInfo({ index, quantity: Math.floor(item.quantity / 2) });
-        setShowSplitDialog(true);
-    };
-
-    const confirmSplit = () => {
-        splitStackItem(splitInfo.index, splitInfo.quantity);
-        setShowSplitDialog(false);
-    };
-
-    // 處理物品點擊
-    const handleItemClick = (item, index) => {
-        // 如果正在拖拽，不處理點擊
-        if (DragManager.getDragState().isDragging) return;
-        
-        if (EQUIPMENT_TYPES[item.type]) {
-            const currentEquipped = equipped[item.type];
-            if (currentEquipped) {
-                setSelectedItem({ item, index });
-                setCompareItem(currentEquipped);
-            } else {
-                equipItem(item.type, index);
-            }
-        }
-    };
-
-    // 處理右鍵點擊（菜單）
-    const handleItemRightClick = (e, item, index) => {
-        e.preventDefault();
-        setSelectedItem({ item, index, showMenu: true, menuPos: { x: e.clientX, y: e.clientY } });
-    };
-
-    // 確認出售
-    const handleSellConfirm = () => {
-        if (selectedItem) {
-            sellItem(selectedItem.index);
-            setSelectedItem(null);
-            setShowSellConfirm(false);
-        }
-    };
-
-    // 裝備品質樣式
     const getRarityClass = (rarity) => {
-        return `rarity-${rarity || 'common'}`;
+        const classes = {
+            legendary: 'legendary',
+            epic: 'epic',
+            rare: 'rare',
+            uncommon: 'magic',
+            common: 'common'
+        };
+        return classes[rarity] || 'common';
     };
 
-    // 物品圖標
     const getItemIcon = (item) => {
+        if (!item) return null;
         if (item.type === 'hp_potion') return '❤️';
         if (item.type === 'mana_potion') return '💙';
         if (item.type === 'gold') return '💰';
-        return EQUIPMENT_TYPES[item.type]?.icon || '📦';
+        return SLOT_ICONS[item.type] || EQUIPMENT_TYPES[item.type]?.icon || '📦';
     };
 
-    // 獲取拖拽狀態
-    const dragState = DragManager.getDragState();
+    const createGrid = useCallback(() => {
+        const grid = Array(GRID_ROWS).fill(null).map(() => Array(GRID_COLS).fill(null));
+        
+        backpackArray.forEach((item, index) => {
+            if (!item) return;
+            const size = getItemSize(item);
+            const pos = item.gridPos;
+            
+            if (pos && pos.row >= 0 && pos.col >= 0) {
+                for (let r = 0; r < size[1]; r++) {
+                    for (let c = 0; c < size[0]; c++) {
+                        if (pos.row + r < GRID_ROWS && pos.col + c < GRID_COLS) {
+                            grid[pos.row + r][pos.col + c] = { item, index, isPart: r > 0 || c > 0, mainPos: pos };
+                        }
+                    }
+                }
+            }
+        });
+        
+        return grid;
+    }, [backpackArray]);
+
+    const canPlaceItem = useCallback((grid, item, row, col) => {
+        const size = getItemSize(item);
+        
+        if (row + size[1] > GRID_ROWS || col + size[0] > GRID_COLS) return false;
+        
+        for (let r = 0; r < size[1]; r++) {
+            for (let c = 0; c < size[0]; c++) {
+                const cell = grid[row + r][col + c];
+                if (cell && cell.item && !(dragSource?.type === 'backpack' && cell.index === dragSource.index)) {
+                    return false;
+                }
+            }
+        }
+        
+        return true;
+    }, [dragSource]);
+
+    const handleItemHover = (item, e) => {
+        if (!item || dragItem) return;
+        setHoveredItem(item);
+        const rect = e.currentTarget.getBoundingClientRect();
+        setTooltipPos({ x: rect.right + 12, y: rect.top });
+    };
+
+    const handleMouseLeave = () => {
+        if (!dragItem) setHoveredItem(null);
+    };
+
+    const handleDragStart = (item, source, index, e) => {
+        e.preventDefault();
+        const clientX = e.clientX || (e.touches && e.touches[0]?.clientX) || 0;
+        const clientY = e.clientY || (e.touches && e.touches[0]?.clientY) || 0;
+        
+        setDragItem(item);
+        setDragSource({ type: source, index });
+        setDragPos({ x: clientX, y: clientY });
+        setHoveredItem(null);
+    };
+
+    const handleDragMove = useCallback((e) => {
+        if (!dragItem) return;
+        
+        const clientX = e.clientX || (e.touches && e.touches[0]?.clientX) || 0;
+        const clientY = e.clientY || (e.touches && e.touches[0]?.clientY) || 0;
+        
+        setDragPos({ x: clientX, y: clientY });
+        
+        const ghost = document.querySelector('.d4-drag-ghost');
+        if (ghost) ghost.style.display = 'none';
+        
+        const target = document.elementFromPoint(clientX, clientY);
+        
+        if (ghost) ghost.style.display = '';
+        
+        setDragOverEquipSlot(null);
+        setDragOverGrid(null);
+        
+        const equipSlot = target?.closest('.d4-equip-slot');
+        
+        if (equipSlot && dragItem.type) {
+            const slotId = equipSlot.dataset.slot;
+            if (slotId && dragItem.type === slotId) {
+                setDragOverEquipSlot(slotId);
+                return;
+            }
+        }
+        
+        if (gridRef.current) {
+            const rect = gridRef.current.getBoundingClientRect();
+            const cellSize = rect.width / GRID_COLS;
+            const col = Math.floor((clientX - rect.left) / cellSize);
+            const row = Math.floor((clientY - rect.top) / cellSize);
+            
+            if (row >= 0 && row < GRID_ROWS && col >= 0 && col < GRID_COLS) {
+                setDragOverGrid({ row, col });
+            }
+        }
+    }, [dragItem]);
+
+    const handleDragEnd = useCallback((e) => {
+        if (!dragItem) return;
+        
+        if (dragOverEquipSlot) {
+            if (dragSource.type === 'backpack') {
+                equipItem(dragOverEquipSlot, dragSource.index);
+            }
+        } else if (dragOverGrid) {
+            const grid = createGrid();
+            if (canPlaceItem(grid, dragItem, dragOverGrid.row, dragOverGrid.col)) {
+                if (dragSource.type === 'backpack') {
+                    moveBackpackItem(dragSource.index, dragOverGrid.row, dragOverGrid.col);
+                } else if (dragSource.type === 'equip') {
+                    unequipItem(dragSource.index, dragOverGrid.row, dragOverGrid.col);
+                }
+            }
+        }
+        
+        setDragItem(null);
+        setDragSource(null);
+        setDragOverGrid(null);
+        setDragOverEquipSlot(null);
+    }, [dragItem, dragSource, dragOverGrid, dragOverEquipSlot, createGrid, canPlaceItem, moveBackpackItem, unequipItem, equipItem]);
+
+    const handleEquipClick = (slotId) => {
+        const item = equippedObj[slotId];
+        if (item) {
+            unequipItem(slotId);
+        }
+    };
+
+    const handleGridCellClick = (row, col, cellData) => {
+        if (dragItem) return;
+        
+        if (cellData?.item && !cellData.isPart) {
+            if (EQUIPMENT_TYPES[cellData.item.type]) {
+                equipItem(cellData.item.type, cellData.index);
+            }
+        }
+    };
+
+    useEffect(() => {
+        const onMouseMove = (e) => handleDragMove(e);
+        const onMouseUp = (e) => handleDragEnd(e);
+        
+        if (dragItem) {
+            window.addEventListener('mousemove', onMouseMove);
+            window.addEventListener('mouseup', onMouseUp);
+            window.addEventListener('touchmove', onMouseMove);
+            window.addEventListener('touchend', onMouseUp);
+        }
+        
+        return () => {
+            window.removeEventListener('mousemove', onMouseMove);
+            window.removeEventListener('mouseup', onMouseUp);
+            window.removeEventListener('touchmove', onMouseMove);
+            window.removeEventListener('touchend', onMouseUp);
+        };
+    }, [dragItem, handleDragMove, handleDragEnd]);
+
+    const grid = createGrid();
+    const dragItemSize = dragItem ? getItemSize(dragItem) : [1, 1];
 
     if (!open) return null;
 
-    return (
-        <div className="inventory-overlay" onClick={onClose}>
-            <div className="inventory-container" onClick={e => e.stopPropagation()}>
-                {/* 標題欄 */}
-                <div className="inventory-header">
-                    <h2>🎒 背包與裝備</h2>
-                    <div className="inventory-stats">
-                        <span className="gold-display">💰 {playerGold.toLocaleString()}</span>
-                        <span className="capacity-display">
-                            📦 {backpack.length}/{40}
-                        </span>
-                    </div>
-                    <button className="close-btn" onClick={onClose}>✕</button>
-                </div>
+    const classNames = {
+        mage: '法師',
+        warrior: '戰士',
+        archer: '弓箭手',
+        druid: '德魯伊'
+    };
 
-                <div className="inventory-content">
-                    {/* 左側：裝備槽 */}
-                    <div className="equipment-panel">
-                        <h3>已裝備</h3>
-                        <div className="equipment-slots">
-                            {EQUIPMENT_SLOTS.map(slot => {
-                                const item = equipped[slot.key];
-                                const isDragOver = dragOverSlot === slot.key;
-                                const canAccept = dragState.isDragging && dragState.item?.type === slot.key;
-                                
-                                return (
-                                    <div
-                                        key={slot.key}
-                                        data-slot={slot.key}
-                                        className={`equipment-slot ${getRarityClass(item?.rarity)} ${!item ? 'empty' : ''} ${isDragOver && canAccept ? 'drag-over' : ''}`}
-                                        onMouseEnter={(e) => { handleSlotHover(slot, e); handleSlotDragEnter(slot.key); }}
-                                        onMouseLeave={handleMouseLeave}
-                                        onClick={() => item && unequipItem(slot.key)}
-                                        onDragOver={(e) => { e.preventDefault(); handleSlotDragEnter(slot.key); }}
-                                    >
-                                        {!item ? (
-                                            <div className="slot-placeholder">
-                                                <span className="slot-icon">{slot.icon}</span>
-                                                <span className="slot-name">{slot.name}</span>
-                                                <span className="slot-desc">{slot.description}</span>
-                                            </div>
-                                        ) : (
-                                            <div 
-                                                className="equipped-item"
-                                                onMouseDown={(e) => handleDragStart(item, slot.key, 'equipment', e)}
+    const renderGridPreview = () => {
+        if (!dragOverGrid || !dragItem) return null;
+        
+        const grid = createGrid();
+        const canPlace = canPlaceItem(grid, dragItem, dragOverGrid.row, dragOverGrid.col);
+        
+        return (
+            <div 
+                className={`grid-preview ${canPlace ? 'can-place' : 'cannot-place'}`}
+                style={{
+                    gridColumn: `${dragOverGrid.col + 1} / span ${dragItemSize[0]}`,
+                    gridRow: `${dragOverGrid.row + 1} / span ${dragItemSize[1]}`
+                }}
+            />
+        );
+    };
+
+    return (
+        <div className="d4-overlay" onClick={onClose}>
+            <div className="d4-container" onClick={e => e.stopPropagation()}>
+                <button className="d4-close-btn" onClick={onClose}>✕</button>
+                
+                <div className="d4-main">
+                    <section className="d4-panel d4-stash-panel">
+                        <div className="d4-panel-header">
+                            <span className="d4-panel-title">背包</span>
+                            <span className="d4-gold-display">
+                                <span className="d4-gold-icon"></span>
+                                <span>{playerGold?.toLocaleString() || 0}</span>
+                            </span>
+                        </div>
+                        <div className="d4-grid-container">
+                            <div className="d4-item-grid" ref={gridRef}>
+                                {grid.map((row, rowIndex) => 
+                                    row.map((cell, colIndex) => {
+                                        if (cell?.isPart) return null;
+                                        
+                                        const item = cell?.item;
+                                        const size = item ? getItemSize(item) : [1, 1];
+                                        const isDragging = dragSource?.type === 'backpack' && cell?.index === dragSource?.index;
+                                        
+                                        return (
+                                            <div
+                                                key={`${rowIndex}-${colIndex}`}
+                                                className={`d4-grid-cell ${item ? 'has-item' : ''} ${isDragging ? 'dragging' : ''}`}
+                                                style={{
+                                                    gridColumn: `${colIndex + 1} / span ${size[0]}`,
+                                                    gridRow: `${rowIndex + 1} / span ${size[1]}`
+                                                }}
+                                                data-row={rowIndex}
+                                                data-col={colIndex}
+                                                onMouseEnter={(e) => item && handleItemHover(item, e)}
+                                                onMouseLeave={handleMouseLeave}
+                                                onMouseDown={(e) => item && handleDragStart(item, 'backpack', cell.index, e)}
+                                                onTouchStart={(e) => item && handleDragStart(item, 'backpack', cell.index, e)}
+                                                onClick={() => handleGridCellClick(rowIndex, colIndex, cell)}
                                             >
-                                                <span className="item-icon">{item.icon}</span>
-                                                <div className="item-info">
-                                                    <span className="item-name" style={{ color: item.rarityColor }}>
-                                                        {item.name || '未命名'}
-                                                    </span>
-                                                    <span className="item-level">Lv.{item.level}</span>
-                                                </div>
-                                                {item.affixes && item.affixes.length > 0 && (
-                                                    <div className="item-affix-count">
-                                                        +{item.affixes.length}
+                                                {item && (
+                                                    <div className={`d4-slot-item ${getRarityClass(item.rarity)}`}>
+                                                        <span className="d4-item-icon">{getItemIcon(item)}</span>
+                                                        {item.name && size[0] >= 2 && size[1] >= 2 && (
+                                                            <span className="d4-item-name">{item.name.slice(0, 6)}</span>
+                                                        )}
                                                     </div>
                                                 )}
                                             </div>
-                                        )}
-                                    </div>
-                                );
-                            })}
-                        </div>
-
-                        {/* 藥水快捷使用 */}
-                        <div className="potion-quick-access">
-                            <h4>快速使用</h4>
-                            <div className="potion-buttons">
-                                <button 
-                                    className="potion-btn hp"
-                                    onClick={() => consumePotion('hp_potion')}
-                                    disabled={inventory.hp_potion <= 0}
-                                >
-                                    <span className="potion-icon">❤️</span>
-                                    <span className="potion-count">{inventory.hp_potion}</span>
-                                    <span className="potion-key">Q</span>
-                                </button>
-                                <button 
-                                    className="potion-btn mana"
-                                    onClick={() => consumePotion('mana_potion')}
-                                    disabled={inventory.mana_potion <= 0}
-                                >
-                                    <span className="potion-icon">💙</span>
-                                    <span className="potion-count">{inventory.mana_potion}</span>
-                                    <span className="potion-key">E</span>
-                                </button>
+                                        );
+                                    })
+                                )}
+                                {renderGridPreview()}
                             </div>
                         </div>
-                    </div>
-
-                    {/* 右側：背包 */}
-                    <div className="backpack-panel">
-                        <div className="backpack-header">
-                            <h3>背包物品</h3>
-                            <div className="backpack-actions">
-                                <button className="sort-btn" onClick={sortBackpack} title="整理背包">
-                                    🔃 整理
-                                </button>
-                            </div>
+                        <div className="d4-backpack-actions">
+                            <button className="d4-sort-btn" onClick={sortBackpack}>整理背包</button>
+                            <span className="d4-capacity">{backpackArray.length} 物品</span>
                         </div>
+                    </section>
 
-                        <div className="backpack-grid">
-                            {currentItems.map((item, idx) => {
-                                const actualIndex = currentPage * BACKPACK_PAGE_SIZE + idx;
-                                const isDragging = dragState.isDragging && dragState.index === actualIndex && dragState.sourceContainer === 'backpack';
-                                const isDragOver = dragOverIndex === idx && dragState.isDragging;
-                                const canAccept = dragState.isDragging && dragState.sourceContainer === 'backpack';
-                                
-                                return (
-                                    <div
-                                        key={`${item?.id || 'empty'}-${idx}`}
-                                        data-index={idx}
-                                        className={`backpack-item ${item ? getRarityClass(item.rarity) : 'empty'} ${selectedItem?.index === actualIndex ? 'selected' : ''} ${isDragging ? 'dragging' : ''} ${isDragOver && canAccept ? 'drag-over' : ''}`}
-                                        onMouseEnter={(e) => { 
-                                            if (item) handleItemHover(item, e);
-                                            handleDragEnter(idx);
-                                        }}
-                                        onMouseLeave={handleMouseLeave}
-                                        onClick={() => item && handleItemClick(item, actualIndex)}
-                                        onContextMenu={(e) => item && handleItemRightClick(e, item, actualIndex)}
-                                        onMouseDown={(e) => item && handleDragStart(item, actualIndex, 'backpack', e)}
-                                        onTouchStart={(e) => item && handleTouchStart(item, actualIndex, 'backpack', e)}
-                                    >
-                                        {item && (
-                                            <>
-                                                <div className="item-icon-container">
-                                                    <span className="item-icon">{getItemIcon(item)}</span>
-                                                    {item.quantity > 1 && (
-                                                        <span className="item-quantity">{item.quantity}</span>
-                                                    )}
+                    <section className="d4-panel d4-character-panel">
+                        <div className="d4-char-info">
+                            <div className="d4-char-name">{classNames[playerClass] || '冒險者'}</div>
+                            <div className="d4-char-class">等級 {playerLevel}</div>
+                        </div>
+                        <div className="d4-char-display">
+                            <div className="d4-char-silhouette">
+                                <svg viewBox="0 0 100 200" fill="none" stroke="currentColor" strokeWidth="1">
+                                    <ellipse cx="50" cy="22" rx="14" ry="16"/>
+                                    <line x1="44" y1="38" x2="44" y2="48"/>
+                                    <line x1="56" y1="38" x2="56" y2="48"/>
+                                    <path d="M30 48 Q30 55 35 70 L35 110 Q35 115 40 120 L60 120 Q65 115 65 110 L65 70 Q70 55 70 48 L56 48 Q50 52 44 48 Z"/>
+                                    <path d="M30 50 Q20 55 15 80 L15 110"/>
+                                    <path d="M70 50 Q80 55 85 80 L85 110"/>
+                                    <path d="M40 120 L38 180"/>
+                                    <path d="M60 120 L62 180"/>
+                                </svg>
+                            </div>
+                            <div className="d4-equip-slots">
+                                {EQUIP_SLOTS.map(slot => {
+                                    const item = equippedObj[slot.id];
+                                    const size = slot.size || [1, 1];
+                                    const width = size[0] * 44 + (size[0] - 1) * 3;
+                                    const height = size[1] * 44 + (size[1] - 1) * 3;
+                                    const isDragOver = dragOverEquipSlot === slot.id;
+                                    const isDraggingThis = dragSource?.type === 'equip' && dragSource?.index === slot.id;
+                                    
+                                    return (
+                                        <div
+                                            key={slot.id}
+                                            className={`d4-equip-slot ${item ? 'has-item' : ''} ${isDraggingThis ? 'dragging' : ''} ${isDragOver ? 'drag-over' : ''}`}
+                                            style={{ 
+                                                ...slot.pos, 
+                                                width, 
+                                                height 
+                                            }}
+                                            data-slot={slot.id}
+                                            onMouseEnter={(e) => item && handleItemHover(item, e)}
+                                            onMouseLeave={handleMouseLeave}
+                                            onMouseDown={(e) => item && handleDragStart(item, 'equip', slot.id, e)}
+                                            onTouchStart={(e) => item && handleDragStart(item, 'equip', slot.id, e)}
+                                            onClick={() => handleEquipClick(slot.id)}
+                                        >
+                                            {item ? (
+                                                <div className={`d4-slot-item ${getRarityClass(item.rarity)}`}>
+                                                    <span className="d4-item-icon">{getItemIcon(item)}</span>
                                                 </div>
-                                                <span className="item-name-small" style={{ color: item.rarityColor }}>
-                                                    {item.name?.length > 8 ? item.name?.slice(0, 8) + '...' : (item.name || '未命名')}
-                                                </span>
-                                                {EQUIPMENT_TYPES[item.type] && compareItems(equipped[item.type], item).better && (
-                                                    <div className="upgrade-indicator">⬆️</div>
-                                                )}
-                                                {/* 觸控提示 */}
-                                                <div className="touch-hint">長按拖拽</div>
-                                            </>
-                                        )}
-                                    </div>
-                                );
-                            })}
-                            
-                            {/* 空白格子 */}
-                            {Array.from({ length: BACKPACK_PAGE_SIZE - currentItems.length }).map((_, i) => (
-                                <div 
-                                    key={`empty-${i}`} 
-                                    data-index={BACKPACK_PAGE_SIZE - currentItems.length + i}
-                                    className={`backpack-item empty ${dragOverIndex === currentItems.length + i && dragState.isDragging ? 'drag-over' : ''}`}
-                                    onMouseEnter={() => handleDragEnter(currentItems.length + i)}
-                                    onMouseLeave={handleMouseLeave}
-                                />
-                            ))}
-                        </div>
-
-                        {/* 分頁控制 */}
-                        {totalPages > 1 && (
-                            <div className="pagination">
-                                <button 
-                                    disabled={currentPage === 0}
-                                    onClick={() => setCurrentPage(p => p - 1)}
-                                >
-                                    ◀
-                                </button>
-                                <span>{currentPage + 1} / {totalPages}</span>
-                                <button 
-                                    disabled={currentPage >= totalPages - 1}
-                                    onClick={() => setCurrentPage(p => p + 1)}
-                                >
-                                    ▶
-                                </button>
+                                            ) : (
+                                                <span className="d4-empty-icon">{SLOT_ICONS[slot.id]}</span>
+                                            )}
+                                        </div>
+                                    );
+                                })}
                             </div>
-                        )}
-                    </div>
+                        </div>
+                    </section>
+
+                    <section className="d4-panel d4-stats-panel">
+                        <div className="d4-panel-header">
+                            <span className="d4-panel-title">角色屬性</span>
+                        </div>
+                        <div className="d4-bars-section">
+                            <div className="d4-resource-bar">
+                                <div className="d4-bar-fill health" style={{ width: `${hpPercent}%` }}></div>
+                                <span className="d4-bar-text">{Math.floor(playerHP)} / {playerMaxHP}</span>
+                            </div>
+                            <div className="d4-resource-bar">
+                                <div className="d4-bar-fill mana" style={{ width: `${manaPercent}%` }}></div>
+                                <span className="d4-bar-text">{Math.floor(playerMana)} / {playerMaxMana}</span>
+                            </div>
+                        </div>
+                        <div className="d4-stats-section">
+                            <div className="d4-stat-group">
+                                <div className="d4-stat-header">攻擊</div>
+                                <div className="d4-stat-row">
+                                    <span className="d4-stat-label">攻擊力</span>
+                                    <span className="d4-stat-value highlight">{playerAttackPower || 0}</span>
+                                </div>
+                                <div className="d4-stat-row">
+                                    <span className="d4-stat-label">暴擊率</span>
+                                    <span className="d4-stat-value">{((playerCritChance || 0.15) * 100).toFixed(1)}%</span>
+                                </div>
+                                <div className="d4-stat-row">
+                                    <span className="d4-stat-label">暴擊傷害</span>
+                                    <span className="d4-stat-value">+{playerCritDamage || 50}%</span>
+                                </div>
+                            </div>
+                            <div className="d4-stat-group">
+                                <div className="d4-stat-header">防禦</div>
+                                <div className="d4-stat-row">
+                                    <span className="d4-stat-label">護甲</span>
+                                    <span className="d4-stat-value">{playerDefense || 0}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
                 </div>
-
-                {/* 右鍵菜單 */}
-                {selectedItem?.showMenu && (
-                    <div 
-                        className="context-menu"
-                        style={{ 
-                            left: selectedItem.menuPos.x, 
-                            top: selectedItem.menuPos.y 
-                        }}
-                    >
-                        {EQUIPMENT_TYPES[selectedItem.item.type] && (
-                            <button onClick={() => {
-                                equipItem(selectedItem.item.type, selectedItem.index);
-                                setSelectedItem(null);
-                            }}>
-                                🎽 裝備
-                            </button>
-                        )}
-                        {selectedItem.item.stackable && selectedItem.item.quantity > 1 && (
-                            <button onClick={() => {
-                                handleSplitStack(selectedItem.item, selectedItem.index);
-                                setSelectedItem(null);
-                            }}>
-                                ✂️ 分割
-                            </button>
-                        )}
-                        <button onClick={() => {
-                            setShowSellConfirm(true);
-                            setSelectedItem({ ...selectedItem, showMenu: false });
-                        }}>
-                            💰 出售 ({Math.floor((selectedItem.item.value || 10) * 0.3)} 金幣)
-                        </button>
-                        <button onClick={() => {
-                            dropItem(selectedItem.index);
-                            setSelectedItem(null);
-                        }}>
-                            🗑️ 丟棄
-                        </button>
-                        <button onClick={() => setSelectedItem(null)}>
-                            取消
-                        </button>
-                    </div>
-                )}
-
-                {/* 出售確認框 */}
-                {showSellConfirm && selectedItem && (
-                    <div className="confirm-dialog">
-                        <div className="confirm-content">
-                            <p>確定要出售 <strong>{selectedItem.item.name}</strong> 嗎？</p>
-                            <p>將獲得 <strong>{Math.floor((selectedItem.item.value || 10) * 0.3)}</strong> 金幣</p>
-                            <div className="confirm-buttons">
-                                <button onClick={handleSellConfirm} className="confirm">確定</button>
-                                <button onClick={() => setShowSellConfirm(false)} className="cancel">取消</button>
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                {/* 分割數量對話框 */}
-                {showSplitDialog && (
-                    <div className="split-dialog">
-                        <div className="split-content">
-                            <h3>分割堆疊</h3>
-                            <div className="item-info">
-                                <span className="item-icon">{getItemIcon(backpack[splitInfo.index])}</span>
-                                <span>{backpack[splitInfo.index]?.name}</span>
-                            </div>
-                            <div className="split-controls">
-                                <button onClick={() => setSplitInfo(s => ({ ...s, quantity: Math.max(1, s.quantity - 1) }))}>-</button>
-                                <span className="split-value">{splitInfo.quantity}</span>
-                                <button onClick={() => setSplitInfo(s => ({ ...s, quantity: Math.min((backpack[splitInfo.index]?.quantity || 1) - 1, s.quantity + 1) }))}>+</button>
-                            </div>
-                            <div className="split-buttons">
-                                <button className="confirm" onClick={confirmSplit}>確認</button>
-                                <button className="cancel" onClick={() => setShowSplitDialog(false)}>取消</button>
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                {/* 物品提示框 */}
-                {hoveredItem && (
-                    <ItemTooltip 
-                        item={hoveredItem}
-                        compareItem={compareItem}
-                        position={tooltipPos}
-                    />
-                )}
             </div>
+
+            {hoveredItem && (
+                <ItemTooltip
+                    item={hoveredItem}
+                    position={tooltipPos}
+                    compareItem={hoveredItem?.type && equippedObj[hoveredItem.type]}
+                />
+            )}
+
+            {dragItem && (
+                <div 
+                    className={`d4-drag-ghost ${getRarityClass(dragItem.rarity)}`}
+                    style={{ 
+                        left: dragPos.x - 20, 
+                        top: dragPos.y - 20,
+                        width: dragItemSize[0] * 44 + (dragItemSize[0] - 1) * 3,
+                        height: dragItemSize[1] * 44 + (dragItemSize[1] - 1) * 3
+                    }}
+                >
+                    <span className="d4-item-icon">{getItemIcon(dragItem)}</span>
+                </div>
+            )}
         </div>
     );
 }

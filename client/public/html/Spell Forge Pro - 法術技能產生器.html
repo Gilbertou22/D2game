@@ -1,0 +1,2436 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Spell Forge Pro - 法術技能產生器</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    :root {
+      --bg: #050508;
+      --bg-panel: #0a0a10;
+      --fg: #e8e8f0;
+      --muted: #5a5a6a;
+      --accent: #ff6b35;
+      --accent-glow: rgba(255, 107, 53, 0.4);
+      --card: #101018;
+      --border: #1a1a24;
+      --ice: #38bdf8;
+      --lightning: #facc15;
+      --holy: #fbbf24;
+      --shadow: #a855f7;
+      --nature: #10b981;
+      --blood: #dc2626;
+      --cosmic: #8b5cf6;
+      --water: #06b6d4;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'JetBrains Mono', monospace;
+      background: var(--bg);
+      color: var(--fg);
+      overflow: hidden;
+      height: 100vh;
+    }
+
+    .font-display { font-family: 'Cinzel', serif; }
+
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    .param-input {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 6px 10px;
+      color: var(--fg);
+      font-size: 11px;
+      width: 100%;
+      transition: all 0.2s ease;
+    }
+    .param-input:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px var(--accent-glow);
+    }
+
+    .param-slider {
+      -webkit-appearance: none;
+      appearance: none;
+      height: 3px;
+      background: var(--border);
+      border-radius: 2px;
+      cursor: pointer;
+    }
+    .param-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 12px;
+      height: 12px;
+      background: var(--accent);
+      border-radius: 50%;
+      cursor: pointer;
+    }
+
+    .color-picker-wrapper {
+      width: 32px;
+      height: 24px;
+      border-radius: 4px;
+      overflow: hidden;
+      border: 2px solid var(--border);
+    }
+    .color-picker-wrapper input[type="color"] {
+      width: 150%;
+      height: 150%;
+      margin: -25%;
+      cursor: pointer;
+      border: none;
+    }
+
+    .preset-btn {
+      padding: 8px 10px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      background: var(--card);
+      color: var(--fg);
+      font-family: 'Cinzel', serif;
+      font-weight: 600;
+      font-size: 10px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      white-space: nowrap;
+    }
+    .preset-btn:hover { border-color: var(--btn-color, var(--accent)); }
+    .preset-btn.active {
+      border-color: var(--btn-color, var(--accent));
+      box-shadow: 0 0 12px var(--btn-glow, var(--accent-glow));
+    }
+
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 10px;
+      background: var(--card);
+      border-radius: 4px;
+      cursor: pointer;
+      user-select: none;
+      border: 1px solid transparent;
+    }
+    .section-header:hover { background: var(--border); }
+    .section-header .chevron { transition: transform 0.3s ease; }
+    .section-header.collapsed .chevron { transform: rotate(-90deg); }
+    
+    .section-content {
+      max-height: 800px;
+      overflow: hidden;
+      transition: max-height 0.4s ease;
+    }
+    .section-content.collapsed { max-height: 0; }
+
+    #canvas-container {
+      position: relative;
+      background: radial-gradient(ellipse at center, #0e0e16 0%, #050508 100%);
+    }
+
+    .export-btn {
+      background: linear-gradient(135deg, var(--accent) 0%, #ff8f5a 100%);
+      border: none;
+      border-radius: 4px;
+      padding: 6px 14px;
+      color: #fff;
+      font-weight: 600;
+      font-size: 11px;
+      cursor: pointer;
+    }
+    .export-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 16px var(--accent-glow); }
+
+    .effect-toggle {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .effect-toggle:last-child { border-bottom: none; }
+
+    .toggle-switch {
+      position: relative;
+      width: 32px;
+      height: 18px;
+      background: var(--border);
+      border-radius: 9px;
+      cursor: pointer;
+      transition: background 0.3s ease;
+    }
+    .toggle-switch::after {
+      content: '';
+      position: absolute;
+      width: 14px;
+      height: 14px;
+      background: var(--fg);
+      border-radius: 50%;
+      top: 2px;
+      left: 2px;
+      transition: transform 0.3s ease;
+    }
+    .toggle-switch.active { background: var(--accent); }
+    .toggle-switch.active::after { transform: translateX(14px); }
+
+    .motion-card {
+      padding: 8px 4px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      background: var(--bg);
+      cursor: pointer;
+      text-align: center;
+      transition: all 0.2s ease;
+    }
+    .motion-card:hover { border-color: var(--accent); }
+    .motion-card.active { border-color: var(--accent); background: rgba(255, 107, 53, 0.1); }
+    .motion-card svg { width: 20px; height: 20px; margin: 0 auto 4px; stroke: var(--muted); }
+    .motion-card.active svg { stroke: var(--accent); }
+    .motion-card span { font-size: 9px; color: var(--muted); }
+    .motion-card.active span { color: var(--fg); }
+
+    .preset-category {
+      padding: 6px 8px;
+      background: var(--card);
+      border-radius: 4px;
+      margin-bottom: 6px;
+      border-left: 2px solid var(--accent);
+    }
+    .preset-category-title {
+      font-size: 9px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 6px;
+    }
+
+    .tab-btn {
+      flex: 1;
+      padding: 8px;
+      font-size: 10px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--muted);
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .tab-btn:first-child { border-radius: 4px 0 0 4px; }
+    .tab-btn:last-child { border-radius: 0 4px 4px 0; }
+    .tab-btn.active { background: var(--card); color: var(--fg); border-color: var(--accent); }
+
+    .shape-preview {
+      width: 40px;
+      height: 40px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      background: var(--bg);
+    }
+    .shape-preview:hover { border-color: var(--accent); }
+    .shape-preview.active { border-color: var(--accent); background: rgba(255,107,53,0.1); }
+    .shape-preview svg { width: 24px; height: 24px; stroke: var(--muted); }
+    .shape-preview.active svg { stroke: var(--accent); }
+  </style>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <div class="h-screen flex flex-col">
+    <!-- Top Bar -->
+    <header class="h-11 border-b border-[var(--border)] bg-[var(--bg-panel)] flex items-center justify-between px-4 shrink-0">
+      <div class="flex items-center gap-3">
+        <h1 class="font-display text-base font-bold tracking-wider" style="color: var(--accent)">SPELL FORGE PRO</h1>
+        <span class="text-[9px] text-[var(--muted)] px-2 py-0.5 bg-[var(--card)] rounded">v3.5</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <button id="fireBtn" class="px-3 py-1.5 text-[10px] bg-[var(--accent)] rounded font-semibold hover:opacity-90">發射</button>
+        <button id="pauseBtn" class="px-3 py-1.5 text-[10px] border border-[var(--border)] rounded hover:bg-[var(--card)]">暫停</button>
+        <button id="resetBtn" class="px-3 py-1.5 text-[10px] border border-[var(--border)] rounded hover:bg-[var(--card)]">重置</button>
+        <button id="exportBtn" class="export-btn">導出</button>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <div class="flex-1 flex overflow-hidden">
+      <!-- 3D Preview -->
+      <div id="canvas-container" class="flex-1 relative">
+        <canvas id="spellCanvas"></canvas>
+        <div class="absolute top-2 left-2 text-[9px] text-[var(--muted)] bg-[var(--bg)]/90 px-2 py-1.5 rounded border border-[var(--border)]">
+          <div>粒子: <span id="particleCount" class="text-[var(--fg)]">0</span></div>
+          <div>投射物: <span id="projectileCount" class="text-[var(--fg)]">0</span></div>
+          <div>FPS: <span id="fpsCounter" class="text-[var(--fg)]">60</span></div>
+        </div>
+        <div class="absolute bottom-2 left-2 text-[9px] text-[var(--muted)] bg-[var(--bg)]/90 px-2 py-1.5 rounded border border-[var(--border)]">
+          點擊畫面發射 | 滾輪縮放 | 拖拽旋轉
+        </div>
+        <div class="absolute top-2 right-2 text-right">
+          <div class="font-display text-sm font-bold" id="currentSpellName" style="color: var(--accent)">火球術</div>
+          <div class="text-[9px] text-[var(--muted)]" id="currentSpellType">投射物</div>
+        </div>
+      </div>
+
+      <!-- Parameter Panel -->
+      <aside class="w-64 bg-[var(--bg-panel)] border-l border-[var(--border)] overflow-y-auto shrink-0">
+        <div class="p-2 space-y-2">
+          
+          <!-- Mode Tabs -->
+          <div class="flex">
+            <button class="tab-btn" data-tab="area">區域</button>
+            <button class="tab-btn active" data-tab="projectile">投射物</button>
+            <button class="tab-btn" data-tab="lightning">閃電</button>
+          </div>
+
+          <!-- Presets Section -->
+          <div class="param-section">
+            <div class="section-header" data-section="presets">
+              <span class="font-semibold text-[10px]">預設範例</span>
+              <svg class="chevron w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+            </div>
+            <div class="section-content pt-2 space-y-2">
+              <!-- Area Spells -->
+              <div class="preset-category hidden" id="areaPresets">
+                <div class="preset-category-title">區域法術</div>
+                <div class="grid grid-cols-2 gap-1">
+                  <button class="preset-btn" data-preset="fireBurst" style="--btn-color: var(--accent);">火焰爆發</button>
+                  <button class="preset-btn" data-preset="iceNova" style="--btn-color: var(--ice);">冰霜新星</button>
+                  <button class="preset-btn" data-preset="shadowVortex" style="--btn-color: var(--shadow);">暗影漩渦</button>
+                  <button class="preset-btn" data-preset="healingAura" style="--btn-color: var(--nature);">治療光環</button>
+                </div>
+              </div>
+              <!-- Projectiles -->
+              <div class="preset-category" id="projectilePresets">
+                <div class="preset-category-title">投射物</div>
+                <div class="grid grid-cols-2 gap-1">
+                  <button class="preset-btn active" data-preset="fireball" style="--btn-color: var(--accent);">火球術</button>
+                  <button class="preset-btn" data-preset="iceSpear" style="--btn-color: var(--ice);">冰矛</button>
+                  <button class="preset-btn" data-preset="arcaneMissile" style="--btn-color: var(--cosmic);">奧術飛彈</button>
+                  <button class="preset-btn" data-preset="shadowBolt" style="--btn-color: var(--shadow);">暗影箭</button>
+                  <button class="preset-btn" data-preset="holyOrb" style="--btn-color: var(--holy);">神聖光球</button>
+                  <button class="preset-btn" data-preset="plasmaBall" style="--btn-color: var(--lightning);">電漿球</button>
+                </div>
+              </div>
+              <!-- Lightning -->
+              <div class="preset-category hidden" id="lightningPresets">
+                <div class="preset-category-title">閃電</div>
+                <div class="grid grid-cols-2 gap-1">
+                  <button class="preset-btn" data-preset="lightningBolt" style="--btn-color: var(--lightning);">閃電束</button>
+                  <button class="preset-btn" data-preset="chainLightning" style="--btn-color: var(--lightning);">連鎖閃電</button>
+                  <button class="preset-btn" data-preset="thunderStrike" style="--btn-color: var(--lightning);">雷擊</button>
+                  <button class="preset-btn" data-preset="electricField" style="--btn-color: var(--lightning);">電場</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Colors Section -->
+          <div class="param-section">
+            <div class="section-header" data-section="colors">
+              <span class="font-semibold text-[10px]">顏色配置</span>
+              <svg class="chevron w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+            </div>
+            <div class="section-content pt-2 space-y-1">
+              <div class="flex items-center gap-2">
+                <div class="color-picker-wrapper"><input type="color" id="primaryColor" value="#ff6b35"></div>
+                <div class="flex-1"><label class="block text-[9px] text-[var(--muted)]">主色</label><span id="primaryColorHex" class="text-[10px]">#ff6b35</span></div>
+              </div>
+              <div class="flex items-center gap-2">
+                <div class="color-picker-wrapper"><input type="color" id="secondaryColor" value="#ffaa00"></div>
+                <div class="flex-1"><label class="block text-[9px] text-[var(--muted)]">輔色</label><span id="secondaryColorHex" class="text-[10px]">#ffaa00</span></div>
+              </div>
+              <div class="flex items-center gap-2">
+                <div class="color-picker-wrapper"><input type="color" id="glowColor" value="#ff4400"></div>
+                <div class="flex-1"><label class="block text-[9px] text-[var(--muted)]">發光色</label><span id="glowColorHex" class="text-[10px]">#ff4400</span></div>
+              </div>
+              <div class="flex items-center gap-2">
+                <div class="color-picker-wrapper"><input type="color" id="coreColor" value="#ffffff"></div>
+                <div class="flex-1"><label class="block text-[9px] text-[var(--muted)]">核心色</label><span id="coreColorHex" class="text-[10px]">#ffffff</span></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Particle Section -->
+          <div class="param-section hidden" id="particleSettings">
+            <div class="section-header" data-section="particles">
+              <span class="font-semibold text-[10px]">粒子參數</span>
+              <svg class="chevron w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+            </div>
+            <div class="section-content pt-2 space-y-2">
+              <div>
+                <div class="flex justify-between text-[9px] mb-1"><span class="text-[var(--muted)]">粒子數量</span><span id="particleAmountValue">600</span></div>
+                <input type="range" id="particleAmount" class="param-slider w-full" min="50" max="2000" value="600">
+              </div>
+              <div>
+                <div class="flex justify-between text-[9px] mb-1"><span class="text-[var(--muted)]">粒子大小</span><span id="particleSizeValue">3.0</span></div>
+                <input type="range" id="particleSize" class="param-slider w-full" min="0.5" max="12" step="0.1" value="3">
+              </div>
+              <div>
+                <div class="flex justify-between text-[9px] mb-1"><span class="text-[var(--muted)]">生命周期</span><span id="lifetimeValue">2.0s</span></div>
+                <input type="range" id="lifetime" class="param-slider w-full" min="0.5" max="6" step="0.1" value="2">
+              </div>
+              <div>
+                <div class="flex justify-between text-[9px] mb-1"><span class="text-[var(--muted)]">擴散半徑</span><span id="spreadRadiusValue">3.0</span></div>
+                <input type="range" id="spreadRadius" class="param-slider w-full" min="0.5" max="8" step="0.1" value="3">
+              </div>
+            </div>
+          </div>
+
+          <!-- Motion Section -->
+          <div class="param-section hidden" id="motionSettings">
+            <div class="section-header" data-section="motion">
+              <span class="font-semibold text-[10px]">運動模式</span>
+              <svg class="chevron w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+            </div>
+            <div class="section-content pt-2 space-y-2">
+              <div class="grid grid-cols-4 gap-1">
+                <div class="motion-card active" data-motion="outward"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="12" r="2"/><path d="M12 4v4M12 16v4M4 12h4M16 12h4"/></svg><span>擴散</span></div>
+                <div class="motion-card" data-motion="inward"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M12 4v4M12 16v4M4 12h4M16 12h4"/><circle cx="12" cy="12" r="2"/></svg><span>聚集</span></div>
+                <div class="motion-card" data-motion="spiral"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M12 4c4 0 8 3 8 8s-4 8-8 8"/></svg><span>螺旋</span></div>
+                <div class="motion-card" data-motion="rise"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M12 20V4M8 8l4-4 4 4"/></svg><span>上升</span></div>
+                <div class="motion-card" data-motion="vortex"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M12 4c5 0 8 3 8 8s-3 8-8 8"/></svg><span>漩渦</span></div>
+                <div class="motion-card" data-motion="explosion"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="12" r="2"/><path d="M12 2l1 3M12 19l1 3M2 12l3 1M19 12l3 1"/></svg><span>爆炸</span></div>
+                <div class="motion-card" data-motion="orbit"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg><span>軌道</span></div>
+                <div class="motion-card" data-motion="tornado"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M4 6h16M6 10h12M8 14h8M10 18h4"/></svg><span>龍捲</span></div>
+              </div>
+              <div>
+                <div class="flex justify-between text-[9px] mb-1"><span class="text-[var(--muted)]">螺旋強度</span><span id="spiralStrengthValue">0.5</span></div>
+                <input type="range" id="spiralStrength" class="param-slider w-full" min="0" max="3" step="0.1" value="0.5">
+              </div>
+              <div>
+                <div class="flex justify-between text-[9px] mb-1"><span class="text-[var(--muted)]">隨機抖動</span><span id="turbulenceValue">0.3</span></div>
+                <input type="range" id="turbulence" class="param-slider w-full" min="0" max="1.5" step="0.05" value="0.3">
+              </div>
+            </div>
+          </div>
+
+          <!-- Projectile Settings -->
+          <div class="param-section" id="projectileSettings">
+            <div class="section-header" data-section="proj">
+              <span class="font-semibold text-[10px]">投射物設定</span>
+              <svg class="chevron w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+            </div>
+            <div class="section-content pt-2 space-y-2">
+              <!-- Shape Selection -->
+              <div>
+                <label class="block text-[9px] text-[var(--muted)] mb-2">投射物形狀</label>
+                <div class="flex gap-2">
+                  <div class="shape-preview active" data-shape="sphere" title="球形">
+                    <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="12" r="8"/></svg>
+                  </div>
+                  <div class="shape-preview" data-shape="arrow" title="箭矢">
+                    <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                  </div>
+                  <div class="shape-preview" data-shape="disk" title="圓盤">
+                    <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><ellipse cx="12" cy="12" rx="8" ry="3"/></svg>
+                  </div>
+                  <div class="shape-preview" data-shape="beam" title="光束">
+                    <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M4 12h16"/><circle cx="12" cy="12" r="3"/></svg>
+                  </div>
+                  <div class="shape-preview" data-shape="crystal" title="晶體">
+                    <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M12 2l8 10-8 10-8-10z"/></svg>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <div class="flex justify-between text-[9px] mb-1"><span class="text-[var(--muted)]">飛行速度</span><span id="projectileSpeedValue">18</span></div>
+                <input type="range" id="projectileSpeed" class="param-slider w-full" min="5" max="40" step="1" value="18">
+              </div>
+              <div>
+                <div class="flex justify-between text-[9px] mb-1"><span class="text-[var(--muted)]">投射物大小</span><span id="projectileSizeValue">0.5</span></div>
+                <input type="range" id="projectileSize" class="param-slider w-full" min="0.2" max="2" step="0.1" value="0.5">
+              </div>
+              <div>
+                <div class="flex justify-between text-[9px] mb-1"><span class="text-[var(--muted)]">尾跡長度</span><span id="trailLengthValue">40</span></div>
+                <input type="range" id="trailLength" class="param-slider w-full" min="10" max="100" step="5" value="40">
+              </div>
+              <div class="effect-toggle">
+                <span class="text-[10px]">追蹤目標</span>
+                <div class="toggle-switch" data-effect="homing"></div>
+              </div>
+              <div class="effect-toggle">
+                <span class="text-[10px]">螺旋軌跡</span>
+                <div class="toggle-switch" data-effect="spiralPath"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Explosion Settings -->
+          <div class="param-section" id="explosionSettings">
+            <div class="section-header" data-section="explosion">
+              <span class="font-semibold text-[10px]">爆炸效果</span>
+              <svg class="chevron w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+            </div>
+            <div class="section-content pt-2 space-y-2">
+              <div class="effect-toggle">
+                <span class="text-[10px]">啟用爆炸</span>
+                <div class="toggle-switch active" data-effect="explodeOnHit"></div>
+              </div>
+              <div>
+                <div class="flex justify-between text-[9px] mb-1"><span class="text-[var(--muted)]">爆炸大小</span><span id="explosionSizeValue">4.0</span></div>
+                <input type="range" id="explosionSize" class="param-slider w-full" min="1" max="10" step="0.5" value="4">
+              </div>
+              <div>
+                <div class="flex justify-between text-[9px] mb-1"><span class="text-[var(--muted)]">爆炸粒子數</span><span id="explosionParticlesValue">300</span></div>
+                <input type="range" id="explosionParticles" class="param-slider w-full" min="50" max="800" step="50" value="300">
+              </div>
+              <div class="effect-toggle">
+                <span class="text-[10px]">衝擊波</span>
+                <div class="toggle-switch active" data-effect="shockwave"></div>
+              </div>
+              <div class="effect-toggle">
+                <span class="text-[10px]">環形波紋</span>
+                <div class="toggle-switch active" data-effect="ringWaves"></div>
+              </div>
+              <div class="effect-toggle">
+                <span class="text-[10px]">火花碎片</span>
+                <div class="toggle-switch active" data-effect="sparks"></div>
+              </div>
+              <div class="effect-toggle">
+                <span class="text-[10px]">核心閃光</span>
+                <div class="toggle-switch active" data-effect="coreFlash"></div>
+              </div>
+              <div class="effect-toggle">
+                <span class="text-[10px]">煙霧效果</span>
+                <div class="toggle-switch" data-effect="smoke"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Lightning Settings -->
+          <div class="param-section hidden" id="lightningSettings">
+            <div class="section-header" data-section="lightning">
+              <span class="font-semibold text-[10px]">閃電設定</span>
+              <svg class="chevron w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+            </div>
+            <div class="section-content pt-2 space-y-2">
+              <div>
+                <div class="flex justify-between text-[9px] mb-1"><span class="text-[var(--muted)]">分支數量</span><span id="branchCountValue">5</span></div>
+                <input type="range" id="branchCount" class="param-slider w-full" min="0" max="12" step="1" value="5">
+              </div>
+              <div>
+                <div class="flex justify-between text-[9px] mb-1"><span class="text-[var(--muted)]">鋸齒強度</span><span id="jitterAmountValue">0.8</span></div>
+                <input type="range" id="jitterAmount" class="param-slider w-full" min="0.1" max="2" step="0.1" value="0.8">
+              </div>
+              <div>
+                <div class="flex justify-between text-[9px] mb-1"><span class="text-[var(--muted)]">閃爍頻率</span><span id="flickerRateValue">18</span></div>
+                <input type="range" id="flickerRate" class="param-slider w-full" min="5" max="30" step="1" value="18">
+              </div>
+              <div>
+                <label class="block text-[9px] text-[var(--muted)] mb-1">閃電類型</label>
+                <select id="lightningType" class="param-input">
+                  <option value="bolt">直線閃電</option>
+                  <option value="chain">連鎖閃電</option>
+                  <option value="field">電場區域</option>
+                  <option value="strike">雷擊</option>
+                </select>
+              </div>
+              <div class="effect-toggle">
+                <span class="text-[10px]">持續閃電</span>
+                <div class="toggle-switch active" data-effect="continuous"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Effects Section -->
+          <div class="param-section">
+            <div class="section-header" data-section="effects">
+              <span class="font-semibold text-[10px]">特效疊加</span>
+              <svg class="chevron w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+            </div>
+            <div class="section-content pt-2 space-y-1">
+              <div class="effect-toggle"><span class="text-[10px]">核心光暈</span><div class="toggle-switch active" data-effect="coreGlow"></div></div>
+              <div class="effect-toggle"><span class="text-[10px]">外環光暈</span><div class="toggle-switch active" data-effect="outerGlow"></div></div>
+              <div class="effect-toggle"><span class="text-[10px]">脈衝效果</span><div class="toggle-switch" data-effect="pulse"></div></div>
+              <div class="effect-toggle"><span class="text-[10px]">閃爍效果</span><div class="toggle-switch" data-effect="flicker"></div></div>
+            </div>
+          </div>
+
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <!-- Export Modal -->
+  <div id="exportModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden items-center justify-center z-50">
+    <div class="bg-[var(--bg-panel)] border border-[var(--border)] rounded-lg p-4 w-[400px] max-h-[70vh] overflow-auto">
+      <h3 class="font-display text-sm font-bold mb-2">導出配置</h3>
+      <pre id="exportContent" class="bg-[var(--bg)] p-3 rounded text-[9px] overflow-auto max-h-[300px] text-[var(--accent)] border border-[var(--border)]"></pre>
+      <div class="flex gap-2 mt-3">
+        <button id="copyExport" class="flex-1 py-1.5 bg-[var(--card)] border border-[var(--border)] rounded text-[10px] hover:bg-[var(--border)]">複製</button>
+        <button id="closeExport" class="flex-1 py-1.5 bg-[var(--accent)] rounded text-[10px] font-semibold">關閉</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+    // ============================================
+    // Configuration State
+    // ============================================
+    const state = {
+      mode: 'projectile',
+      presetName: '火球術',
+      presetType: '投射物',
+      primaryColor: '#ff6b35',
+      secondaryColor: '#ffaa00',
+      glowColor: '#ff4400',
+      coreColor: '#ffffff',
+      // Particle settings
+      particleAmount: 600,
+      particleSize: 3.0,
+      lifetime: 2.0,
+      spreadRadius: 3.0,
+      motionType: 'outward',
+      spiralStrength: 0.5,
+      turbulence: 0.3,
+      coreGlow: true,
+      outerGlow: true,
+      pulse: false,
+      flicker: false,
+      // Projectile settings
+      projectileSpeed: 18,
+      projectileSize: 0.5,
+      trailLength: 40,
+      projectileShape: 'sphere',
+      homing: false,
+      spiralPath: false,
+      // Explosion settings
+      explodeOnHit: true,
+      explosionSize: 4.0,
+      explosionParticles: 300,
+      shockwave: true,
+      ringWaves: true,
+      sparks: true,
+      coreFlash: true,
+      smoke: false,
+      // Lightning settings
+      branchCount: 5,
+      jitterAmount: 0.8,
+      flickerRate: 18,
+      lightningType: 'bolt',
+      continuous: true
+    };
+
+    // Presets
+    const presets = {
+      // Area spells
+      fireBurst: {
+        mode: 'area', presetName: '火焰爆發', presetType: '區域法術',
+        primaryColor: '#ff6b35', secondaryColor: '#ff4400', glowColor: '#ff2200', coreColor: '#ffffff',
+        particleAmount: 700, particleSize: 3.5, lifetime: 2.0, spreadRadius: 4.0,
+        motionType: 'explosion', spiralStrength: 0.3, turbulence: 0.5,
+        coreGlow: true, outerGlow: true, pulse: false, flicker: true
+      },
+      iceNova: {
+        mode: 'area', presetName: '冰霜新星', presetType: '區域法術',
+        primaryColor: '#38bdf8', secondaryColor: '#e0f2fe', glowColor: '#0ea5e9', coreColor: '#ffffff',
+        particleAmount: 500, particleSize: 2.5, lifetime: 2.5, spreadRadius: 5.0,
+        motionType: 'outward', spiralStrength: 0.1, turbulence: 0.15,
+        coreGlow: true, outerGlow: true, pulse: false, flicker: false
+      },
+      shadowVortex: {
+        mode: 'area', presetName: '暗影漩渦', presetType: '區域法術',
+        primaryColor: '#a855f7', secondaryColor: '#7c3aed', glowColor: '#581c87', coreColor: '#c084fc',
+        particleAmount: 800, particleSize: 3.5, lifetime: 3.5, spreadRadius: 4.0,
+        motionType: 'vortex', spiralStrength: 1.8, turbulence: 0.3,
+        coreGlow: true, outerGlow: true, pulse: true, flicker: false
+      },
+      healingAura: {
+        mode: 'area', presetName: '治療光環', presetType: '區域法術',
+        primaryColor: '#22c55e', secondaryColor: '#86efac', glowColor: '#16a34a', coreColor: '#ffffff',
+        particleAmount: 400, particleSize: 2.8, lifetime: 3.0, spreadRadius: 3.0,
+        motionType: 'rise', spiralStrength: 0.6, turbulence: 0.1,
+        coreGlow: true, outerGlow: true, pulse: true, flicker: false
+      },
+      // Projectiles
+      fireball: {
+        mode: 'projectile', presetName: '火球術', presetType: '投射物',
+        primaryColor: '#ff6b35', secondaryColor: '#ffaa00', glowColor: '#ff4400', coreColor: '#ffffff',
+        projectileSpeed: 18, projectileSize: 0.5, trailLength: 40, projectileShape: 'sphere',
+        homing: false, spiralPath: false, explodeOnHit: true, explosionSize: 4.0, explosionParticles: 300,
+        shockwave: true, ringWaves: true, sparks: true, coreFlash: true, smoke: false
+      },
+      iceSpear: {
+        mode: 'projectile', presetName: '冰矛', presetType: '投射物',
+        primaryColor: '#38bdf8', secondaryColor: '#ffffff', glowColor: '#0ea5e9', coreColor: '#ffffff',
+        projectileSpeed: 28, projectileSize: 0.35, trailLength: 25, projectileShape: 'arrow',
+        homing: false, spiralPath: false, explodeOnHit: true, explosionSize: 2.5, explosionParticles: 200,
+        shockwave: false, ringWaves: true, sparks: true, coreFlash: true, smoke: false
+      },
+      arcaneMissile: {
+        mode: 'projectile', presetName: '奧術飛彈', presetType: '投射物',
+        primaryColor: '#8b5cf6', secondaryColor: '#c4b5fd', glowColor: '#6d28d9', coreColor: '#ffffff',
+        projectileSpeed: 14, projectileSize: 0.25, trailLength: 30, projectileShape: 'sphere',
+        homing: true, spiralPath: true, explodeOnHit: true, explosionSize: 2.0, explosionParticles: 150,
+        shockwave: true, ringWaves: false, sparks: true, coreFlash: true, smoke: false
+      },
+      shadowBolt: {
+        mode: 'projectile', presetName: '暗影箭', presetType: '投射物',
+        primaryColor: '#a855f7', secondaryColor: '#581c87', glowColor: '#7c3aed', coreColor: '#c084fc',
+        projectileSpeed: 22, projectileSize: 0.4, trailLength: 45, projectileShape: 'arrow',
+        homing: false, spiralPath: false, explodeOnHit: true, explosionSize: 3.0, explosionParticles: 250,
+        shockwave: true, ringWaves: true, sparks: false, coreFlash: true, smoke: true
+      },
+      holyOrb: {
+        mode: 'projectile', presetName: '神聖光球', presetType: '投射物',
+        primaryColor: '#fbbf24', secondaryColor: '#fef3c7', glowColor: '#f59e0b', coreColor: '#ffffff',
+        projectileSpeed: 12, projectileSize: 0.7, trailLength: 60, projectileShape: 'sphere',
+        homing: true, spiralPath: false, explodeOnHit: true, explosionSize: 5.0, explosionParticles: 400,
+        shockwave: true, ringWaves: true, sparks: true, coreFlash: true, smoke: false
+      },
+      plasmaBall: {
+        mode: 'projectile', presetName: '電漿球', presetType: '投射物',
+        primaryColor: '#38bdf8', secondaryColor: '#facc15', glowColor: '#ffffff', coreColor: '#ffffff',
+        projectileSpeed: 10, projectileSize: 0.9, trailLength: 80, projectileShape: 'sphere',
+        homing: false, spiralPath: false, explodeOnHit: true, explosionSize: 6.0, explosionParticles: 500,
+        shockwave: true, ringWaves: true, sparks: true, coreFlash: true, smoke: true
+      },
+      // Lightning
+      lightningBolt: {
+        mode: 'lightning', presetName: '閃電束', presetType: '閃電',
+        primaryColor: '#facc15', secondaryColor: '#fef08a', glowColor: '#ffffff', coreColor: '#ffffff',
+        branchCount: 5, jitterAmount: 0.8, flickerRate: 18, lightningType: 'bolt', continuous: true
+      },
+      chainLightning: {
+        mode: 'lightning', presetName: '連鎖閃電', presetType: '閃電',
+        primaryColor: '#38bdf8', secondaryColor: '#facc15', glowColor: '#ffffff', coreColor: '#ffffff',
+        branchCount: 8, jitterAmount: 1.2, flickerRate: 20, lightningType: 'chain', continuous: false
+      },
+      thunderStrike: {
+        mode: 'lightning', presetName: '雷擊', presetType: '閃電',
+        primaryColor: '#facc15', secondaryColor: '#ffffff', glowColor: '#facc15', coreColor: '#ffffff',
+        branchCount: 6, jitterAmount: 1.5, flickerRate: 25, lightningType: 'strike', continuous: false
+      },
+      electricField: {
+        mode: 'lightning', presetName: '電場', presetType: '閃電',
+        primaryColor: '#38bdf8', secondaryColor: '#a5f3fc', glowColor: '#ffffff', coreColor: '#ffffff',
+        branchCount: 12, jitterAmount: 0.5, flickerRate: 30, lightningType: 'field', continuous: true
+      }
+    };
+
+    const motionTypes = {
+      'outward': 0, 'inward': 1, 'spiral': 2, 'rise': 3,
+      'vortex': 4, 'explosion': 5, 'orbit': 6, 'tornado': 7
+    };
+
+    // ============================================
+    // Three.js Variables
+    // ============================================
+    let canvas, container, scene, camera, renderer, controls, clock;
+    let particleSystem = null;
+    let coreGlowMesh = null;
+    let outerGlowMesh = null;
+    let projectiles = [];
+    let explosions = [];
+    let lightningBolts = [];
+    let targetPosition = new THREE.Vector3(0, 0, 0);
+    let isPaused = false;
+    let frameCount = 0;
+    let lastTime = 0;
+
+    // ============================================
+    // Lightning Generator
+    // ============================================
+    class LightningBolt {
+      constructor(start, end, config) {
+        this.start = start.clone();
+        this.end = end.clone();
+        this.config = config;
+        this.group = new THREE.Group();
+        this.time = 0;
+        this.lifetime = 0.2 + Math.random() * 0.15;
+        
+        this.generateBolt();
+        scene.add(this.group);
+      }
+
+      generateBolt() {
+        this.group.children.forEach(child => {
+          if (child.geometry) child.geometry.dispose();
+          if (child.material) child.material.dispose();
+        });
+        this.group.clear();
+
+        const mainPoints = this.generateJaggedLine(this.start, this.end, this.config.jitterAmount, 10);
+        
+        // Multiple layers for glow effect
+        this.createBoltLine(mainPoints, 0.08, new THREE.Color(this.config.primaryColor), 1);
+        this.createBoltLine(mainPoints, 0.15, new THREE.Color(this.config.glowColor), 0.6);
+        this.createBoltLine(mainPoints, 0.3, new THREE.Color(this.config.coreColor), 0.25);
+
+        // Branches
+        for (let i = 0; i < this.config.branchCount; i++) {
+          const t = 0.15 + Math.random() * 0.7;
+          const idx = Math.floor(mainPoints.length * t);
+          if (idx >= mainPoints.length) continue;
+          
+          const branchStart = mainPoints[idx];
+          const branchEnd = branchStart.clone().add(
+            new THREE.Vector3(
+              (Math.random() - 0.5) * 2.5,
+              (Math.random() - 0.5) * 2.5,
+              (Math.random() - 0.5) * 2.5
+            )
+          );
+          
+          const branchPoints = this.generateJaggedLine(branchStart, branchEnd, this.config.jitterAmount * 0.5, 5);
+          this.createBoltLine(branchPoints, 0.04, new THREE.Color(this.config.secondaryColor), 0.7);
+          this.createBoltLine(branchPoints, 0.1, new THREE.Color(this.config.glowColor), 0.3);
+        }
+
+        this.createImpactGlow(this.end);
+      }
+
+      generateJaggedLine(start, end, jitter, segments) {
+        const points = [];
+        const direction = end.clone().sub(start);
+        const length = direction.length();
+        direction.normalize();
+
+        points.push(start.clone());
+        
+        for (let i = 1; i < segments; i++) {
+          const t = i / segments;
+          const point = start.clone().add(direction.clone().multiplyScalar(length * t));
+          
+          const perpendicular = new THREE.Vector3(
+            Math.random() - 0.5,
+            Math.random() - 0.5,
+            Math.random() - 0.5
+          ).cross(direction).normalize();
+          
+          point.add(perpendicular.multiplyScalar((Math.random() - 0.5) * jitter * length * 0.25));
+          points.push(point);
+        }
+        
+        points.push(end.clone());
+        return points;
+      }
+
+      createBoltLine(points, width, color, opacity) {
+        if (points.length < 2) return;
+        const curve = new THREE.CatmullRomCurve3(points);
+        const geometry = new THREE.TubeGeometry(curve, points.length * 2, Math.max(0.01, width), 5, false);
+        
+        const material = new THREE.MeshBasicMaterial({
+          color: color,
+          transparent: true,
+          opacity: Math.max(0, Math.min(1, opacity)),
+          blending: THREE.AdditiveBlending
+        });
+        
+        this.group.add(new THREE.Mesh(geometry, material));
+      }
+
+      createImpactGlow(position) {
+        const geometry = new THREE.SphereGeometry(0.4, 12, 12);
+        const material = new THREE.MeshBasicMaterial({
+          color: new THREE.Color(this.config.primaryColor),
+          transparent: true,
+          opacity: 0.9,
+          blending: THREE.AdditiveBlending
+        });
+        
+        const glow = new THREE.Mesh(geometry, material);
+        glow.position.copy(position);
+        this.group.add(glow);
+      }
+
+      update(delta) {
+        this.time += delta;
+        
+        if (Math.random() < this.config.flickerRate / 60) {
+          this.generateBolt();
+        }
+        
+        const fadeProgress = this.time / this.lifetime;
+        this.group.children.forEach(child => {
+          if (child.material) {
+            child.material.opacity *= (1 - fadeProgress * 0.15);
+          }
+        });
+        
+        return this.time < this.lifetime;
+      }
+
+      dispose() {
+        this.group.children.forEach(child => {
+          if (child.geometry) child.geometry.dispose();
+          if (child.material) child.material.dispose();
+        });
+        scene.remove(this.group);
+      }
+    }
+
+    // ============================================
+    // Projectile Class with Different Shapes
+    // ============================================
+    class Projectile {
+      constructor(start, end, config) {
+        this.position = start.clone();
+        this.target = end.clone();
+        this.config = config;
+        this.velocity = new THREE.Vector3();
+        this.direction = new THREE.Vector3();
+        this.group = new THREE.Group();
+        this.trail = [];
+        this.time = 0;
+        this.alive = true;
+        
+        this.createProjectile();
+        this.calculateVelocity();
+        scene.add(this.group);
+      }
+
+      createProjectile() {
+        const size = Math.max(0.1, this.config.projectileSize);
+        
+        // Create shape based on type
+        switch(this.config.projectileShape) {
+          case 'arrow':
+            this.createArrowShape(size);
+            break;
+          case 'disk':
+            this.createDiskShape(size);
+            break;
+          case 'beam':
+            this.createBeamShape(size);
+            break;
+          case 'crystal':
+            this.createCrystalShape(size);
+            break;
+          default:
+            this.createSphereShape(size);
+        }
+        
+        // Create trail
+        this.createTrail();
+        
+        this.group.position.copy(this.position);
+      }
+
+      createSphereShape(size) {
+        // Core
+        const coreGeo = new THREE.SphereGeometry(size * 0.5, 16, 16);
+        const coreMat = new THREE.MeshBasicMaterial({
+          color: new THREE.Color(this.config.coreColor),
+          transparent: true,
+          opacity: 1
+        });
+        this.core = new THREE.Mesh(coreGeo, coreMat);
+        this.group.add(this.core);
+
+        // Inner glow
+        const innerGeo = new THREE.SphereGeometry(size * 0.8, 16, 16);
+        const innerMat = new THREE.MeshBasicMaterial({
+          color: new THREE.Color(this.config.primaryColor),
+          transparent: true,
+          opacity: 0.7,
+          blending: THREE.AdditiveBlending
+        });
+        this.innerGlow = new THREE.Mesh(innerGeo, innerMat);
+        this.group.add(this.innerGlow);
+
+        // Outer glow
+        const outerGeo = new THREE.SphereGeometry(size * 1.5, 16, 16);
+        const outerMat = new THREE.MeshBasicMaterial({
+          color: new THREE.Color(this.config.glowColor),
+          transparent: true,
+          opacity: 0.3,
+          blending: THREE.AdditiveBlending
+        });
+        this.outerGlow = new THREE.Mesh(outerGeo, outerMat);
+        this.group.add(this.outerGlow);
+      }
+
+      createArrowShape(size) {
+        // Arrow head (cone)
+        const headGeo = new THREE.ConeGeometry(size * 0.5, size * 1.5, 6);
+        const headMat = new THREE.MeshBasicMaterial({
+          color: new THREE.Color(this.config.coreColor),
+          transparent: true,
+          opacity: 1
+        });
+        this.core = new THREE.Mesh(headGeo, headMat);
+        this.core.rotation.x = Math.PI / 2;
+        this.group.add(this.core);
+
+        // Arrow body glow
+        const bodyGeo = new THREE.CylinderGeometry(size * 0.15, size * 0.3, size * 1.2, 6);
+        const bodyMat = new THREE.MeshBasicMaterial({
+          color: new THREE.Color(this.config.primaryColor),
+          transparent: true,
+          opacity: 0.8,
+          blending: THREE.AdditiveBlending
+        });
+        this.body = new THREE.Mesh(bodyGeo, bodyMat);
+        this.body.rotation.x = Math.PI / 2;
+        this.body.position.z = size * 0.7;
+        this.group.add(this.body);
+
+        // Outer glow
+        const outerGeo = new THREE.ConeGeometry(size * 0.8, size * 2, 6);
+        const outerMat = new THREE.MeshBasicMaterial({
+          color: new THREE.Color(this.config.glowColor),
+          transparent: true,
+          opacity: 0.3,
+          blending: THREE.AdditiveBlending
+        });
+        this.outerGlow = new THREE.Mesh(outerGeo, outerMat);
+        this.outerGlow.rotation.x = Math.PI / 2;
+        this.group.add(this.outerGlow);
+
+        this.innerGlow = this.body;
+      }
+
+      createDiskShape(size) {
+        // Core disk
+        const coreGeo = new THREE.TorusGeometry(size * 0.5, size * 0.15, 8, 16);
+        const coreMat = new THREE.MeshBasicMaterial({
+          color: new THREE.Color(this.config.coreColor),
+          transparent: true,
+          opacity: 1
+        });
+        this.core = new THREE.Mesh(coreGeo, coreMat);
+        this.group.add(this.core);
+
+        // Inner glow
+        const innerGeo = new THREE.TorusGeometry(size * 0.7, size * 0.25, 8, 16);
+        const innerMat = new THREE.MeshBasicMaterial({
+          color: new THREE.Color(this.config.primaryColor),
+          transparent: true,
+          opacity: 0.7,
+          blending: THREE.AdditiveBlending
+        });
+        this.innerGlow = new THREE.Mesh(innerGeo, innerMat);
+        this.group.add(this.innerGlow);
+
+        // Outer glow
+        const outerGeo = new THREE.TorusGeometry(size * 1.2, size * 0.4, 8, 16);
+        const outerMat = new THREE.MeshBasicMaterial({
+          color: new THREE.Color(this.config.glowColor),
+          transparent: true,
+          opacity: 0.3,
+          blending: THREE.AdditiveBlending
+        });
+        this.outerGlow = new THREE.Mesh(outerGeo, outerMat);
+        this.group.add(this.outerGlow);
+
+        // Center sphere
+        const centerGeo = new THREE.SphereGeometry(size * 0.3, 12, 12);
+        const centerMat = new THREE.MeshBasicMaterial({
+          color: new THREE.Color(this.config.coreColor),
+          transparent: true,
+          opacity: 0.9,
+          blending: THREE.AdditiveBlending
+        });
+        this.center = new THREE.Mesh(centerGeo, centerMat);
+        this.group.add(this.center);
+      }
+
+      createBeamShape(size) {
+        // Beam core (elongated cylinder)
+        const coreGeo = new THREE.CylinderGeometry(size * 0.15, size * 0.15, size * 3, 8);
+        const coreMat = new THREE.MeshBasicMaterial({
+          color: new THREE.Color(this.config.coreColor),
+          transparent: true,
+          opacity: 1
+        });
+        this.core = new THREE.Mesh(coreGeo, coreMat);
+        this.core.rotation.x = Math.PI / 2;
+        this.group.add(this.core);
+
+        // Inner beam
+        const innerGeo = new THREE.CylinderGeometry(size * 0.3, size * 0.3, size * 3, 8);
+        const innerMat = new THREE.MeshBasicMaterial({
+          color: new THREE.Color(this.config.primaryColor),
+          transparent: true,
+          opacity: 0.6,
+          blending: THREE.AdditiveBlending
+        });
+        this.innerGlow = new THREE.Mesh(innerGeo, innerMat);
+        this.innerGlow.rotation.x = Math.PI / 2;
+        this.group.add(this.innerGlow);
+
+        // Outer beam
+        const outerGeo = new THREE.CylinderGeometry(size * 0.6, size * 0.6, size * 3, 8);
+        const outerMat = new THREE.MeshBasicMaterial({
+          color: new THREE.Color(this.config.glowColor),
+          transparent: true,
+          opacity: 0.25,
+          blending: THREE.AdditiveBlending
+        });
+        this.outerGlow = new THREE.Mesh(outerGeo, outerMat);
+        this.outerGlow.rotation.x = Math.PI / 2;
+        this.group.add(this.outerGlow);
+
+        // Front tip
+        const tipGeo = new THREE.SphereGeometry(size * 0.4, 12, 12);
+        const tipMat = new THREE.MeshBasicMaterial({
+          color: new THREE.Color(this.config.coreColor),
+          transparent: true,
+          opacity: 1,
+          blending: THREE.AdditiveBlending
+        });
+        this.tip = new THREE.Mesh(tipGeo, tipMat);
+        this.tip.position.z = -size * 1.5;
+        this.group.add(this.tip);
+      }
+
+      createCrystalShape(size) {
+        // Crystal core (octahedron)
+        const coreGeo = new THREE.OctahedronGeometry(size * 0.6, 0);
+        const coreMat = new THREE.MeshBasicMaterial({
+          color: new THREE.Color(this.config.coreColor),
+          transparent: true,
+          opacity: 1
+        });
+        this.core = new THREE.Mesh(coreGeo, coreMat);
+        this.group.add(this.core);
+
+        // Inner crystal
+        const innerGeo = new THREE.OctahedronGeometry(size * 0.9, 0);
+        const innerMat = new THREE.MeshBasicMaterial({
+          color: new THREE.Color(this.config.primaryColor),
+          transparent: true,
+          opacity: 0.6,
+          blending: THREE.AdditiveBlending
+        });
+        this.innerGlow = new THREE.Mesh(innerGeo, innerMat);
+        this.group.add(this.innerGlow);
+
+        // Outer glow
+        const outerGeo = new THREE.OctahedronGeometry(size * 1.4, 0);
+        const outerMat = new THREE.MeshBasicMaterial({
+          color: new THREE.Color(this.config.glowColor),
+          transparent: true,
+          opacity: 0.25,
+          blending: THREE.AdditiveBlending
+        });
+        this.outerGlow = new THREE.Mesh(outerGeo, outerMat);
+        this.group.add(this.outerGlow);
+      }
+
+      createTrail() {
+        const trailGeo = new THREE.BufferGeometry();
+        const positions = new Float32Array(this.config.trailLength * 3);
+        const colors = new Float32Array(this.config.trailLength * 3);
+        const sizes = new Float32Array(this.config.trailLength);
+        
+        trailGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        trailGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+        trailGeo.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+        
+        const trailMat = new THREE.ShaderMaterial({
+          uniforms: {
+            uPixelRatio: { value: Math.min(window.devicePixelRatio, 2) }
+          },
+          vertexShader: `
+            attribute float size;
+            attribute vec3 color;
+            varying vec3 vColor;
+            uniform float uPixelRatio;
+            
+            void main() {
+              vColor = color;
+              vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+              gl_Position = projectionMatrix * mvPosition;
+              gl_PointSize = size * uPixelRatio * (200.0 / -mvPosition.z);
+            }
+          `,
+          fragmentShader: `
+            varying vec3 vColor;
+            
+            void main() {
+              vec2 center = gl_PointCoord - vec2(0.5);
+              float dist = length(center);
+              if(dist > 0.5) discard;
+              
+              float alpha = (1.0 - dist * 2.0) * 0.8;
+              gl_FragColor = vec4(vColor, alpha);
+            }
+          `,
+          transparent: true,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false
+        });
+        
+        this.trailPoints = new THREE.Points(trailGeo, trailMat);
+        scene.add(this.trailPoints);
+      }
+
+      calculateVelocity() {
+        this.direction = this.target.clone().sub(this.position).normalize();
+        this.velocity = this.direction.clone().multiplyScalar(this.config.projectileSpeed);
+      }
+
+      update(delta) {
+        if (!this.alive) return false;
+
+        this.time += delta;
+
+        // Homing behavior
+        if (this.config.homing) {
+          const toTarget = this.target.clone().sub(this.position).normalize();
+          this.direction.lerp(toTarget, delta * 4);
+          this.velocity = this.direction.clone().multiplyScalar(this.config.projectileSpeed);
+        }
+
+        // Spiral path
+        if (this.config.spiralPath) {
+          const spiralOffset = new THREE.Vector3(
+            Math.sin(this.time * 8) * 0.3,
+            Math.cos(this.time * 8) * 0.3,
+            0
+          );
+          spiralOffset.applyQuaternion(this.group.quaternion);
+          this.position.add(spiralOffset.multiplyScalar(delta));
+        }
+
+        // Move
+        this.position.add(this.velocity.clone().multiplyScalar(delta));
+        this.group.position.copy(this.position);
+
+        // Rotate to face direction
+        if (this.config.projectileShape === 'arrow' || this.config.projectileShape === 'beam') {
+          const lookTarget = this.position.clone().add(this.direction);
+          this.group.lookAt(lookTarget);
+        } else {
+          this.group.rotation.y += delta * 2;
+          this.group.rotation.x += delta * 1.5;
+        }
+
+        // Update trail
+        this.trail.unshift(this.position.clone());
+        if (this.trail.length > this.config.trailLength) {
+          this.trail.pop();
+        }
+        this.updateTrailGeometry();
+
+        // Pulse effect
+        if (this.innerGlow) {
+          const pulse = 1 + Math.sin(this.time * 12) * 0.15;
+          this.innerGlow.scale.setScalar(pulse);
+        }
+
+        // Check arrival
+        const dist = this.position.distanceTo(this.target);
+        if (dist < 0.8) {
+          if (this.config.explodeOnHit) {
+            createExplosion(this.position, this.config);
+          }
+          this.dispose();
+          return false;
+        }
+
+        // Max lifetime
+        if (this.time > 8) {
+          this.dispose();
+          return false;
+        }
+
+        return true;
+      }
+
+      updateTrailGeometry() {
+        if (!this.trailPoints) return;
+        
+        const positions = this.trailPoints.geometry.attributes.position.array;
+        const colors = this.trailPoints.geometry.attributes.color.array;
+        const sizes = this.trailPoints.geometry.attributes.size.array;
+        
+        const primary = new THREE.Color(this.config.primaryColor);
+        const secondary = new THREE.Color(this.config.secondaryColor);
+        
+        for (let i = 0; i < this.config.trailLength; i++) {
+          if (i < this.trail.length) {
+            positions[i * 3] = this.trail[i].x;
+            positions[i * 3 + 1] = this.trail[i].y;
+            positions[i * 3 + 2] = this.trail[i].z;
+            
+            const t = i / this.trail.length;
+            const color = primary.clone().lerp(secondary, t);
+            colors[i * 3] = color.r;
+            colors[i * 3 + 1] = color.g;
+            colors[i * 3 + 2] = color.b;
+            
+            sizes[i] = this.config.projectileSize * 2 * (1 - t);
+          } else {
+            positions[i * 3] = this.position.x;
+            positions[i * 3 + 1] = this.position.y;
+            positions[i * 3 + 2] = this.position.z;
+            sizes[i] = 0;
+          }
+        }
+        
+        this.trailPoints.geometry.attributes.position.needsUpdate = true;
+        this.trailPoints.geometry.attributes.color.needsUpdate = true;
+        this.trailPoints.geometry.attributes.size.needsUpdate = true;
+      }
+
+      dispose() {
+        this.alive = false;
+        this.group.children.forEach(child => {
+          if (child.geometry) child.geometry.dispose();
+          if (child.material) child.material.dispose();
+        });
+        scene.remove(this.group);
+        
+        if (this.trailPoints) {
+          this.trailPoints.geometry.dispose();
+          this.trailPoints.material.dispose();
+          scene.remove(this.trailPoints);
+        }
+      }
+    }
+
+    // ============================================
+    // Explosion System
+    // ============================================
+    function createExplosion(position, config) {
+      const explosion = {
+        position: position.clone(),
+        time: 0,
+        lifetime: 1.5,
+        elements: []
+      };
+
+      const size = Math.max(0.5, config.explosionSize);
+      const count = Math.max(10, config.explosionParticles);
+
+      // Main particle burst
+      if (count > 0) {
+        const burstGeo = new THREE.BufferGeometry();
+        const burstPositions = new Float32Array(count * 3);
+        const burstColors = new Float32Array(count * 3);
+        const burstSizes = new Float32Array(count);
+        const velocities = [];
+        
+        const primary = new THREE.Color(config.primaryColor);
+        const secondary = new THREE.Color(config.secondaryColor);
+        
+        for (let i = 0; i < count; i++) {
+          burstPositions[i * 3] = position.x;
+          burstPositions[i * 3 + 1] = position.y;
+          burstPositions[i * 3 + 2] = position.z;
+          
+          const theta = Math.random() * Math.PI * 2;
+          const phi = Math.acos(2 * Math.random() - 1);
+          const speed = 3 + Math.random() * 8;
+          
+          velocities.push(new THREE.Vector3(
+            Math.sin(phi) * Math.cos(theta) * speed,
+            Math.sin(phi) * Math.sin(theta) * speed,
+            Math.cos(phi) * speed
+          ));
+          
+          const t = Math.random();
+          const color = primary.clone().lerp(secondary, t);
+          burstColors[i * 3] = color.r;
+          burstColors[i * 3 + 1] = color.g;
+          burstColors[i * 3 + 2] = color.b;
+          
+          burstSizes[i] = size * (0.5 + Math.random() * 1.5);
+        }
+        
+        burstGeo.setAttribute('position', new THREE.BufferAttribute(burstPositions, 3));
+        burstGeo.setAttribute('color', new THREE.BufferAttribute(burstColors, 3));
+        burstGeo.setAttribute('size', new THREE.BufferAttribute(burstSizes, 1));
+        
+        const burstMat = new THREE.ShaderMaterial({
+          uniforms: {
+            uPixelRatio: { value: Math.min(window.devicePixelRatio, 2) },
+            uOpacity: { value: 1.0 }
+          },
+          vertexShader: `
+            attribute float size;
+            attribute vec3 color;
+            varying vec3 vColor;
+            uniform float uPixelRatio;
+            
+            void main() {
+              vColor = color;
+              vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+              gl_Position = projectionMatrix * mvPosition;
+              gl_PointSize = size * uPixelRatio * (150.0 / -mvPosition.z);
+            }
+          `,
+          fragmentShader: `
+            varying vec3 vColor;
+            uniform float uOpacity;
+            
+            void main() {
+              vec2 center = gl_PointCoord - vec2(0.5);
+              float dist = length(center);
+              if(dist > 0.5) discard;
+              
+              float alpha = (1.0 - smoothstep(0.0, 0.5, dist)) * uOpacity;
+              float core = 1.0 - smoothstep(0.0, 0.2, dist);
+              vec3 color = vColor + vec3(core * 0.5);
+              
+              gl_FragColor = vec4(color, alpha);
+            }
+          `,
+          transparent: true,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false
+        });
+        
+        const burstPoints = new THREE.Points(burstGeo, burstMat);
+        scene.add(burstPoints);
+        
+        explosion.elements.push({
+          type: 'burst',
+          points: burstPoints,
+          velocities: velocities
+        });
+      }
+
+      // Shockwave ring
+      if (config.shockwave) {
+        const ringGeo = new THREE.RingGeometry(0.1, 0.3, 32);
+        const ringMat = new THREE.MeshBasicMaterial({
+          color: new THREE.Color(config.primaryColor),
+          transparent: true,
+          opacity: 0.9,
+          side: THREE.DoubleSide,
+          blending: THREE.AdditiveBlending
+        });
+        const ring = new THREE.Mesh(ringGeo, ringMat);
+        ring.position.copy(position);
+        ring.rotation.x = -Math.PI / 2;
+        scene.add(ring);
+        
+        explosion.elements.push({
+          type: 'shockwave',
+          mesh: ring,
+          startSize: 0.3,
+          maxSize: size * 4
+        });
+
+        // Second shockwave
+        const ring2Geo = new THREE.RingGeometry(0.1, 0.2, 32);
+        const ring2Mat = new THREE.MeshBasicMaterial({
+          color: new THREE.Color(config.glowColor),
+          transparent: true,
+          opacity: 0.6,
+          side: THREE.DoubleSide,
+          blending: THREE.AdditiveBlending
+        });
+        const ring2 = new THREE.Mesh(ring2Geo, ring2Mat);
+        ring2.position.copy(position);
+        ring2.rotation.x = -Math.PI / 2;
+        scene.add(ring2);
+        
+        explosion.elements.push({
+          type: 'shockwave',
+          mesh: ring2,
+          startSize: 0.2,
+          maxSize: size * 6,
+          delay: 0.05
+        });
+      }
+
+      // Ring waves
+      if (config.ringWaves) {
+        for (let i = 0; i < 3; i++) {
+          const waveGeo = new THREE.RingGeometry(0.1, 0.15, 32);
+          const waveMat = new THREE.MeshBasicMaterial({
+            color: new THREE.Color(i === 0 ? config.primaryColor : config.glowColor),
+            transparent: true,
+            opacity: 0.5,
+            side: THREE.DoubleSide,
+            blending: THREE.AdditiveBlending
+          });
+          const wave = new THREE.Mesh(waveGeo, waveMat);
+          wave.position.copy(position);
+          wave.position.y += 0.1 * i;
+          wave.rotation.x = -Math.PI / 2;
+          scene.add(wave);
+          
+          explosion.elements.push({
+            type: 'ringWave',
+            mesh: wave,
+            startSize: 0.15,
+            maxSize: size * (3 + i * 1.5),
+            delay: i * 0.1
+          });
+        }
+      }
+
+      // Core flash
+      if (config.coreFlash) {
+        const flashGeo = new THREE.SphereGeometry(size * 0.5, 16, 16);
+        const flashMat = new THREE.MeshBasicMaterial({
+          color: new THREE.Color(config.coreColor),
+          transparent: true,
+          opacity: 1,
+          blending: THREE.AdditiveBlending
+        });
+        const flash = new THREE.Mesh(flashGeo, flashMat);
+        flash.position.copy(position);
+        scene.add(flash);
+        
+        explosion.elements.push({
+          type: 'flash',
+          mesh: flash,
+          maxSize: size * 3
+        });
+      }
+
+      // Sparks
+      if (config.sparks) {
+        const sparkCount = 30;
+        const sparkGeo = new THREE.BufferGeometry();
+        const sparkPositions = new Float32Array(sparkCount * 3);
+        const sparkVelocities = [];
+        
+        for (let i = 0; i < sparkCount; i++) {
+          sparkPositions[i * 3] = position.x;
+          sparkPositions[i * 3 + 1] = position.y;
+          sparkPositions[i * 3 + 2] = position.z;
+          
+          sparkVelocities.push(new THREE.Vector3(
+            (Math.random() - 0.5) * 20,
+            Math.random() * 15 + 5,
+            (Math.random() - 0.5) * 20
+          ));
+        }
+        
+        sparkGeo.setAttribute('position', new THREE.BufferAttribute(sparkPositions, 3));
+        
+        const sparkMat = new THREE.PointsMaterial({
+          color: new THREE.Color(config.secondaryColor),
+          size: size * 0.3,
+          transparent: true,
+          opacity: 1,
+          blending: THREE.AdditiveBlending,
+          sizeAttenuation: true
+        });
+        
+        const sparks = new THREE.Points(sparkGeo, sparkMat);
+        scene.add(sparks);
+        
+        explosion.elements.push({
+          type: 'sparks',
+          points: sparks,
+          velocities: sparkVelocities,
+          gravity: 15
+        });
+      }
+
+      // Smoke
+      if (config.smoke) {
+        const smokeCount = 15;
+        for (let i = 0; i < smokeCount; i++) {
+          const smokeGeo = new THREE.SphereGeometry(size * (0.3 + Math.random() * 0.3), 8, 8);
+          const smokeMat = new THREE.MeshBasicMaterial({
+            color: new THREE.Color(0x333333),
+            transparent: true,
+            opacity: 0.3,
+            blending: THREE.NormalBlending
+          });
+          const smoke = new THREE.Mesh(smokeGeo, smokeMat);
+          smoke.position.copy(position);
+          scene.add(smoke);
+          
+          explosion.elements.push({
+            type: 'smoke',
+            mesh: smoke,
+            velocity: new THREE.Vector3(
+              (Math.random() - 0.5) * 2,
+              1 + Math.random() * 2,
+              (Math.random() - 0.5) * 2
+            ),
+            delay: i * 0.03
+          });
+        }
+      }
+
+      explosions.push(explosion);
+    }
+
+    function updateExplosions(delta) {
+      for (let i = explosions.length - 1; i >= 0; i--) {
+        const exp = explosions[i];
+        exp.time += delta;
+        
+        const progress = exp.time / exp.lifetime;
+        
+        exp.elements.forEach(el => {
+          if (el.delay && exp.time < el.delay) return;
+          
+          const localTime = el.delay ? exp.time - el.delay : exp.time;
+          const localProgress = localTime / (exp.lifetime - (el.delay || 0));
+          
+          switch(el.type) {
+            case 'burst':
+              const positions = el.points.geometry.attributes.position.array;
+              for (let j = 0; j < el.velocities.length; j++) {
+                positions[j * 3] += el.velocities[j].x * delta;
+                positions[j * 3 + 1] += el.velocities[j].y * delta;
+                positions[j * 3 + 2] += el.velocities[j].z * delta;
+                el.velocities[j].multiplyScalar(0.97);
+              }
+              el.points.geometry.attributes.position.needsUpdate = true;
+              el.points.material.uniforms.uOpacity.value = Math.max(0, 1 - localProgress);
+              break;
+              
+            case 'shockwave':
+              const shockScale = el.startSize + (el.maxSize - el.startSize) * Math.min(1, localProgress * 2);
+              el.mesh.scale.setScalar(shockScale);
+              el.mesh.material.opacity = Math.max(0, 0.9 * (1 - localProgress * 1.5));
+              break;
+              
+            case 'ringWave':
+              const waveScale = el.startSize + (el.maxSize - el.startSize) * Math.min(1, localProgress * 1.5);
+              el.mesh.scale.setScalar(waveScale);
+              el.mesh.material.opacity = Math.max(0, 0.5 * (1 - localProgress));
+              el.mesh.position.y = exp.position.y + localProgress * 0.5;
+              break;
+              
+            case 'flash':
+              const flashScale = 1 + localProgress * 10;
+              el.mesh.scale.setScalar(Math.max(0.01, flashScale * (1 - localProgress)));
+              el.mesh.material.opacity = Math.max(0, 1 - localProgress * 2);
+              break;
+              
+            case 'sparks':
+              const sparkPos = el.points.geometry.attributes.position.array;
+              for (let j = 0; j < el.velocities.length; j++) {
+                sparkPos[j * 3] += el.velocities[j].x * delta;
+                sparkPos[j * 3 + 1] += el.velocities[j].y * delta;
+                sparkPos[j * 3 + 2] += el.velocities[j].z * delta;
+                el.velocities[j].y -= el.gravity * delta;
+              }
+              el.points.geometry.attributes.position.needsUpdate = true;
+              el.points.material.opacity = Math.max(0, 1 - localProgress);
+              break;
+              
+            case 'smoke':
+              el.mesh.position.add(el.velocity.clone().multiplyScalar(delta));
+              el.mesh.scale.multiplyScalar(1 + delta * 0.8);
+              el.mesh.material.opacity = Math.max(0, 0.3 * (1 - localProgress * 1.5));
+              break;
+          }
+        });
+        
+        if (progress >= 1) {
+          exp.elements.forEach(el => {
+            if (el.points) {
+              el.points.geometry.dispose();
+              el.points.material.dispose();
+              scene.remove(el.points);
+            }
+            if (el.mesh) {
+              el.mesh.geometry.dispose();
+              el.mesh.material.dispose();
+              scene.remove(el.mesh);
+            }
+          });
+          explosions.splice(i, 1);
+        }
+      }
+    }
+
+    // ============================================
+    // Initialize
+    // ============================================
+    function init() {
+      canvas = document.getElementById('spellCanvas');
+      container = document.getElementById('canvas-container');
+      clock = new THREE.Clock();
+      lastTime = performance.now();
+
+      initThree();
+      createParticleSystem();
+      setupEventListeners();
+      animate();
+    }
+
+    function initThree() {
+      scene = new THREE.Scene();
+      scene.fog = new THREE.FogExp2(0x050508, 0.02);
+
+      const aspect = container.clientWidth / container.clientHeight;
+      camera = new THREE.PerspectiveCamera(60, aspect, 0.1, 1000);
+      camera.position.set(0, 6, 14);
+
+      renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+      controls = new OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.05;
+      controls.minDistance = 4;
+      controls.maxDistance = 35;
+      controls.autoRotate = true;
+      controls.autoRotateSpeed = 0.2;
+
+      // Grid
+      const gridHelper = new THREE.GridHelper(50, 100, 0x101018, 0x101018);
+      gridHelper.position.y = -2;
+      scene.add(gridHelper);
+
+      // Target marker
+      const targetGeo = new THREE.RingGeometry(0.4, 0.5, 32);
+      const targetMat = new THREE.MeshBasicMaterial({
+        color: 0xff6b35,
+        transparent: true,
+        opacity: 0.4,
+        side: THREE.DoubleSide
+      });
+      window.targetMarker = new THREE.Mesh(targetGeo, targetMat);
+      targetMarker.rotation.x = -Math.PI / 2;
+      targetMarker.position.set(0, -1.9, 0);
+      scene.add(targetMarker);
+    }
+
+    // ============================================
+    // Particle System (Area Mode)
+    // ============================================
+    function createParticleSystem() {
+      if (particleSystem) {
+        scene.remove(particleSystem);
+        particleSystem.geometry.dispose();
+        particleSystem.material.dispose();
+      }
+      if (coreGlowMesh) {
+        scene.remove(coreGlowMesh);
+        coreGlowMesh.geometry.dispose();
+        coreGlowMesh.material.dispose();
+        coreGlowMesh = null;
+      }
+      if (outerGlowMesh) {
+        scene.remove(outerGlowMesh);
+        outerGlowMesh.geometry.dispose();
+        outerGlowMesh.material.dispose();
+        outerGlowMesh = null;
+      }
+
+      if (state.mode !== 'area') {
+        document.getElementById('particleCount').textContent = 0;
+        return;
+      }
+
+      const count = Math.max(10, Math.floor(state.particleAmount));
+      const positions = new Float32Array(count * 3);
+      const colors = new Float32Array(count * 3);
+      const sizes = new Float32Array(count);
+      const randoms = new Float32Array(count * 4);
+
+      const primary = new THREE.Color(state.primaryColor);
+      const secondary = new THREE.Color(state.secondaryColor);
+
+      for (let i = 0; i < count; i++) {
+        const i3 = i * 3;
+        const i4 = i * 4;
+
+        randoms[i4] = Math.random();
+        randoms[i4 + 1] = Math.random();
+        randoms[i4 + 2] = Math.random();
+        randoms[i4 + 3] = Math.random() * Math.PI * 2;
+
+        positions[i3] = (Math.random() - 0.5) * 0.1;
+        positions[i3 + 1] = (Math.random() - 0.5) * 0.1;
+        positions[i3 + 2] = (Math.random() - 0.5) * 0.1;
+
+        const t = Math.random();
+        const color = primary.clone().lerp(secondary, t);
+        colors[i3] = color.r;
+        colors[i3 + 1] = color.g;
+        colors[i3 + 2] = color.b;
+
+        sizes[i] = Math.max(0.1, state.particleSize * (0.3 + Math.random() * 0.7));
+      }
+
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      geometry.setAttribute('aColor', new THREE.BufferAttribute(colors, 3));
+      geometry.setAttribute('aSize', new THREE.BufferAttribute(sizes, 1));
+      geometry.setAttribute('aRandom', new THREE.BufferAttribute(randoms, 4));
+
+      const material = new THREE.ShaderMaterial({
+        uniforms: {
+          uTime: { value: 0 },
+          uLifetime: { value: Math.max(0.1, state.lifetime) },
+          uMotionType: { value: motionTypes[state.motionType] || 0 },
+          uSpiralStrength: { value: state.spiralStrength },
+          uTurbulence: { value: Math.max(0, state.turbulence) },
+          uSpreadRadius: { value: Math.max(0.1, state.spreadRadius) },
+          uPixelRatio: { value: Math.min(window.devicePixelRatio, 2) },
+          uCoreColor: { value: new THREE.Color(state.coreColor) },
+          uPulse: { value: state.pulse ? 1.0 : 0.0 },
+          uFlicker: { value: state.flicker ? 1.0 : 0.0 }
+        },
+        vertexShader: `
+          attribute vec3 aColor;
+          attribute float aSize;
+          attribute vec4 aRandom;
+          
+          uniform float uTime;
+          uniform float uLifetime;
+          uniform float uMotionType;
+          uniform float uSpiralStrength;
+          uniform float uTurbulence;
+          uniform float uSpreadRadius;
+          uniform float uPixelRatio;
+          uniform vec3 uCoreColor;
+          uniform float uPulse;
+          uniform float uFlicker;
+          
+          varying vec3 vColor;
+          varying float vAlpha;
+          
+          vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+          vec4 mod289(vec4 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+          vec4 permute(vec4 x) { return mod289(((x*34.0)+1.0)*x); }
+          vec4 taylorInvSqrt(vec4 r) { return 1.79284291400159 - 0.85373472095314 * r; }
+          
+          float snoise(vec3 v) {
+            const vec2 C = vec2(1.0/6.0, 1.0/3.0);
+            const vec4 D = vec4(0.0, 0.5, 1.0, 2.0);
+            vec3 i = floor(v + dot(v, C.yyy));
+            vec3 x0 = v - i + dot(i, C.xxx);
+            vec3 g = step(x0.yzx, x0.xyz);
+            vec3 l = 1.0 - g;
+            vec3 i1 = min(g.xyz, l.zxy);
+            vec3 i2 = max(g.xyz, l.zxy);
+            vec3 x1 = x0 - i1 + C.xxx;
+            vec3 x2 = x0 - i2 + C.yyy;
+            vec3 x3 = x0 - D.yyy;
+            i = mod289(i);
+            vec4 p = permute(permute(permute(i.z + vec4(0.0, i1.z, i2.z, 1.0)) + i.y + vec4(0.0, i1.y, i2.y, 1.0)) + i.x + vec4(0.0, i1.x, i2.x, 1.0));
+            float n_ = 0.142857142857;
+            vec3 ns = n_ * D.wyz - D.xzx;
+            vec4 j = p - 49.0 * floor(p * ns.z * ns.z);
+            vec4 x_ = floor(j * ns.z);
+            vec4 y_ = floor(j - 7.0 * x_);
+            vec4 x = x_ * ns.x + ns.yyyy;
+            vec4 y = y_ * ns.x + ns.yyyy;
+            vec4 h = 1.0 - abs(x) - abs(y);
+            vec4 b0 = vec4(x.xy, y.xy);
+            vec4 b1 = vec4(x.zw, y.zw);
+            vec4 s0 = floor(b0) * 2.0 + 1.0;
+            vec4 s1 = floor(b1) * 2.0 + 1.0;
+            vec4 sh = -step(h, vec4(0.0));
+            vec4 a0 = b0.xzyw + s0.xzyw * sh.xxyy;
+            vec4 a1 = b1.xzyw + s1.xzyw * sh.zzww;
+            vec3 p0 = vec3(a0.xy, h.x);
+            vec3 p1 = vec3(a0.zw, h.y);
+            vec3 p2 = vec3(a1.xy, h.z);
+            vec3 p3 = vec3(a1.zw, h.w);
+            vec4 norm = taylorInvSqrt(vec4(dot(p0,p0), dot(p1,p1), dot(p2,p2), dot(p3,p3)));
+            p0 *= norm.x; p1 *= norm.y; p2 *= norm.z; p3 *= norm.w;
+            vec4 m = max(0.6 - vec4(dot(x0,x0), dot(x1,x1), dot(x2,x2), dot(x3,x3)), 0.0);
+            m = m * m;
+            return 42.0 * dot(m*m, vec4(dot(p0,x0), dot(p1,x1), dot(p2,x2), dot(p3,x3)));
+          }
+          
+          void main() {
+            float cycleTime = max(0.1, uLifetime);
+            float t = mod(uTime + aRandom.x * cycleTime, cycleTime);
+            float progress = t / cycleTime;
+            
+            vec3 pos = position;
+            float radius = uSpreadRadius;
+            float angle = aRandom.w;
+            
+            if(uMotionType < 0.5) {
+              vec3 dir = normalize(vec3(aRandom.x - 0.5, aRandom.y - 0.5, aRandom.z - 0.5) + vec3(0.001));
+              pos = dir * progress * radius;
+            } else if(uMotionType < 1.5) {
+              vec3 dir = normalize(vec3(aRandom.x - 0.5, aRandom.y - 0.5, aRandom.z - 0.5) + vec3(0.001));
+              pos = dir * (1.0 - progress) * radius;
+            } else if(uMotionType < 2.5) {
+              float ang = progress * 6.28318 * 4.0 + angle;
+              float r = progress * radius;
+              pos.x = cos(ang) * r * uSpiralStrength;
+              pos.z = sin(ang) * r * uSpiralStrength;
+              pos.y = progress * radius * 1.2 - radius * 0.6;
+            } else if(uMotionType < 3.5) {
+              pos.y = progress * radius * 2.0;
+              pos.x = sin(angle + progress * 6.28318) * uSpiralStrength * progress;
+              pos.z = cos(angle + progress * 6.28318) * uSpiralStrength * progress;
+            } else if(uMotionType < 4.5) {
+              float ang = progress * 6.28318 * 6.0 + angle;
+              float r = (1.0 - progress * 0.7) * radius;
+              pos.x = cos(ang) * r;
+              pos.z = sin(ang) * r;
+              pos.y = (1.0 - progress) * radius - radius * 0.5;
+            } else if(uMotionType < 5.5) {
+              vec3 dir = normalize(vec3(aRandom.x - 0.5, aRandom.y - 0.5, aRandom.z - 0.5) + vec3(0.001));
+              pos = dir * progress * radius * (1.0 + aRandom.y);
+            } else if(uMotionType < 6.5) {
+              float ang = uTime * 2.0 + angle;
+              float r = 0.5 + aRandom.x * radius * 0.4;
+              pos.x = cos(ang) * r;
+              pos.z = sin(ang) * r;
+              pos.y = sin(progress * 6.28318 + angle) * uSpiralStrength;
+            } else {
+              float ang = progress * 6.28318 * 8.0 + angle;
+              float r = (1.0 - progress * 0.5) * radius * (0.2 + aRandom.y * 0.3);
+              pos.x = cos(ang) * r;
+              pos.z = sin(ang) * r;
+              pos.y = progress * radius * 3.0 - radius;
+            }
+            
+            if(uTurbulence > 0.0) {
+              vec3 noisePos = pos * 0.3 + uTime * 0.2;
+              pos += vec3(snoise(noisePos + vec3(100.0,0.0,0.0)), snoise(noisePos + vec3(0.0,100.0,0.0)), snoise(noisePos + vec3(0.0,0.0,100.0))) * uTurbulence;
+            }
+            
+            vAlpha = sin(progress * 3.14159);
+            if(uPulse > 0.5) vAlpha *= 0.6 + 0.4 * sin(uTime * 5.0);
+            if(uFlicker > 0.5) vAlpha *= 0.5 + 0.5 * step(0.0, snoise(vec3(aRandom.x * 100.0, aRandom.y * 100.0, uTime * 15.0)));
+            
+            vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
+            gl_Position = projectionMatrix * mvPosition;
+            
+            float sizeAtten = 180.0 / max(1.0, -mvPosition.z);
+            gl_PointSize = max(1.0, aSize * uPixelRatio * sizeAtten * (1.0 - progress * 0.3));
+            
+            vColor = mix(aColor, uCoreColor, progress * 0.4);
+          }
+        `,
+        fragmentShader: `
+          varying vec3 vColor;
+          varying float vAlpha;
+          
+          void main() {
+            vec2 center = gl_PointCoord - vec2(0.5);
+            float dist = length(center);
+            if(dist > 0.5) discard;
+            
+            float alpha = (1.0 - smoothstep(0.2, 0.5, dist)) * vAlpha;
+            float core = 1.0 - smoothstep(0.0, 0.15, dist);
+            
+            vec3 color = vColor + core * 0.4;
+            gl_FragColor = vec4(color, alpha);
+          }
+        `,
+        transparent: true,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+      });
+
+      particleSystem = new THREE.Points(geometry, material);
+      scene.add(particleSystem);
+
+      if (state.coreGlow) createCoreGlow();
+      if (state.outerGlow) createOuterGlow();
+
+      document.getElementById('particleCount').textContent = count;
+    }
+
+    function createCoreGlow() {
+      const geometry = new THREE.SphereGeometry(0.25, 16, 16);
+      const material = new THREE.MeshBasicMaterial({
+        color: new THREE.Color(state.coreColor),
+        transparent: true,
+        opacity: 0.9,
+        blending: THREE.AdditiveBlending
+      });
+      coreGlowMesh = new THREE.Mesh(geometry, material);
+      scene.add(coreGlowMesh);
+    }
+
+    function createOuterGlow() {
+      const geometry = new THREE.SphereGeometry(1.0, 20, 20);
+      const material = new THREE.ShaderMaterial({
+        uniforms: {
+          uColor: { value: new THREE.Color(state.glowColor) },
+          uIntensity: { value: 0.5 }
+        },
+        vertexShader: `
+          varying vec3 vNormal;
+          void main() {
+            vNormal = normalize(normalMatrix * normal);
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          }
+        `,
+        fragmentShader: `
+          uniform vec3 uColor;
+          uniform float uIntensity;
+          varying vec3 vNormal;
+          void main() {
+            float fresnel = pow(1.0 - abs(dot(vNormal, vec3(0.0, 0.0, 1.0))), 2.5);
+            gl_FragColor = vec4(uColor * fresnel * uIntensity * 2.0, fresnel * uIntensity * 0.4);
+          }
+        `,
+        transparent: true,
+        blending: THREE.AdditiveBlending,
+        side: THREE.BackSide,
+        depthWrite: false
+      });
+      outerGlowMesh = new THREE.Mesh(geometry, material);
+      scene.add(outerGlowMesh);
+    }
+
+    // ============================================
+    // Animation Loop
+    // ============================================
+    function animate() {
+      requestAnimationFrame(animate);
+
+      const delta = Math.min(clock.getDelta(), 0.1);
+      const time = clock.getElapsedTime();
+
+      if (!isPaused) {
+        // Update particles
+        if (particleSystem && particleSystem.material.uniforms) {
+          particleSystem.material.uniforms.uTime.value = time;
+        }
+        if (coreGlowMesh) {
+          coreGlowMesh.scale.setScalar(1 + Math.sin(time * 5) * 0.1);
+        }
+        if (outerGlowMesh) {
+          outerGlowMesh.rotation.y = time * 0.2;
+        }
+
+        // Update projectiles
+        for (let i = projectiles.length - 1; i >= 0; i--) {
+          if (!projectiles[i].update(delta)) {
+            projectiles.splice(i, 1);
+          }
+        }
+
+        // Update explosions
+        updateExplosions(delta);
+
+        // Update lightning
+        for (let i = lightningBolts.length - 1; i >= 0; i--) {
+          if (!lightningBolts[i].update(delta)) {
+            lightningBolts[i].dispose();
+            lightningBolts.splice(i, 1);
+          }
+        }
+
+        // Continuous lightning
+        if (state.mode === 'lightning' && state.continuous && Math.random() < 0.08) {
+          createLightning();
+        }
+
+        // Target marker pulse
+        if (window.targetMarker) {
+          window.targetMarker.scale.setScalar(1 + Math.sin(time * 4) * 0.15);
+          window.targetMarker.material.opacity = 0.3 + Math.sin(time * 6) * 0.15;
+        }
+
+        controls.update();
+      }
+
+      renderer.render(scene, camera);
+
+      frameCount++;
+      const now = performance.now();
+      if (now - lastTime >= 1000) {
+        document.getElementById('fpsCounter').textContent = frameCount;
+        frameCount = 0;
+        lastTime = now;
+      }
+      
+      document.getElementById('projectileCount').textContent = projectiles.length;
+    }
+
+    // ============================================
+    // Create Functions
+    // ============================================
+    function createProjectile(targetPoint) {
+      const start = new THREE.Vector3(
+        (Math.random() - 0.5) * 3,
+        1.5 + Math.random() * 1.5,
+        -7 - Math.random() * 3
+      );
+      
+      const end = targetPoint || targetPosition.clone();
+      end.y = Math.max(-1.5, end.y);
+      
+      const proj = new Projectile(start, end, {
+        primaryColor: state.primaryColor,
+        secondaryColor: state.secondaryColor,
+        glowColor: state.glowColor,
+        coreColor: state.coreColor,
+        projectileSpeed: state.projectileSpeed,
+        projectileSize: state.projectileSize,
+        trailLength: state.trailLength,
+        projectileShape: state.projectileShape,
+        homing: state.homing,
+        spiralPath: state.spiralPath,
+        explodeOnHit: state.explodeOnHit,
+        explosionSize: state.explosionSize,
+        explosionParticles: state.explosionParticles,
+        shockwave: state.shockwave,
+        ringWaves: state.ringWaves,
+        sparks: state.sparks,
+        coreFlash: state.coreFlash,
+        smoke: state.smoke
+      });
+      
+      projectiles.push(proj);
+    }
+
+    function createLightning(targetPoint) {
+      let start, end;
+      
+      switch (state.lightningType) {
+        case 'bolt':
+          start = new THREE.Vector3((Math.random() - 0.5) * 3, 5, (Math.random() - 0.5) * 3);
+          end = targetPoint || new THREE.Vector3((Math.random() - 0.5) * 3, -1, (Math.random() - 0.5) * 3);
+          break;
+        case 'chain':
+          start = new THREE.Vector3(0, 2, -4);
+          end = new THREE.Vector3((Math.random() - 0.5) * 5, 0.5, (Math.random() - 0.5) * 5);
+          break;
+        case 'strike':
+          start = new THREE.Vector3((Math.random() - 0.5) * 2, 8, (Math.random() - 0.5) * 2);
+          end = targetPoint || new THREE.Vector3((Math.random() - 0.5) * 2.5, -1.5, (Math.random() - 0.5) * 2.5);
+          break;
+        case 'field':
+          start = new THREE.Vector3((Math.random() - 0.5) * 5, 2 + Math.random() * 2, (Math.random() - 0.5) * 5);
+          end = new THREE.Vector3(start.x + (Math.random() - 0.5) * 3, -1.5, start.z + (Math.random() - 0.5) * 3);
+          break;
+      }
+      
+      const bolt = new LightningBolt(start, end, {
+        primaryColor: state.primaryColor,
+        secondaryColor: state.secondaryColor,
+        glowColor: state.glowColor,
+        branchCount: state.branchCount,
+        jitterAmount: state.jitterAmount,
+        flickerRate: state.flickerRate
+      });
+      
+      lightningBolts.push(bolt);
+    }
+
+    // ============================================
+    // Event Listeners
+    // ============================================
+    function setupEventListeners() {
+      // Section collapse
+      document.querySelectorAll('.section-header').forEach(header => {
+        header.addEventListener('click', () => {
+          header.classList.toggle('collapsed');
+          header.nextElementSibling.classList.toggle('collapsed');
+        });
+      });
+
+      // Tab buttons
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          
+          const tab = btn.dataset.tab;
+          state.mode = tab;
+          
+          document.getElementById('areaPresets').classList.toggle('hidden', tab !== 'area');
+          document.getElementById('projectilePresets').classList.toggle('hidden', tab !== 'projectile');
+          document.getElementById('lightningPresets').classList.toggle('hidden', tab !== 'lightning');
+          document.getElementById('particleSettings').classList.toggle('hidden', tab !== 'area');
+          document.getElementById('motionSettings').classList.toggle('hidden', tab !== 'area');
+          document.getElementById('projectileSettings').classList.toggle('hidden', tab !== 'projectile');
+          document.getElementById('explosionSettings').classList.toggle('hidden', tab !== 'projectile');
+          document.getElementById('lightningSettings').classList.toggle('hidden', tab !== 'lightning');
+          
+          createParticleSystem();
+        });
+      });
+
+      // Preset buttons
+      document.querySelectorAll('.preset-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          applyPreset(btn.dataset.preset);
+        });
+      });
+
+      // Shape selection
+      document.querySelectorAll('.shape-preview').forEach(shape => {
+        shape.addEventListener('click', () => {
+          document.querySelectorAll('.shape-preview').forEach(s => s.classList.remove('active'));
+          shape.classList.add('active');
+          state.projectileShape = shape.dataset.shape;
+        });
+      });
+
+      // Motion cards
+      document.querySelectorAll('.motion-card').forEach(card => {
+        card.addEventListener('click', () => {
+          document.querySelectorAll('.motion-card').forEach(c => c.classList.remove('active'));
+          card.classList.add('active');
+          state.motionType = card.dataset.motion;
+          if (particleSystem && particleSystem.material.uniforms) {
+            particleSystem.material.uniforms.uMotionType.value = motionTypes[state.motionType] || 0;
+          }
+        });
+      });
+
+      // Toggle switches
+      document.querySelectorAll('.toggle-switch').forEach(toggle => {
+        toggle.addEventListener('click', () => {
+          toggle.classList.toggle('active');
+          const effect = toggle.dataset.effect;
+          state[effect] = toggle.classList.contains('active');
+          
+          if (particleSystem && particleSystem.material.uniforms) {
+            const uniformName = 'u' + effect.charAt(0).toUpperCase() + effect.slice(1);
+            if (particleSystem.material.uniforms[uniformName] !== undefined) {
+              particleSystem.material.uniforms[uniformName].value = state[effect] ? 1.0 : 0.0;
+            }
+          }
+        });
+      });
+
+      // Color pickers
+      ['primaryColor', 'secondaryColor', 'glowColor', 'coreColor'].forEach(id => {
+        const picker = document.getElementById(id);
+        if (picker) {
+          picker.addEventListener('input', (e) => {
+            state[id] = e.target.value;
+            const hexSpan = document.getElementById(`${id}Hex`);
+            if (hexSpan) hexSpan.textContent = e.target.value;
+            createParticleSystem();
+          });
+        }
+      });
+
+      // Sliders
+      const sliders = [
+        { id: 'particleAmount', key: 'particleAmount', rebuild: true },
+        { id: 'particleSize', key: 'particleSize', rebuild: true },
+        { id: 'lifetime', key: 'lifetime', rebuild: false, uniform: 'uLifetime' },
+        { id: 'spreadRadius', key: 'spreadRadius', rebuild: false, uniform: 'uSpreadRadius' },
+        { id: 'spiralStrength', key: 'spiralStrength', rebuild: false, uniform: 'uSpiralStrength' },
+        { id: 'turbulence', key: 'turbulence', rebuild: false, uniform: 'uTurbulence' },
+        { id: 'projectileSpeed', key: 'projectileSpeed' },
+        { id: 'projectileSize', key: 'projectileSize' },
+        { id: 'trailLength', key: 'trailLength' },
+        { id: 'explosionSize', key: 'explosionSize' },
+        { id: 'explosionParticles', key: 'explosionParticles' },
+        { id: 'branchCount', key: 'branchCount' },
+        { id: 'jitterAmount', key: 'jitterAmount' },
+        { id: 'flickerRate', key: 'flickerRate' }
+      ];
+
+      sliders.forEach(config => {
+        const slider = document.getElementById(config.id);
+        if (slider) {
+          slider.addEventListener('input', (e) => {
+            const value = parseFloat(e.target.value);
+            state[config.key] = value;
+            
+            const valueSpan = document.getElementById(`${config.id}Value`);
+            if (valueSpan) {
+              valueSpan.textContent = Number.isInteger(value) ? value : value.toFixed(1);
+            }
+            
+            if (config.rebuild) {
+              createParticleSystem();
+            } else if (particleSystem && particleSystem.material.uniforms && config.uniform) {
+              if (particleSystem.material.uniforms[config.uniform]) {
+                particleSystem.material.uniforms[config.uniform].value = value;
+              }
+            }
+          });
+        }
+      });
+
+      // Selects
+      ['lightningType'].forEach(id => {
+        const select = document.getElementById(id);
+        if (select) {
+          select.addEventListener('change', (e) => {
+            state[id] = e.target.value;
+          });
+        }
+      });
+
+      // Buttons
+      document.getElementById('fireBtn').addEventListener('click', () => {
+        if (state.mode === 'projectile') {
+          createProjectile();
+        } else if (state.mode === 'lightning') {
+          createLightning();
+        }
+      });
+
+      document.getElementById('pauseBtn').addEventListener('click', () => {
+        isPaused = !isPaused;
+        document.getElementById('pauseBtn').textContent = isPaused ? '繼續' : '暫停';
+      });
+
+      document.getElementById('resetBtn').addEventListener('click', () => {
+        projectiles.forEach(p => p.dispose());
+        projectiles = [];
+        
+        lightningBolts.forEach(l => l.dispose());
+        lightningBolts = [];
+        
+        explosions.forEach(e => {
+          e.elements.forEach(el => {
+            if (el.points) { el.points.geometry.dispose(); el.points.material.dispose(); scene.remove(el.points); }
+            if (el.mesh) { el.mesh.geometry.dispose(); el.mesh.material.dispose(); scene.remove(el.mesh); }
+          });
+        });
+        explosions = [];
+        
+        clock = new THREE.Clock();
+        camera.position.set(0, 6, 14);
+        controls.reset();
+        createParticleSystem();
+      });
+
+      document.getElementById('exportBtn').addEventListener('click', () => {
+        document.getElementById('exportContent').textContent = JSON.stringify(state, null, 2);
+        document.getElementById('exportModal').classList.remove('hidden');
+        document.getElementById('exportModal').classList.add('flex');
+      });
+      
+      document.getElementById('closeExport').addEventListener('click', () => {
+        document.getElementById('exportModal').classList.add('hidden');
+      });
+      
+      document.getElementById('copyExport').addEventListener('click', () => {
+        navigator.clipboard.writeText(JSON.stringify(state, null, 2));
+        document.getElementById('copyExport').textContent = '已複製!';
+        setTimeout(() => document.getElementById('copyExport').textContent = '複製', 1500);
+      });
+
+      // Canvas click
+      container.addEventListener('click', (e) => {
+        if (e.target !== canvas) return;
+        
+        const rect = canvas.getBoundingClientRect();
+        const x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+        const y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+        
+        const raycaster = new THREE.Raycaster();
+        raycaster.setFromCamera(new THREE.Vector2(x, y), camera);
+        
+        const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 2);
+        const intersection = new THREE.Vector3();
+        
+        if (raycaster.ray.intersectPlane(plane, intersection)) {
+          targetPosition.copy(intersection);
+          if (window.targetMarker) {
+            window.targetMarker.position.x = intersection.x;
+            window.targetMarker.position.z = intersection.z;
+          }
+          
+          if (state.mode === 'projectile') {
+            createProjectile(intersection);
+          } else if (state.mode === 'lightning') {
+            createLightning(intersection);
+          }
+        }
+      });
+
+      window.addEventListener('resize', () => {
+        if (!container || !camera || !renderer) return;
+        const width = container.clientWidth;
+        const height = container.clientHeight;
+        camera.aspect = width / height;
+        camera.updateProjectionMatrix();
+        renderer.setSize(width, height);
+      });
+    }
+
+    function applyPreset(presetName) {
+      const preset = presets[presetName];
+      if (!preset) return;
+
+      Object.assign(state, preset);
+      
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.tab === state.mode);
+      });
+      
+      document.getElementById('areaPresets').classList.toggle('hidden', state.mode !== 'area');
+      document.getElementById('projectilePresets').classList.toggle('hidden', state.mode !== 'projectile');
+      document.getElementById('lightningPresets').classList.toggle('hidden', state.mode !== 'lightning');
+      document.getElementById('particleSettings').classList.toggle('hidden', state.mode !== 'area');
+      document.getElementById('motionSettings').classList.toggle('hidden', state.mode !== 'area');
+      document.getElementById('projectileSettings').classList.toggle('hidden', state.mode !== 'projectile');
+      document.getElementById('explosionSettings').classList.toggle('hidden', state.mode !== 'projectile');
+      document.getElementById('lightningSettings').classList.toggle('hidden', state.mode !== 'lightning');
+      
+      updateUIFromState();
+      createParticleSystem();
+    }
+
+    function updateUIFromState() {
+      const sliders = ['particleAmount', 'particleSize', 'lifetime', 'spreadRadius', 
+                       'spiralStrength', 'turbulence', 'projectileSpeed', 'projectileSize',
+                       'trailLength', 'explosionSize', 'explosionParticles', 'branchCount', 
+                       'jitterAmount', 'flickerRate'];
+      
+      sliders.forEach(id => {
+        const slider = document.getElementById(id);
+        if (slider && state[id] !== undefined) {
+          slider.value = state[id];
+          const valueSpan = document.getElementById(`${id}Value`);
+          if (valueSpan) {
+            valueSpan.textContent = Number.isInteger(state[id]) ? state[id] : state[id].toFixed(1);
+          }
+        }
+      });
+
+      ['primaryColor', 'secondaryColor', 'glowColor', 'coreColor'].forEach(id => {
+        const picker = document.getElementById(id);
+        const hexSpan = document.getElementById(`${id}Hex`);
+        if (picker && state[id]) {
+          picker.value = state[id];
+          if (hexSpan) hexSpan.textContent = state[id];
+        }
+      });
+
+      const effects = ['coreGlow', 'outerGlow', 'pulse', 'flicker', 'homing', 'spiralPath',
+                       'explodeOnHit', 'shockwave', 'ringWaves', 'sparks', 'coreFlash', 'smoke', 'continuous'];
+      effects.forEach(effect => {
+        const toggle = document.querySelector(`.toggle-switch[data-effect="${effect}"]`);
+        if (toggle) toggle.classList.toggle('active', state[effect]);
+      });
+
+      document.querySelectorAll('.motion-card').forEach(card => {
+        card.classList.toggle('active', card.dataset.motion === state.motionType);
+      });
+
+      document.querySelectorAll('.shape-preview').forEach(shape => {
+        shape.classList.toggle('active', shape.dataset.shape === state.projectileShape);
+      });
+
+      ['lightningType'].forEach(id => {
+        const select = document.getElementById(id);
+        if (select && state[id]) select.value = state[id];
+      });
+
+      document.getElementById('currentSpellName').textContent = state.presetName || '自定義';
+      document.getElementById('currentSpellType').textContent = state.presetType || '自定義';
+    }
+
+    init();
+  </script>
+</body>
+</html>

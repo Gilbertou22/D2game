@@ -1,0 +1,1175 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DIABLO IV - Inventory</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=EB+Garamond:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+        }
+    }
+    </script>
+    <style>
+        :root {
+            --bg-void: #080808;
+            --bg-panel: #12100d;
+            --bg-panel-light: #1a1714;
+            --border-dark: #3d352a;
+            --border-gold: #6b5a3e;
+            --border-bright: #a08050;
+            --text-dim: #6a5d4a;
+            --text-gold: #b8a070;
+            --text-light: #e8dcc8;
+            --legendary: #e07000;
+            --legendary-glow: #ff8800;
+            --rare: #c8b000;
+            --magic: #5080d0;
+            --common: #908080;
+            --health-red: #880000;
+            --mana-blue: #2040a0;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'EB Garamond', serif;
+            background: var(--bg-void);
+            color: var(--text-gold);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        #bg-canvas {
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+        }
+
+        .app {
+            position: relative;
+            z-index: 1;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Header */
+        .header {
+            padding: 16px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border-dark);
+            background: linear-gradient(180deg, rgba(18, 16, 13, 0.95) 0%, transparent 100%);
+        }
+
+        .logo {
+            font-family: 'Cinzel', serif;
+            font-weight: 900;
+            font-size: 20px;
+            letter-spacing: 6px;
+            color: var(--text-light);
+            text-shadow: 0 0 20px rgba(224, 112, 0, 0.3);
+        }
+
+        .header-info {
+            display: flex;
+            gap: 24px;
+            align-items: center;
+        }
+
+        .gold-display {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-family: 'Cinzel', serif;
+            font-size: 14px;
+        }
+
+        .gold-icon {
+            width: 18px;
+            height: 18px;
+            background: radial-gradient(circle at 30% 30%, #ffd040 0%, #b08000 60%, #806000 100%);
+            border-radius: 50%;
+            box-shadow: 0 0 10px rgba(255, 200, 0, 0.4);
+        }
+
+        .gold-amount {
+            color: #e0c040;
+            font-weight: 600;
+        }
+
+        /* Main Layout */
+        .main {
+            flex: 1;
+            display: flex;
+            padding: 20px;
+            gap: 16px;
+            justify-content: center;
+        }
+
+        .panel {
+            background: linear-gradient(180deg, var(--bg-panel) 0%, rgba(8, 8, 8, 0.95) 100%);
+            border: 1px solid var(--border-dark);
+            position: relative;
+        }
+
+        .panel::before {
+            content: '';
+            position: absolute;
+            inset: 3px;
+            border: 1px solid rgba(107, 90, 62, 0.2);
+            pointer-events: none;
+        }
+
+        .panel-header {
+            padding: 10px 16px;
+            border-bottom: 1px solid var(--border-dark);
+            background: linear-gradient(90deg, transparent 0%, rgba(107, 90, 62, 0.1) 50%, transparent 100%);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .panel-title {
+            font-family: 'Cinzel', serif;
+            font-weight: 600;
+            font-size: 12px;
+            letter-spacing: 3px;
+            color: var(--text-gold);
+            text-transform: uppercase;
+        }
+
+        /* Stash Panel */
+        .stash-panel {
+            width: 300px;
+        }
+
+        .stash-tabs {
+            display: flex;
+            border-bottom: 1px solid var(--border-dark);
+        }
+
+        .stash-tab {
+            flex: 1;
+            padding: 10px;
+            font-family: 'Cinzel', serif;
+            font-size: 11px;
+            letter-spacing: 1px;
+            background: transparent;
+            border: none;
+            border-right: 1px solid var(--border-dark);
+            color: var(--text-dim);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .stash-tab:last-child { border-right: none; }
+        .stash-tab:hover { color: var(--text-gold); background: rgba(107, 90, 62, 0.1); }
+        .stash-tab.active { 
+            color: var(--border-bright); 
+            background: linear-gradient(180deg, rgba(107, 90, 62, 0.2) 0%, transparent 100%);
+        }
+
+        .grid-container {
+            padding: 16px;
+        }
+
+        .item-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 3px;
+        }
+
+        .slot {
+            aspect-ratio: 1;
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid var(--border-dark);
+            position: relative;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .slot:hover {
+            border-color: var(--border-gold);
+            background: rgba(50, 40, 25, 0.5);
+        }
+
+        .slot.drag-over {
+            border-color: var(--legendary);
+            box-shadow: inset 0 0 15px rgba(224, 112, 0, 0.3);
+        }
+
+        .slot-item {
+            position: absolute;
+            inset: 3px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .slot-item.legendary {
+            background: linear-gradient(135deg, #602000 0%, #803000 50%, #501800 100%);
+            border: 1px solid var(--legendary);
+            box-shadow: 0 0 12px rgba(224, 112, 0, 0.5), inset 0 0 8px rgba(255, 136, 0, 0.3);
+        }
+
+        .slot-item.rare {
+            background: linear-gradient(135deg, #403800 0%, #584800 50%, #382800 100%);
+            border: 1px solid var(--rare);
+            box-shadow: 0 0 8px rgba(200, 176, 0, 0.4);
+        }
+
+        .slot-item.magic {
+            background: linear-gradient(135deg, #102040 0%, #183060 50%, #0c1830 100%);
+            border: 1px solid var(--magic);
+            box-shadow: 0 0 8px rgba(80, 128, 208, 0.4);
+        }
+
+        .slot-item.common {
+            background: linear-gradient(135deg, #202020 0%, #303030 50%, #181818 100%);
+            border: 1px solid var(--common);
+        }
+
+        .slot-item.gem {
+            border-radius: 50%;
+        }
+
+        .slot-item.gem.ruby {
+            background: radial-gradient(circle at 30% 30%, #ff3030 0%, #a00000 60%, #600000 100%);
+            box-shadow: 0 0 10px rgba(255, 0, 0, 0.5);
+        }
+
+        .slot-item.gem.emerald {
+            background: radial-gradient(circle at 30% 30%, #30ff50 0%, #008020 60%, #004010 100%);
+            box-shadow: 0 0 10px rgba(0, 255, 80, 0.5);
+        }
+
+        .slot-item.gem.sapphire {
+            background: radial-gradient(circle at 30% 30%, #3080ff 0%, #0040a0 60%, #002060 100%);
+            box-shadow: 0 0 10px rgba(48, 128, 255, 0.5);
+        }
+
+        .item-icon {
+            font-size: 16px;
+            color: rgba(255, 255, 255, 0.9);
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+            font-weight: bold;
+        }
+
+        /* Character Panel */
+        .character-panel {
+            width: 280px;
+        }
+
+        .char-info {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border-dark);
+            text-align: center;
+        }
+
+        .char-name {
+            font-family: 'Cinzel', serif;
+            font-weight: 700;
+            font-size: 16px;
+            color: var(--text-light);
+            letter-spacing: 2px;
+        }
+
+        .char-class {
+            font-size: 12px;
+            color: var(--legendary);
+            margin-top: 2px;
+        }
+
+        .char-level {
+            font-size: 11px;
+            color: var(--text-dim);
+            margin-top: 4px;
+        }
+
+        .char-display {
+            height: 340px;
+            position: relative;
+            background: radial-gradient(ellipse at center 30%, rgba(107, 90, 62, 0.08) 0%, transparent 60%);
+        }
+
+        /* Character Silhouette */
+        .char-silhouette {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            width: 100px;
+            height: 200px;
+            opacity: 0.15;
+        }
+
+        .char-silhouette svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Equipment Slots Container */
+        .equip-slots {
+            position: absolute;
+            inset: 0;
+        }
+
+        .equip-slot {
+            position: absolute;
+            width: 48px;
+            height: 48px;
+            background: rgba(0, 0, 0, 0.7);
+            border: 1px solid var(--border-dark);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .equip-slot:hover {
+            border-color: var(--border-bright);
+            transform: scale(1.08);
+            z-index: 10;
+            box-shadow: 0 0 15px rgba(160, 128, 80, 0.4);
+        }
+
+        .equip-slot .slot-item {
+            inset: 3px;
+        }
+
+        /* Equipment Slot Positions - Based on Reference Image */
+        .slot-helm {
+            top: 15px;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+
+        .slot-amulet {
+            top: 15px;
+            right: 15px;
+            width: 40px;
+            height: 40px;
+        }
+
+        .slot-weapon {
+            top: 75px;
+            left: 10px;
+            width: 48px;
+            height: 96px;
+        }
+
+        .slot-offhand {
+            top: 75px;
+            right: 10px;
+            width: 48px;
+            height: 96px;
+        }
+
+        .slot-chest {
+            top: 70px;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+
+        .slot-gloves {
+            top: 150px;
+            left: 10px;
+        }
+
+        .slot-belt {
+            top: 125px;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+
+        .slot-ring1 {
+            top: 205px;
+            left: 20px;
+            width: 40px;
+            height: 40px;
+        }
+
+        .slot-ring2 {
+            top: 205px;
+            right: 20px;
+            width: 40px;
+            height: 40px;
+        }
+
+        .slot-pants {
+            top: 180px;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+
+        .slot-boots {
+            top: 235px;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+
+        .empty-icon {
+            color: var(--text-dim);
+            opacity: 0.3;
+            font-size: 14px;
+        }
+
+        /* Stats Panel */
+        .stats-panel {
+            width: 220px;
+        }
+
+        .bars-section {
+            padding: 12px;
+            border-bottom: 1px solid var(--border-dark);
+        }
+
+        .resource-bar {
+            height: 22px;
+            background: rgba(0, 0, 0, 0.6);
+            border: 1px solid var(--border-dark);
+            margin-bottom: 6px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .resource-bar:last-child { margin-bottom: 0; }
+
+        .bar-fill {
+            height: 100%;
+            transition: width 0.4s ease;
+        }
+
+        .bar-fill.health {
+            background: linear-gradient(90deg, #400000 0%, #800000 50%, #a02020 100%);
+            width: 78%;
+        }
+
+        .bar-fill.mana {
+            background: linear-gradient(90deg, #102060 0%, #2040a0 50%, #3060c0 100%);
+            width: 100%;
+        }
+
+        .bar-text {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Cinzel', serif;
+            font-size: 10px;
+            font-weight: 600;
+            color: #fff;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 1);
+        }
+
+        .stats-section {
+            padding: 12px;
+        }
+
+        .stat-group {
+            margin-bottom: 14px;
+        }
+
+        .stat-group:last-child { margin-bottom: 0; }
+
+        .stat-header {
+            font-family: 'Cinzel', serif;
+            font-size: 10px;
+            letter-spacing: 2px;
+            color: var(--border-bright);
+            margin-bottom: 8px;
+            padding-bottom: 4px;
+            border-bottom: 1px solid rgba(107, 90, 62, 0.3);
+        }
+
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 3px 0;
+            font-size: 13px;
+        }
+
+        .stat-label { color: var(--text-gold); opacity: 0.85; }
+        .stat-value { 
+            font-family: 'Cinzel', serif;
+            font-weight: 600;
+            color: var(--text-light);
+        }
+        .stat-value.highlight { color: var(--legendary-glow); }
+
+        /* Tooltip */
+        .tooltip {
+            position: fixed;
+            background: var(--bg-panel);
+            border: 1px solid var(--border-gold);
+            padding: 14px;
+            min-width: 240px;
+            max-width: 300px;
+            z-index: 1000;
+            pointer-events: none;
+            opacity: 0;
+            transform: translateY(8px);
+            transition: opacity 0.15s, transform 0.15s;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.9), 0 0 20px rgba(107, 90, 62, 0.2);
+        }
+
+        .tooltip.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .tooltip::before {
+            content: '';
+            position: absolute;
+            inset: 2px;
+            border: 1px solid rgba(107, 90, 62, 0.3);
+            pointer-events: none;
+        }
+
+        .tt-name {
+            font-family: 'Cinzel', serif;
+            font-weight: 700;
+            font-size: 15px;
+            margin-bottom: 3px;
+        }
+
+        .tt-name.legendary { color: var(--legendary-glow); }
+        .tt-name.rare { color: var(--rare); }
+        .tt-name.magic { color: var(--magic); }
+
+        .tt-type {
+            font-size: 11px;
+            color: var(--text-dim);
+            margin-bottom: 10px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--border-dark);
+        }
+
+        .tt-stats { font-size: 12px; line-height: 1.7; }
+        .tt-stat { color: var(--text-light); }
+        .tt-stat.bonus { color: #50c080; }
+
+        .tt-affix {
+            color: #c090d0;
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px solid var(--border-dark);
+        }
+
+        .tt-flavor {
+            font-style: italic;
+            color: #605050;
+            font-size: 11px;
+            margin-top: 10px;
+            padding-top: 8px;
+            border-top: 1px solid var(--border-dark);
+        }
+
+        /* Drag Item */
+        .drag-ghost {
+            position: fixed;
+            width: 32px;
+            height: 32px;
+            pointer-events: none;
+            z-index: 2000;
+            opacity: 0;
+            transition: opacity 0.1s;
+        }
+
+        .drag-ghost.visible { opacity: 1; }
+        .drag-ghost.legendary { 
+            background: linear-gradient(135deg, #803000 0%, #a04000 100%);
+            border: 2px solid var(--legendary);
+            box-shadow: 0 0 20px rgba(224, 112, 0, 0.8);
+        }
+        .drag-ghost.rare { 
+            background: linear-gradient(135deg, #584800 0%, #706000 100%);
+            border: 2px solid var(--rare);
+            box-shadow: 0 0 15px rgba(200, 176, 0, 0.6);
+        }
+        .drag-ghost.magic { 
+            background: linear-gradient(135deg, #183060 0%, #2050a0 100%);
+            border: 2px solid var(--magic);
+            box-shadow: 0 0 15px rgba(80, 128, 208, 0.6);
+        }
+
+        /* Animations */
+        @keyframes pulse {
+            0%, 100% { box-shadow: 0 0 12px rgba(224, 112, 0, 0.5), inset 0 0 8px rgba(255, 136, 0, 0.3); }
+            50% { box-shadow: 0 0 22px rgba(224, 112, 0, 0.8), inset 0 0 14px rgba(255, 136, 0, 0.5); }
+        }
+
+        .slot-item.legendary { animation: pulse 2.5s ease-in-out infinite; }
+
+        @keyframes panelIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .panel { animation: panelIn 0.5s ease-out backwards; }
+        .stash-panel { animation-delay: 0.1s; }
+        .character-panel { animation-delay: 0.2s; }
+        .stats-panel { animation-delay: 0.3s; }
+
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                animation-duration: 0.01ms !important;
+                transition-duration: 0.01ms !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <canvas id="bg-canvas"></canvas>
+    
+    <div class="app">
+        <header class="header">
+            <div class="logo">DIABLO IV</div>
+            <div class="header-info">
+                <div class="gold-display">
+                    <div class="gold-icon"></div>
+                    <span class="gold-amount">2,847,650</span>
+                </div>
+            </div>
+        </header>
+
+        <main class="main">
+            <!-- Stash -->
+            <section class="panel stash-panel">
+                <div class="panel-header">
+                    <span class="panel-title">Stash</span>
+                </div>
+                <div class="stash-tabs">
+                    <button class="stash-tab active">Chest 1</button>
+                    <button class="stash-tab">Chest 2</button>
+                    <button class="stash-tab">Chest 3</button>
+                </div>
+                <div class="grid-container">
+                    <div class="item-grid" id="stashGrid"></div>
+                </div>
+            </section>
+
+            <!-- Character -->
+            <section class="panel character-panel">
+                <div class="char-info">
+                    <div class="char-name">JUICYSLICE</div>
+                    <div class="char-class">Lucky Assassin</div>
+                    <div class="char-level">Level 73</div>
+                </div>
+                <div class="char-display">
+                    <div class="char-silhouette">
+                        <svg viewBox="0 0 100 200" fill="none" stroke="currentColor" stroke-width="1">
+                            <!-- Head -->
+                            <ellipse cx="50" cy="22" rx="14" ry="16"/>
+                            <!-- Neck -->
+                            <line x1="44" y1="38" x2="44" y2="48"/>
+                            <line x1="56" y1="38" x2="56" y2="48"/>
+                            <!-- Torso -->
+                            <path d="M30 48 Q30 55 35 70 L35 110 Q35 115 40 120 L60 120 Q65 115 65 110 L65 70 Q70 55 70 48 L56 48 Q50 52 44 48 Z"/>
+                            <!-- Arms -->
+                            <path d="M30 50 Q20 55 15 80 L15 110"/>
+                            <path d="M70 50 Q80 55 85 80 L85 110"/>
+                            <!-- Legs -->
+                            <path d="M40 120 L38 180"/>
+                            <path d="M60 120 L62 180"/>
+                        </svg>
+                    </div>
+                    <div class="equip-slots" id="equipSlots"></div>
+                </div>
+                <div class="grid-container">
+                    <div class="item-grid" id="inventoryGrid" style="grid-template-columns: repeat(5, 1fr);"></div>
+                </div>
+            </section>
+
+            <!-- Stats -->
+            <section class="panel stats-panel">
+                <div class="panel-header">
+                    <span class="panel-title">Character</span>
+                </div>
+                <div class="bars-section">
+                    <div class="resource-bar">
+                        <div class="bar-fill health"></div>
+                        <span class="bar-text">4,280 / 5,483</span>
+                    </div>
+                    <div class="resource-bar">
+                        <div class="bar-fill mana"></div>
+                        <span class="bar-text">120 / 120</span>
+                    </div>
+                </div>
+                <div class="stats-section">
+                    <div class="stat-group">
+                        <div class="stat-header">CORE</div>
+                        <div class="stat-row"><span class="stat-label">Strength</span><span class="stat-value">342</span></div>
+                        <div class="stat-row"><span class="stat-label">Dexterity</span><span class="stat-value highlight">589</span></div>
+                        <div class="stat-row"><span class="stat-label">Intelligence</span><span class="stat-value">276</span></div>
+                        <div class="stat-row"><span class="stat-label">Willpower</span><span class="stat-value">198</span></div>
+                    </div>
+                    <div class="stat-group">
+                        <div class="stat-header">OFFENSE</div>
+                        <div class="stat-row"><span class="stat-label">Attack</span><span class="stat-value highlight">6,583</span></div>
+                        <div class="stat-row"><span class="stat-label">Crit Chance</span><span class="stat-value">34.5%</span></div>
+                        <div class="stat-row"><span class="stat-label">Crit Damage</span><span class="stat-value">+185%</span></div>
+                    </div>
+                    <div class="stat-group">
+                        <div class="stat-header">DEFENSE</div>
+                        <div class="stat-row"><span class="stat-label">Armor</span><span class="stat-value">7,781</span></div>
+                        <div class="stat-row"><span class="stat-label">Fire Res</span><span class="stat-value">42%</span></div>
+                        <div class="stat-row"><span class="stat-label">Shadow Res</span><span class="stat-value">38%</span></div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <div class="tooltip" id="tooltip"></div>
+    <div class="drag-ghost" id="dragGhost"></div>
+
+    <script type="module">
+        import * as THREE from 'three';
+
+        // === DATA ===
+        const ITEMS = {
+            helm_legendary: {
+                name: "Harlequin Crest",
+                type: "Legendary Helm",
+                rarity: "legendary",
+                icon: "H",
+                stats: ["+142 Dexterity", "+18% Critical Strike Chance", "+94 All Stats"],
+                affix: "Gain 20% Damage Reduction",
+                flavor: "\"The jester's crown hides a killer's mind.\""
+            },
+            weapon_legendary: {
+                name: "Deathspade",
+                type: "Legendary Dagger",
+                rarity: "legendary",
+                icon: "D",
+                stats: ["+324 Damage per Second", "+156 Dexterity", "+24% Critical Strike Damage"],
+                affix: "Lucky Hit: Up to 100% chance to execute elites",
+                flavor: "\"A simple tool for a bloody harvest.\""
+            },
+            boots_legendary: {
+                name: "Flickerstep",
+                type: "Legendary Boots",
+                rarity: "legendary",
+                icon: "B",
+                stats: ["+128 Dexterity", "+12% Movement Speed", "+42% Fire Resistance"],
+                affix: "Dash gains 3 additional charges",
+                flavor: "\"Quick feet survive where slow minds perish.\""
+            },
+            chest_rare: {
+                name: "Shadow-wrapped Cuirass",
+                type: "Rare Chest Armor",
+                rarity: "rare",
+                icon: "C",
+                stats: ["+198 Armor", "+86 Dexterity", "+28% Shadow Resistance"]
+            },
+            offhand_rare: {
+                name: "Deflector Shield",
+                type: "Rare Shield",
+                rarity: "rare",
+                icon: "S",
+                stats: ["+156 Armor", "+45 Dexterity", "+15% Block Chance"]
+            },
+            pants_rare: {
+                name: "Gale-leggings",
+                type: "Rare Pants",
+                rarity: "rare",
+                icon: "P",
+                stats: ["+142 Armor", "+68 Dexterity", "+12% Movement Speed"]
+            },
+            gloves_magic: {
+                name: "Grip of Haste",
+                type: "Magic Gloves",
+                rarity: "magic",
+                icon: "G",
+                stats: ["+86 Armor", "+28 Dexterity"]
+            },
+            ring_magic: {
+                name: "Seal of the Assassin",
+                type: "Magic Ring",
+                rarity: "magic",
+                icon: "R",
+                stats: ["+12% Critical Strike Damage"]
+            },
+            amulet_rare: {
+                name: "Pendant of Shadows",
+                type: "Rare Amulet",
+                rarity: "rare",
+                icon: "A",
+                stats: ["+18% Critical Strike Chance", "+24% Shadow Damage"]
+            },
+            belt_rare: {
+                name: "Baldachin's Blessing",
+                type: "Rare Belt",
+                rarity: "rare",
+                icon: "W",
+                stats: ["+68 Dexterity", "+4 Potion Slots"]
+            },
+            ruby: { name: "Ruby", type: "Gem", rarity: "gem", icon: "", gemType: "ruby" },
+            emerald: { name: "Emerald", type: "Gem", rarity: "gem", icon: "", gemType: "emerald" },
+            sapphire: { name: "Sapphire", type: "Gem", rarity: "gem", icon: "", gemType: "sapphire" }
+        };
+
+        const EQUIP_SLOTS = [
+            { id: 'helm', pos: 'slot-helm', item: 'helm_legendary' },
+            { id: 'amulet', pos: 'slot-amulet', item: 'amulet_rare' },
+            { id: 'weapon', pos: 'slot-weapon', item: 'weapon_legendary' },
+            { id: 'offhand', pos: 'slot-offhand', item: 'offhand_rare' },
+            { id: 'chest', pos: 'slot-chest', item: 'chest_rare' },
+            { id: 'gloves', pos: 'slot-gloves', item: 'gloves_magic' },
+            { id: 'belt', pos: 'slot-belt', item: 'belt_rare' },
+            { id: 'ring1', pos: 'slot-ring1', item: 'ring_magic' },
+            { id: 'ring2', pos: 'slot-ring2', item: null },
+            { id: 'pants', pos: 'slot-pants', item: 'pants_rare' },
+            { id: 'boots', pos: 'slot-boots', item: 'boots_legendary' }
+        ];
+
+        const STASH_ITEMS = [
+            { idx: 3, item: 'ruby' },
+            { idx: 8, item: 'emerald' },
+            { idx: 9, item: 'sapphire' },
+            { idx: 15, item: 'ring_magic' },
+            { idx: 22, item: 'gloves_magic' },
+            { idx: 30, item: 'chest_rare' },
+            { idx: 41, item: 'pants_rare' }
+        ];
+
+        // === STATE ===
+        let dragging = null;
+        let dragSource = null;
+
+        // === DOM ===
+        const tooltip = document.getElementById('tooltip');
+        const dragGhost = document.getElementById('dragGhost');
+
+        // === INIT ===
+        function init() {
+            buildStash();
+            buildEquipSlots();
+            buildInventory();
+            initTabs();
+            initThree();
+        }
+
+        function buildStash() {
+            const grid = document.getElementById('stashGrid');
+            for (let i = 0; i < 49; i++) {
+                const slot = document.createElement('div');
+                slot.className = 'slot';
+                slot.dataset.type = 'stash';
+                slot.dataset.idx = i;
+
+                const stashItem = STASH_ITEMS.find(s => s.idx === i);
+                if (stashItem) {
+                    addItemToSlot(slot, stashItem.item);
+                }
+
+                slot.addEventListener('mouseenter', onSlotEnter);
+                slot.addEventListener('mouseleave', onSlotLeave);
+                slot.addEventListener('mousedown', onDragStart);
+                grid.appendChild(slot);
+            }
+        }
+
+        function buildEquipSlots() {
+            const container = document.getElementById('equipSlots');
+            EQUIP_SLOTS.forEach(e => {
+                const slot = document.createElement('div');
+                slot.className = `equip-slot ${e.pos}`;
+                slot.dataset.type = 'equip';
+                slot.dataset.slot = e.id;
+
+                if (e.item) {
+                    addItemToSlot(slot, e.item);
+                } else {
+                    slot.innerHTML = '<span class="empty-icon">+</span>';
+                }
+
+                slot.addEventListener('mouseenter', onSlotEnter);
+                slot.addEventListener('mouseleave', onSlotLeave);
+                slot.addEventListener('mousedown', onDragStart);
+                container.appendChild(slot);
+            });
+        }
+
+        function buildInventory() {
+            const grid = document.getElementById('inventoryGrid');
+            for (let i = 0; i < 15; i++) {
+                const slot = document.createElement('div');
+                slot.className = 'slot';
+                slot.dataset.type = 'inventory';
+                slot.dataset.idx = i;
+                slot.addEventListener('mouseenter', onSlotEnter);
+                slot.addEventListener('mouseleave', onSlotLeave);
+                slot.addEventListener('mousedown', onDragStart);
+                grid.appendChild(slot);
+            }
+        }
+
+        function addItemToSlot(slot, itemKey) {
+            const item = ITEMS[itemKey];
+            if (!item) return;
+            slot.dataset.item = itemKey;
+
+            const inner = document.createElement('div');
+            inner.className = `slot-item ${item.rarity}`;
+            if (item.rarity === 'gem') inner.classList.add('gem', item.gemType);
+            if (item.icon) inner.innerHTML = `<span class="item-icon">${item.icon}</span>`;
+            slot.appendChild(inner);
+        }
+
+        // === EVENTS ===
+        function initTabs() {
+            document.querySelectorAll('.stash-tab').forEach(tab => {
+                tab.addEventListener('click', () => {
+                    document.querySelectorAll('.stash-tab').forEach(t => t.classList.remove('active'));
+                    tab.classList.add('active');
+                });
+            });
+        }
+
+        function onSlotEnter(e) {
+            const slot = e.currentTarget;
+            if (dragging) {
+                slot.classList.add('drag-over');
+                return;
+            }
+            const itemKey = slot.dataset.item;
+            if (!itemKey) return;
+
+            const item = ITEMS[itemKey];
+            if (!item) return;
+
+            tooltip.innerHTML = `
+                <div class="tt-name ${item.rarity}">${item.name}</div>
+                <div class="tt-type">${item.type}</div>
+                <div class="tt-stats">
+                    ${item.stats.map(s => `<div class="tt-stat">${s}</div>`).join('')}
+                    ${item.affix ? `<div class="tt-stat bonus">${item.affix}</div>` : ''}
+                </div>
+                ${item.flavor ? `<div class="tt-flavor">${item.flavor}</div>` : ''}
+            `;
+
+            const rect = slot.getBoundingClientRect();
+            tooltip.style.left = `${rect.right + 12}px`;
+            tooltip.style.top = `${rect.top}px`;
+            tooltip.classList.add('visible');
+        }
+
+        function onSlotLeave(e) {
+            e.currentTarget.classList.remove('drag-over');
+            tooltip.classList.remove('visible');
+        }
+
+        function onDragStart(e) {
+            const slot = e.currentTarget;
+            const itemKey = slot.dataset.item;
+            if (!itemKey) return;
+
+            e.preventDefault();
+            dragging = itemKey;
+            dragSource = slot;
+
+            const item = ITEMS[itemKey];
+            dragGhost.className = `drag-ghost visible ${item.rarity}`;
+
+            document.addEventListener('mousemove', onDrag);
+            document.addEventListener('mouseup', onDragEnd);
+            onDrag(e);
+        }
+
+        function onDrag(e) {
+            dragGhost.style.left = `${e.clientX - 16}px`;
+            dragGhost.style.top = `${e.clientY - 16}px`;
+        }
+
+        function onDragEnd(e) {
+            document.removeEventListener('mousemove', onDrag);
+            document.removeEventListener('mouseup', onDragEnd);
+
+            dragGhost.classList.remove('visible');
+
+            const target = document.elementFromPoint(e.clientX, e.clientY);
+            const targetSlot = target?.closest('.slot, .equip-slot');
+
+            if (targetSlot && targetSlot !== dragSource && targetSlot.dataset.item !== dragging) {
+                const srcItem = dragging;
+                const tgtItem = targetSlot.dataset.item;
+
+                // Clear source
+                dragSource.innerHTML = '';
+                delete dragSource.dataset.item;
+
+                // Move target to source
+                if (tgtItem) {
+                    addItemToSlot(dragSource, tgtItem);
+                } else if (dragSource.classList.contains('equip-slot')) {
+                    dragSource.innerHTML = '<span class="empty-icon">+</span>';
+                }
+
+                // Move source to target
+                targetSlot.innerHTML = '';
+                addItemToSlot(targetSlot, srcItem);
+            }
+
+            document.querySelectorAll('.drag-over').forEach(s => s.classList.remove('drag-over'));
+            dragging = null;
+            dragSource = null;
+        }
+
+        // === THREE.JS ===
+        function initThree() {
+            const canvas = document.getElementById('bg-canvas');
+            const scene = new THREE.Scene();
+            const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 100);
+            camera.position.z = 30;
+
+            const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+            // Particles
+            const count = 500;
+            const positions = new Float32Array(count * 3);
+            const colors = new Float32Array(count * 3);
+            const sizes = new Float32Array(count);
+
+            for (let i = 0; i < count; i++) {
+                positions[i * 3] = (Math.random() - 0.5) * 80;
+                positions[i * 3 + 1] = (Math.random() - 0.5) * 50;
+                positions[i * 3 + 2] = -Math.random() * 20;
+                
+                const t = Math.random();
+                colors[i * 3] = 0.5 + t * 0.5;
+                colors[i * 3 + 1] = 0.15 + t * 0.25;
+                colors[i * 3 + 2] = 0.05;
+                
+                sizes[i] = Math.random() * 3 + 1;
+            }
+
+            const geom = new THREE.BufferGeometry();
+            geom.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            geom.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+            geom.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+
+            const mat = new THREE.ShaderMaterial({
+                uniforms: { uTime: { value: 0 }, uScale: { value: renderer.getPixelRatio() } },
+                vertexShader: `
+                    attribute float size;
+                    varying vec3 vColor;
+                    uniform float uTime;
+                    uniform float uScale;
+                    void main() {
+                        vColor = color;
+                        vec3 p = position;
+                        p.y += sin(uTime * 0.3 + position.x * 0.2) * 0.5;
+                        p.x += cos(uTime * 0.2 + position.y * 0.15) * 0.3;
+                        vec4 mv = modelViewMatrix * vec4(p, 1.0);
+                        gl_PointSize = size * uScale * (150.0 / -mv.z);
+                        gl_Position = projectionMatrix * mv;
+                    }
+                `,
+                fragmentShader: `
+                    varying vec3 vColor;
+                    void main() {
+                        float d = length(gl_PointCoord - 0.5);
+                        if (d > 0.5) discard;
+                        float a = smoothstep(0.5, 0.0, d) * 0.6;
+                        gl_FragColor = vec4(vColor, a);
+                    }
+                `,
+                transparent: true,
+                vertexColors: true,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false
+            });
+
+            const particles = new THREE.Points(geom, mat);
+            scene.add(particles);
+
+            // Fog
+            const fogCount = 100;
+            const fogPos = new Float32Array(fogCount * 3);
+            const fogSize = new Float32Array(fogCount);
+            for (let i = 0; i < fogCount; i++) {
+                fogPos[i * 3] = (Math.random() - 0.5) * 100;
+                fogPos[i * 3 + 1] = (Math.random() - 0.5) * 60;
+                fogPos[i * 3 + 2] = -25 + Math.random() * 10;
+                fogSize[i] = Math.random() * 20 + 15;
+            }
+
+            const fogGeom = new THREE.BufferGeometry();
+            fogGeom.setAttribute('position', new THREE.BufferAttribute(fogPos, 3));
+            fogGeom.setAttribute('size', new THREE.BufferAttribute(fogSize, 1));
+
+            const fogMat = new THREE.ShaderMaterial({
+                uniforms: { uTime: { value: 0 }, uScale: { value: renderer.getPixelRatio() } },
+                vertexShader: `
+                    attribute float size;
+                    uniform float uTime;
+                    uniform float uScale;
+                    varying float vA;
+                    void main() {
+                        vec3 p = position;
+                        p.x += sin(uTime * 0.1 + position.y * 0.05) * 3.0;
+                        p.y += cos(uTime * 0.08 + position.x * 0.05) * 2.0;
+                        vA = 0.08 + sin(uTime * 0.5 + position.x * 0.1) * 0.03;
+                        vec4 mv = modelViewMatrix * vec4(p, 1.0);
+                        gl_PointSize = size * uScale * (120.0 / -mv.z);
+                        gl_Position = projectionMatrix * mv;
+                    }
+                `,
+                fragmentShader: `
+                    varying float vA;
+                    void main() {
+                        float d = length(gl_PointCoord - 0.5);
+                        if (d > 0.5) discard;
+                        float a = smoothstep(0.5, 0.0, d) * vA;
+                        gl_FragColor = vec4(0.2, 0.1, 0.05, a);
+                    }
+                `,
+                transparent: true,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false
+            });
+
+            const fog = new THREE.Points(fogGeom, fogMat);
+            scene.add(fog);
+
+            let time = 0;
+            function animate() {
+                requestAnimationFrame(animate);
+                time += 0.016;
+                mat.uniforms.uTime.value = time;
+                fogMat.uniforms.uTime.value = time;
+                particles.rotation.y = time * 0.015;
+                renderer.render(scene, camera);
+            }
+            animate();
+
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                const scale = renderer.getPixelRatio();
+                mat.uniforms.uScale.value = scale;
+                fogMat.uniforms.uScale.value = scale;
+            });
+        }
+
+        init();
+    </script>
+</body>
+</html>

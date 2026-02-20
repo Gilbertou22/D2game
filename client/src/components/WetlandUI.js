@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import useGameState from '../hooks/useGameState';
 import { expPerLevel } from '../utils/levelUtils';
 import classConfigs from '../configs/classConfigs';
+import CharacterPanel from './CharacterPanel';
 
 const ITEM_KEYS = ['q', 'w', 'e'];
 
@@ -90,6 +91,8 @@ function WetlandUI() {
     const playerExp = useGameState(s => s.playerExp);
     const playerGold = useGameState(s => s.playerGold);
     const playerPos = useGameState(s => s.playerPos);
+    const playerAttackPower = useGameState(s => s.playerAttackPower);
+    const playerDefense = useGameState(s => s.playerDefense);
     const targetEnemy = useGameState(s => s.targetEnemy);
     const enemies = useGameState(s => s.enemies);
     const skills = useGameState(s => s.skills);
@@ -100,6 +103,8 @@ function WetlandUI() {
     const updatePlayer = useGameState(s => s.updatePlayer);
     const addEvent = useGameState(s => s.addEvent);
     const skillKeybinds = useGameState(s => s.skillKeybinds);
+
+    const [characterPanelOpen, setCharacterPanelOpen] = useState(false);
 
     const logRef = useRef(null);
     const particlesRef = useRef(null);
@@ -196,7 +201,12 @@ function WetlandUI() {
         return <ClassSelection />;
     }
 
-    const currentClass = classConfigs[playerClass] || classConfigs.mage;
+    const currentClass = classConfigs[playerClass] || classConfigs.mage || {
+        name: '未知',
+        nameEn: 'Unknown',
+        icon: '?',
+        color: '#888888'
+    };
     const skillSlots = Object.entries(skillKeybinds).slice(0, 6).map(([key, skillKey]) => ({
         key: skillKey,
         label: key.toUpperCase(),
@@ -213,33 +223,59 @@ function WetlandUI() {
             <div className="wl-char-panel">
                 <div className="wl-char-card">
                     <div className="wl-char-header">
-                        <div className="wl-char-avatar" style={{ background: `linear-gradient(135deg, ${currentClass.color}40 0%, ${currentClass.color}80 100%)`, border: `2px solid ${currentClass.color}` }}>
+                        <div 
+                            className="wl-char-avatar" 
+                            style={{ background: `linear-gradient(135deg, ${currentClass.color}40 0%, ${currentClass.color}80 100%)`, border: `2px solid ${currentClass.color}` }}
+                            onClick={() => setCharacterPanelOpen(true)}
+                            title="點擊查看角色資訊"
+                        >
                             <span style={{ fontSize: '24px' }}>{currentClass.icon}</span>
                         </div>
                         <div className="wl-char-info">
                             <h2>{currentClass.name}</h2>
                             <div className="wl-char-class">Lv.{playerLevel} {currentClass.nameEn}</div>
+                            <div className="wl-char-stats">
+                                <span>⚔️ {playerAttackPower || 0}</span>
+                                <span>🛡️ {playerDefense || 0}</span>
+                            </div>
                         </div>
                     </div>
                     <div className="wl-stat-bars">
-                        <div className="wl-stat-row">
-                            <svg className="wl-stat-icon" style={{ color: '#ef4444' }} viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
-                            </svg>
-                            <div className="wl-stat-track">
-                                <div className="wl-stat-fill wl-hp" style={{ width: `${hpPercent}%` }} />
-                            </div>
-                            <div className="wl-stat-text">{Math.floor(playerHP).toLocaleString()} / {playerMaxHP.toLocaleString()}</div>
+                        <div className="wl-resource-bar">
+                            <div className="wl-bar-fill health" style={{ width: `${hpPercent}%` }} />
+                            <span className="wl-bar-text">{Math.floor(playerHP).toLocaleString()} / {playerMaxHP.toLocaleString()}</span>
                         </div>
-                        <div className="wl-stat-row">
-                            <svg className="wl-stat-icon" style={{ color: '#3b82f6' }} viewBox="0 0 24 24" fill="currentColor">
-                                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
-                            </svg>
-                            <div className="wl-stat-track">
-                                <div className="wl-stat-fill wl-mp" style={{ width: `${mpPercent}%` }} />
-                            </div>
-                            <div className="wl-stat-text">{Math.floor(playerMana).toLocaleString()} / {playerMaxMana.toLocaleString()}</div>
+                        <div className="wl-resource-bar">
+                            <div className="wl-bar-fill mana" style={{ width: `${mpPercent}%` }} />
+                            <span className="wl-bar-text">{Math.floor(playerMana).toLocaleString()} / {playerMaxMana.toLocaleString()}</span>
                         </div>
+                    </div>
+                </div>
+                
+                {/* Minimap - Below Character Panel */}
+                <div className="wl-minimap-panel">
+                    <div className="wl-minimap-frame">
+                        <div className="wl-minimap-content">
+                            <div className="wl-minimap-player" />
+                            {Array.isArray(enemies) && enemies.slice(0, 8).map((enemy, i) => {
+                                if (!enemy || !enemy.position) return null;
+                                const dx = enemy.position.x - playerPos.x;
+                                const dz = enemy.position.z - playerPos.z;
+                                const mapRange = 150;
+                                const px = 50 + (dx / mapRange) * 40;
+                                const py = 50 + (dz / mapRange) * 40;
+                                if (px < 5 || px > 95 || py < 5 || py > 95) return null;
+                                return <div key={i} className="wl-minimap-enemy" style={{ top: `${py}%`, left: `${px}%` }} />;
+                            })}
+                        </div>
+                    </div>
+                    <div className="wl-minimap-label">
+                        第 {currentLevel} 層
+                        {Array.isArray(enemies) && enemies.length > 0 && (
+                            <span className="wl-enemy-count">
+                                {' '}&middot; 敵人: {enemies.filter(e => e.hp > 0).length}
+                            </span>
+                        )}
                     </div>
                 </div>
             </div>
@@ -258,26 +294,6 @@ function WetlandUI() {
                     </div>
                 </div>
             )}
-
-            {/* Minimap - Top Right */}
-            <div className="wl-minimap-panel">
-                <div className="wl-minimap-frame">
-                    <div className="wl-minimap-content">
-                        <div className="wl-minimap-player" />
-                        {Array.isArray(enemies) && enemies.slice(0, 8).map((enemy, i) => {
-                            if (!enemy || !enemy.position) return null;
-                            const dx = enemy.position.x - playerPos.x;
-                            const dz = enemy.position.z - playerPos.z;
-                            const mapRange = 150;
-                            const px = 50 + (dx / mapRange) * 40;
-                            const py = 50 + (dz / mapRange) * 40;
-                            if (px < 5 || px > 95 || py < 5 || py > 95) return null;
-                            return <div key={i} className="wl-minimap-enemy" style={{ top: `${py}%`, left: `${px}%` }} />;
-                        })}
-                    </div>
-                </div>
-                <div className="wl-minimap-label">第 {currentLevel} 層</div>
-            </div>
 
             {/* Quest Panel - Right Side */}
             <div className="wl-quest-panel">
@@ -453,6 +469,7 @@ function WetlandUI() {
                     min-width: 260px;
                     backdrop-filter: blur(12px);
                     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+                    pointer-events: auto;
                 }
 
                 .wl-char-header {
@@ -473,6 +490,14 @@ function WetlandUI() {
                     border: 2px solid var(--wl-accent-emerald);
                     box-shadow: 0 0 15px rgba(45, 212, 191, 0.3);
                     color: var(--wl-fg);
+                    cursor: pointer;
+                    pointer-events: auto;
+                    transition: all 0.2s ease;
+                }
+
+                .wl-char-avatar:hover {
+                    transform: scale(1.1);
+                    box-shadow: 0 0 25px rgba(45, 212, 191, 0.6);
                 }
 
                 .wl-char-info h2 {
@@ -489,63 +514,63 @@ function WetlandUI() {
                     letter-spacing: 0.1em;
                 }
 
-                .wl-stat-bars { display: flex; flex-direction: column; gap: 8px; }
-
-                .wl-stat-row {
+                .wl-char-stats {
                     display: flex;
-                    align-items: center;
-                    gap: 10px;
+                    gap: 8px;
+                    margin-top: 4px;
+                    font-size: 0.65rem;
+                    color: var(--wl-fg-muted);
                 }
 
-                .wl-stat-icon {
-                    width: 18px;
-                    height: 18px;
-                    flex-shrink: 0;
+                .wl-stat-bars { 
+                    display: flex; 
+                    flex-direction: column; 
+                    gap: 6px; 
+                    margin-top: 4px;
                 }
 
-                .wl-stat-track {
-                    flex: 1;
-                    height: 14px;
-                    background: rgba(0, 0, 0, 0.5);
-                    border-radius: 7px;
+                .wl-resource-bar {
+                    height: 22px;
+                    background: rgba(0, 0, 0, 0.6);
+                    border: 1px solid var(--wl-panel-border);
+                    position: relative;
                     overflow: hidden;
-                    position: relative;
                 }
 
-                .wl-stat-fill {
+                .wl-bar-fill {
                     height: 100%;
-                    border-radius: 7px;
                     transition: width 0.4s ease;
-                    position: relative;
                 }
 
-                .wl-stat-fill::after {
+                .wl-bar-fill::after {
                     content: '';
                     position: absolute;
                     top: 0;
                     left: 0;
                     right: 0;
                     height: 50%;
-                    background: linear-gradient(180deg, rgba(255,255,255,0.2) 0%, transparent 100%);
-                    border-radius: 7px 7px 0 0;
+                    background: linear-gradient(180deg, rgba(255,255,255,0.15) 0%, transparent 100%);
                 }
 
-                .wl-hp {
-                    background: linear-gradient(90deg, #991b1b, #dc2626, #ef4444);
-                    box-shadow: 0 0 10px rgba(239, 68, 68, 0.5);
+                .wl-bar-fill.health {
+                    background: linear-gradient(90deg, #400000 0%, #800000 50%, #a02020 100%);
                 }
 
-                .wl-mp {
-                    background: linear-gradient(90deg, #1e40af, #2563eb, #3b82f6);
-                    box-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
+                .wl-bar-fill.mana {
+                    background: linear-gradient(90deg, #102060 0%, #2040a0 50%, #3060c0 100%);
                 }
 
-                .wl-stat-text {
-                    font-size: 0.75rem;
+                .wl-bar-text {
+                    position: absolute;
+                    inset: 0;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-family: 'Cinzel', serif;
+                    font-size: 10px;
                     font-weight: 600;
-                    min-width: 90px;
-                    text-align: right;
-                    color: var(--wl-fg);
+                    color: #fff;
+                    text-shadow: 0 1px 3px rgba(0, 0, 0, 1);
                 }
 
                 /* Target Panel */
@@ -600,16 +625,13 @@ function WetlandUI() {
 
                 /* Minimap */
                 .wl-minimap-panel {
-                    position: fixed;
-                    top: 16px;
-                    right: 16px;
-                    z-index: 50;
+                    margin-top: 12px;
                     pointer-events: none;
                 }
 
                 .wl-minimap-frame {
-                    width: 140px;
-                    height: 140px;
+                    width: 120px;
+                    height: 120px;
                     background: linear-gradient(135deg, var(--wl-panel) 0%, rgba(6, 18, 12, 0.95) 100%);
                     border: 2px solid var(--wl-panel-border);
                     border-radius: 50%;
@@ -661,6 +683,11 @@ function WetlandUI() {
                     color: var(--wl-fg-muted);
                     text-transform: uppercase;
                     letter-spacing: 0.15em;
+                }
+
+                .wl-enemy-count {
+                    color: var(--wl-accent-red);
+                    font-weight: 600;
                 }
 
                 /* Quest Panel */
@@ -1021,6 +1048,8 @@ function WetlandUI() {
                     }
                 }
             `}</style>
+
+            {characterPanelOpen && <CharacterPanel onClose={() => setCharacterPanelOpen(false)} />}
         </>
     );
 }

@@ -41,7 +41,11 @@ function openChest(chest) {
 }
 
 function Chest({ chest }) {
-    const { playerPos, addToInventory, playerGold, updatePlayer, setChests } = useGameState();
+    const playerPos = useGameState((state) => state.playerPos);
+    const addToInventory = useGameState((state) => state.addToInventory);
+    const playerGold = useGameState((state) => state.playerGold);
+    const updatePlayer = useGameState((state) => state.updatePlayer);
+    const setChests = useGameState((state) => state.setChests);
 
     useEffect(() => {
         if (playerPos.distanceTo(chest.position) < 8 && !chest.opened) {
@@ -87,7 +91,9 @@ function Chest({ chest }) {
 }
 
 function Chests() {
-    const { chests, setChests, currentLevel } = useGameState();
+    const chests = useGameState((state) => state.chests);
+    const setChests = useGameState((state) => state.setChests);
+    const currentLevel = useGameState((state) => state.currentLevel);
 
     useEffect(() => {
         const newChests = [];

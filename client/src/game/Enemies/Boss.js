@@ -62,18 +62,16 @@ function Boss({ enemy }) {
     const lastPhase = useRef(0);
     const specialTimer = useRef(0);
 
-    const {
-        playerPos,
-        updateEnemy,        
-        removeEnemy,
-        setEnemies,
-        updatePlayer,
-        showLootNotification,
-        addToInventory,
-        nextLevel,
-        currentLevel,
-        playerHP
-    } = useGameState();
+    const playerPos = useGameState((state) => state.playerPos);
+    const updateEnemy = useGameState((state) => state.updateEnemy);
+    const removeEnemy = useGameState((state) => state.removeEnemy);
+    const setEnemies = useGameState((state) => state.setEnemies);
+    const updatePlayer = useGameState((state) => state.updatePlayer);
+    const showLootNotification = useGameState((state) => state.showLootNotification);
+    const addToInventory = useGameState((state) => state.addToInventory);
+    const nextLevel = useGameState((state) => state.nextLevel);
+    const currentLevel = useGameState((state) => state.currentLevel);
+    const playerHP = useGameState((state) => state.playerHP);
 
     // 通用 AI (移動、追擊)
     useEnemyAI(enemy, mesh);

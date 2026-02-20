@@ -107,26 +107,61 @@ function CharacterPanel({ onClose }) {
         </div>
     );
     
-    const renderEquipment = () => (
-        <div className="equipment-content">
-            <div className="equip-slots">
-                {Object.entries(equipped).map(([slot, item]) => (
-                    <div key={slot} className="equip-slot">
-                        <div className="slot-label">{slot}</div>
-                        {item ? (
-                            <div className="equipped-item" style={{ borderColor: item.rarityData?.color || '#666' }}>
-                                <span className="item-icon">{item.icon}</span>
-                                <span className="item-name">{item.name}</span>
-                                <span className="item-level">Lv.{item.level}</span>
-                            </div>
-                        ) : (
-                            <div className="empty-slot">-</div>
-                        )}
+    const renderEquipment = () => {
+        const EQUIP_SLOTS = [
+            { id: 'helmet', label: '頭盔', icon: '⛑️', pos: { top: 15, left: '50%', transform: 'translateX(-50%)' } },
+            { id: 'amulet', label: '項鍊', icon: '📿', pos: { top: 20, right: 15 } },
+            { id: 'weapon', label: '武器', icon: '⚔️', pos: { top: 75, left: 15 } },
+            { id: 'armor', label: '護甲', icon: '🛡️', pos: { top: 70, left: '50%', transform: 'translateX(-50%)' } },
+            { id: 'ring', label: '戒指', icon: '💍', pos: { top: 160, left: 25 } }
+        ];
+        
+        return (
+            <div className="equipment-content">
+                <div className="char-display-area">
+                    <div className="char-silhouette-bg">
+                        <svg viewBox="0 0 100 200" fill="none" stroke="currentColor" strokeWidth="1">
+                            <ellipse cx="50" cy="22" rx="14" ry="16"/>
+                            <line x1="44" y1="38" x2="44" y2="48"/>
+                            <line x1="56" y1="38" x2="56" y2="48"/>
+                            <path d="M30 48 Q30 55 35 70 L35 110 Q35 115 40 120 L60 120 Q65 115 65 110 L65 70 Q70 55 70 48 L56 48 Q50 52 44 48 Z"/>
+                            <path d="M30 50 Q20 55 15 80 L15 110"/>
+                            <path d="M70 50 Q80 55 85 80 L85 110"/>
+                            <path d="M40 120 L38 180"/>
+                            <path d="M60 120 L62 180"/>
+                        </svg>
                     </div>
-                ))}
+                    <div className="equip-slots-overlay">
+                        {EQUIP_SLOTS.map(slot => {
+                            const item = equipped[slot.id];
+                            return (
+                                <div 
+                                    key={slot.id} 
+                                    className="equip-slot-overlay"
+                                    style={slot.pos}
+                                >
+                                    <div className="slot-label-small">{slot.label}</div>
+                                    {item ? (
+                                        <div 
+                                            className="equipped-item-compact"
+                                            style={{ borderColor: item.rarityData?.color || item.rarityColor || '#666' }}
+                                        >
+                                            <span className="item-icon-small">{item.icon}</span>
+                                            <span className="item-name-compact">{item.name}</span>
+                                        </div>
+                                    ) : (
+                                        <div className="empty-slot-overlay">
+                                            <span className="empty-icon">{slot.icon}</span>
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
             </div>
-        </div>
-    );
+        );
+    };
     
     const renderInventory = () => (
         <div className="inventory-content">
