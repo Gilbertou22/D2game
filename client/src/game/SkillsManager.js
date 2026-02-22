@@ -3,6 +3,7 @@ import { useFrame } from '@react-three/fiber';
 import { useEffect, useCallback, useRef } from 'react';
 import { useThree } from '@react-three/fiber';
 import useGameState from '../hooks/useGameState';
+import skillConfigManager from '../utils/SkillConfigManager';
 import { createProjectile } from './Projectiles';
 import { createParticles } from './Particles';
 import { 
@@ -13,6 +14,8 @@ import {
     QuickshotEffect, MultishotEffect, ArrowrainEffect, EvasionEffect, SnipeEffect,
     WrathEffect, RejuvenationEffect, ThornsEffect, SunfireEffect, BearformEffect, TranquilityEffect
 } from './effects';
+import { createSkillEffect, createHitEffect, createCastEffect } from './effects/SkillEffectFactory';
+import { initDeathEffectManager, updateDeathEffects } from '../utils/gameUtils';
 import * as THREE from 'three';
 
 function SkillsManager() {
@@ -29,10 +32,210 @@ function SkillsManager() {
     const effectsRef = useRef([]);
     const dotRef = useRef({});
     const handleSkillCastRef = useRef(null);
+    const handleDynamicSkillRef = useRef(null);
+
+    // 初始化死亡效果管理器
+    useEffect(() => {
+        initDeathEffectManager(scene);
+    }, [scene]);
+
+    // 動態技能處理函數
+    const handleDynamicSkillDirect = useCallback((skillKey, config, result) => {
+        console.log('[SkillsManager] handleDynamicSkillDirect called for:', skillKey, 'type:', config.type);
+        
+        let currentTarget = targetEnemy;
+        if (!currentTarget || currentTarget.hp <= 0) {
+            let closest = null, minDist = Infinity;
+            enemies.forEach(e => {
+                if (e.hp > 0) {
+                    const d = e.position.distanceTo(playerPos);
+                    if (d < minDist && d <= 80) { minDist = d; closest = e; }
+                }
+            });
+            if (closest) { currentTarget = closest; setTargetEnemy(closest); }
+        }
+
+        const playerPosY = playerPos.clone().add(new THREE.Vector3(0, 4, 0));
+        const forwardDir = new THREE.Vector3(0, 0, -1).applyAxisAngle(new THREE.Vector3(0, 1, 0), playerRotation?.y || 0);
+        
+        let targetPos;
+        if (config.type === 'melee' || config.type === 'buff') {
+            targetPos = playerPos.clone();
+        } else if (config.type === 'movement') {
+            if (currentTarget) {
+                targetPos = currentTarget.position.clone();
+            } else {
+                targetPos = playerPos.clone().add(forwardDir.clone().multiplyScalar(config.range || 20));
+            }
+        } else {
+            targetPos = currentTarget 
+                ? currentTarget.position.clone().add(new THREE.Vector3(0, (currentTarget.size || 2) / 2, 0))
+                : playerPos.clone().add(forwardDir.clone().multiplyScalar(config.range || 20));
+        }
+
+        const callbacks = {
+            onHit: (hitPos, damage) => {
+                if (currentTarget) {
+                    const isCrit = Math.random() < playerCritChance;
+                    const finalDamage = isCrit ? Math.floor(damage * 1.8) : damage;
+                    
+                    updateEnemy(currentTarget.id, { hp: Math.max(0, currentTarget.hp - finalDamage) });
+                    
+                    const targetCenter = currentTarget.position.clone().add(new THREE.Vector3(0, (currentTarget.size || 2) / 2, 0));
+                    addFloatingNumber(targetCenter, finalDamage, isCrit ? 'crit' : 'damage');
+                    
+                    createHitEffect(targetCenter, config, isCrit);
+                    
+                    if (currentTarget.hp - finalDamage <= 0) {
+                        createParticles(
+                            targetCenter,
+                            0xffff00,
+                            60,
+                            20,
+                            2.5,
+                            'death_explosion'
+                        );
+                    }
+                }
+                if (config.explosion?.enabled) {
+                    const explosion = new FireExplosion(hitPos, 'fireball');
+                    scene.add(explosion.getLights()[0]);
+                    effectsRef.current.push({
+                        group: { add: () => {}, remove: () => {} },
+                        update: (delta) => explosion.update(delta),
+                        dispose: () => explosion.dispose(),
+                        getParticles: () => explosion.getParticles(),
+                        lights: explosion.getLights()
+                    });
+                }
+            },
+            onDamage: (pos, damage, radius) => {
+                if (config.type === 'lightning') {
+                    if (currentTarget) {
+                        const isCrit = Math.random() < playerCritChance;
+                        const finalDamage = isCrit ? Math.floor(damage * 1.8) : damage;
+                        
+                        updateEnemy(currentTarget.id, { hp: Math.max(0, currentTarget.hp - finalDamage) });
+                        
+                        const targetCenter = currentTarget.position.clone().add(new THREE.Vector3(0, (currentTarget.size || 2) / 2, 0));
+                        addFloatingNumber(targetCenter, finalDamage, isCrit ? 'crit' : 'damage');
+                        
+                        createHitEffect(targetCenter, config, isCrit);
+                        
+                        if (currentTarget.hp - finalDamage <= 0) {
+                            createParticles(targetCenter, 0xffff00, 60, 20, 2.5, 'death_explosion');
+                        }
+                    }
+                } else if (config.type === 'melee') {
+                    const playerForward = new THREE.Vector3(0, 0, -1).applyAxisAngle(new THREE.Vector3(0, 1, 0), playerRotation?.y || 0);
+                    const coneAngle = config.coneAngle || 1.05;
+                    const range = radius || config.range || 8;
+                    
+                    enemies.forEach(enemy => {
+                        const toEnemy = enemy.position.clone().sub(playerPos);
+                        toEnemy.y = 0;
+                        const dist = toEnemy.length();
+                        
+                        if (dist < range && enemy.hp > 0) {
+                            const angle = Math.acos(Math.min(1, Math.max(-1, playerForward.dot(toEnemy.normalize()))));
+                            
+                            if (config.subType === 'aoe' || angle < coneAngle) {
+                                const isCrit = Math.random() < playerCritChance;
+                                const finalDamage = isCrit ? Math.floor(damage * 1.8) : damage;
+                                
+                                updateEnemy(enemy.id, { hp: Math.max(0, enemy.hp - finalDamage) });
+                                addFloatingNumber(enemy.position.clone().add(new THREE.Vector3(0, (enemy.size || 2) / 2, 0)), finalDamage, isCrit ? 'crit' : 'damage');
+                                
+                                createHitEffect(enemy.position.clone().add(new THREE.Vector3(0, (enemy.size || 2) / 2, 0)), config, isCrit);
+                            }
+                        }
+                    });
+                } else if (config.type === 'movement') {
+                    enemies.forEach(enemy => {
+                        const dist = enemy.position.distanceTo(pos);
+                        if (dist < radius && enemy.hp > 0) {
+                            const isCrit = Math.random() < playerCritChance;
+                            const finalDamage = isCrit ? Math.floor(damage * 1.8) : damage;
+                            
+                            updateEnemy(enemy.id, { hp: Math.max(0, enemy.hp - finalDamage) });
+                            addFloatingNumber(enemy.position.clone().add(new THREE.Vector3(0, (enemy.size || 2) / 2, 0)), finalDamage, isCrit ? 'crit' : 'damage');
+                            
+                            createHitEffect(enemy.position.clone().add(new THREE.Vector3(0, (enemy.size || 2) / 2, 0)), config, isCrit);
+                        }
+                    });
+                } else {
+                    enemies.forEach(enemy => {
+                        const dist = enemy.position.distanceTo(pos);
+                        if (dist < radius && enemy.hp > 0) {
+                            const isCrit = Math.random() < playerCritChance;
+                            const finalDamage = Math.floor(damage * (1 - dist / radius * 0.5));
+                            const actualDamage = isCrit ? Math.floor(finalDamage * 1.8) : finalDamage;
+                            
+                            updateEnemy(enemy.id, { hp: Math.max(0, enemy.hp - actualDamage) });
+                            addFloatingNumber(enemy.position.clone().add(new THREE.Vector3(0, (enemy.size || 2) / 2, 0)), actualDamage, isCrit ? 'crit' : 'damage');
+                            
+                            createHitEffect(enemy.position.clone().add(new THREE.Vector3(0, (enemy.size || 2) / 2, 0)), config, isCrit);
+                        }
+                    });
+                }
+            },
+            onHeal: (amount) => {
+                updatePlayer({ playerHP: Math.min(playerMaxHP, playerHP + amount) });
+                addFloatingNumber(playerPos.clone().add(new THREE.Vector3(0, 6, 0)), amount, 'heal');
+                createParticles(playerPos.clone().add(new THREE.Vector3(0, 4, 0)), 0x22c55e, 25, 8, 2, 'heal_wave');
+            },
+            onBuff: (buffConfig) => {
+                const buffName = buffConfig.name || '增益效果';
+                let buffText = buffName;
+                
+                if (buffConfig.attackBoost) {
+                    const boostPercent = Math.floor(buffConfig.attackBoost * 100);
+                    buffText += ` +${boostPercent}%攻擊`;
+                }
+                if (buffConfig.hpBoost) {
+                    buffText += ` +${buffConfig.hpBoost}生命`;
+                    updatePlayer({ playerMaxHP: playerMaxHP + buffConfig.hpBoost, playerHP: playerHP + buffConfig.hpBoost });
+                }
+                if (buffConfig.reflectDamage) {
+                    buffText += ` 反傷${buffConfig.reflectDamage}`;
+                }
+                
+                addFloatingNumber(playerPos.clone().add(new THREE.Vector3(0, 8, 0)), buffText, 'buff');
+            }
+        };
+
+        const colors = config.colors || {};
+        const glowColor = colors.glow || '#ff4400';
+        const glowColorHex = new THREE.Color(glowColor).getHex();
+        
+        const castEffect = createCastEffect(playerPosY, glowColorHex);
+        scene.add(castEffect.group);
+        effectsRef.current.push(castEffect);
+
+        const effect = createSkillEffect(config, playerPosY, targetPos, callbacks);
+        if (effect) {
+            scene.add(effect.group);
+            effectsRef.current.push(effect);
+        }
+    }, [playerPos, playerRotation, targetEnemy, enemies, scene, updateEnemy, updatePlayer, addFloatingNumber, playerHP, playerMaxHP, playerCritChance]);
+
+    handleDynamicSkillRef.current = handleDynamicSkillDirect;
 
     const handleSkillCast = useCallback((skillKey) => {
         if (!classSelected) return;
         
+        // 強制使用新的動態技能效果系統
+        const skillConfig = skillConfigManager.getSkill(skillKey);
+        console.log('[SkillsManager] Using dynamic skill system for:', skillKey, 'config:', skillConfig);
+        
+        if (skillConfig && skillConfig.type && handleDynamicSkillRef.current) {
+            const result = castSkill(skillKey);
+            if (!result || !result.success) return;
+            handleDynamicSkillRef.current(skillKey, skillConfig, result);
+            return;
+        }
+        
+        // 如果沒有動態配置，使用舊的硬編碼系統
         let currentTarget = targetEnemy;
         if (!currentTarget || currentTarget.hp <= 0) {
             let closest = null, minDist = Infinity;
@@ -867,7 +1070,8 @@ function SkillsManager() {
                 break;
             }
 
-            default: break;
+            default:
+                break;
         }
     }, [skills, playerPos, targetEnemy, enemies, castSkill, scene, playerRotation, playerHP, playerMaxHP, playerAttackPower, playerCritChance, updatePlayer, updateEnemy, addFloatingNumber, classSelected]);
 
@@ -877,6 +1081,9 @@ function SkillsManager() {
     
     useFrame((state, delta) => {
         updateSkillsCooldown(delta);
+        
+        // 更新死亡效果
+        updateDeathEffects(delta);
         
         frameCount.current++;
         

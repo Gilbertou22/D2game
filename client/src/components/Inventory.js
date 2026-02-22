@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import useGameState from '../hooks/useGameState';
-import { RARITIES, EQUIPMENT_TYPES, getItemSize } from '../utils/itemSystem';
+import { RARITIES, EQUIPMENT_TYPES, getItemSize, isItemIdentifiable } from '../utils/itemSystem';
 import ItemTooltip from './ItemTooltip';
 import './Inventory.css';
 
@@ -44,6 +44,7 @@ function Inventory({ open, setOpen }) {
     const sellItem = useGameState((state) => state.sellItem);
     const sortBackpack = useGameState((state) => state.sortBackpack);
     const moveBackpackItem = useGameState((state) => state.moveBackpackItem);
+    const identifyItemWithScroll = useGameState((state) => state.identifyItemWithScroll);
 
     const [hoveredItem, setHoveredItem] = useState(null);
     const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
@@ -52,9 +53,13 @@ function Inventory({ open, setOpen }) {
     const [dragPos, setDragPos] = useState({ x: 0, y: 0 });
     const [dragOverGrid, setDragOverGrid] = useState(null);
     const [dragOverEquipSlot, setDragOverEquipSlot] = useState(null);
+    const [contextMenu, setContextMenu] = useState(null);
+    const [isDraggingOutside, setIsDraggingOutside] = useState(false);
+    const [identifyMode, setIdentifyMode] = useState(null);
     
     const gridRef = useRef(null);
     const equipSlotsRef = useRef([]);
+    const containerRef = useRef(null);
 
     const backpackArray = Array.isArray(backpack) ? backpack : [];
     const equippedObj = equipped || {};
@@ -160,6 +165,22 @@ function Inventory({ open, setOpen }) {
         setDragOverEquipSlot(null);
         setDragOverGrid(null);
         
+        // 檢查是否拖到畫面外
+        if (containerRef.current) {
+            const containerRect = containerRef.current.getBoundingClientRect();
+            const isOutside = (
+                clientX < containerRect.left ||
+                clientX > containerRect.right ||
+                clientY < containerRect.top ||
+                clientY > containerRect.bottom
+            );
+            setIsDraggingOutside(isOutside);
+            
+            if (isOutside) {
+                return;
+            }
+        }
+        
         const equipSlot = target?.closest('.d4-equip-slot');
         
         if (equipSlot && dragItem.type) {
@@ -185,7 +206,17 @@ function Inventory({ open, setOpen }) {
     const handleDragEnd = useCallback((e) => {
         if (!dragItem) return;
         
-        if (dragOverEquipSlot) {
+        // 拖到畫面外丟棄
+        if (isDraggingOutside) {
+            const confirmDrop = window.confirm(`確定要丟棄「${dragItem.name}」嗎？`);
+            if (confirmDrop) {
+                if (dragSource.type === 'backpack') {
+                    dropItem(dragSource.index, false);
+                } else if (dragSource.type === 'equip') {
+                    dropItem(dragSource.index, true);
+                }
+            }
+        } else if (dragOverEquipSlot) {
             if (dragSource.type === 'backpack') {
                 equipItem(dragOverEquipSlot, dragSource.index);
             }
@@ -204,7 +235,8 @@ function Inventory({ open, setOpen }) {
         setDragSource(null);
         setDragOverGrid(null);
         setDragOverEquipSlot(null);
-    }, [dragItem, dragSource, dragOverGrid, dragOverEquipSlot, createGrid, canPlaceItem, moveBackpackItem, unequipItem, equipItem]);
+        setIsDraggingOutside(false);
+    }, [dragItem, dragSource, dragOverGrid, dragOverEquipSlot, isDraggingOutside, createGrid, canPlaceItem, moveBackpackItem, unequipItem, equipItem, dropItem]);
 
     const handleEquipClick = (slotId) => {
         const item = equippedObj[slotId];
@@ -216,12 +248,139 @@ function Inventory({ open, setOpen }) {
     const handleGridCellClick = (row, col, cellData) => {
         if (dragItem) return;
         
+        // 鑑定模式
+        if (identifyMode !== null && cellData?.item && !cellData.isPart) {
+            if (isItemIdentifiable(cellData.item)) {
+                handleIdentifyTarget(cellData.index);
+            }
+            return;
+        }
+        
         if (cellData?.item && !cellData.isPart) {
             if (EQUIPMENT_TYPES[cellData.item.type]) {
                 equipItem(cellData.item.type, cellData.index);
             }
         }
     };
+
+    const handleContextMenu = (e, item, source, index) => {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        if (!item) return;
+        
+        setContextMenu({
+            item,
+            source,
+            index,
+            x: e.clientX,
+            y: e.clientY
+        });
+        setHoveredItem(null);
+    };
+
+    const closeContextMenu = () => {
+        setContextMenu(null);
+    };
+
+    const handleDropItem = () => {
+        if (!contextMenu) return;
+        
+        const { item, source, index } = contextMenu;
+        
+        const confirmDrop = window.confirm(`確定要丟棄「${item.name}」嗎？`);
+        if (!confirmDrop) {
+            closeContextMenu();
+            return;
+        }
+        
+        if (source === 'backpack') {
+            dropItem(index, false);
+        } else if (source === 'equip') {
+            dropItem(index, true);
+        }
+        closeContextMenu();
+    };
+
+    const handleSellItem = () => {
+        if (!contextMenu) return;
+        
+        const { item, source, index } = contextMenu;
+        
+        if (item.type === 'gold') {
+            closeContextMenu();
+            return;
+        }
+        
+        const sellValue = Math.floor((item.value || 10) * 0.5);
+        const confirmSell = window.confirm(`確定要賣出「${item.name}」嗎？\n售價: ${sellValue} 金幣`);
+        if (!confirmSell) {
+            closeContextMenu();
+            return;
+        }
+        
+        if (source === 'backpack') {
+            sellItem(index, false);
+        } else if (source === 'equip') {
+            sellItem(index, true);
+        }
+        closeContextMenu();
+    };
+
+    const handleUseItem = () => {
+        if (!contextMenu) return;
+        
+        const { item, source, index } = contextMenu;
+        
+        if (item.type === 'hp_potion' || item.type === 'mana_potion') {
+            const state = useGameState.getState();
+            if (state.usePotion) {
+                state.usePotion(item.type === 'hp_potion' ? 'hp' : 'mana');
+            }
+        }
+        closeContextMenu();
+    };
+
+    const handleIdentifyMode = () => {
+        if (!contextMenu) return;
+        
+        const { index } = contextMenu;
+        setIdentifyMode(index);
+        closeContextMenu();
+    };
+
+    const handleIdentifyTarget = (targetIndex) => {
+        if (identifyMode === null) return;
+        
+        identifyItemWithScroll(identifyMode, targetIndex);
+        setIdentifyMode(null);
+    };
+
+    const cancelIdentifyMode = () => {
+        setIdentifyMode(null);
+    };
+
+    useEffect(() => {
+        const handleClickOutside = () => closeContextMenu();
+        const handleEscape = (e) => {
+            if (e.key === 'Escape') {
+                closeContextMenu();
+                if (identifyMode !== null) {
+                    cancelIdentifyMode();
+                }
+            }
+        };
+        
+        if (contextMenu) {
+            window.addEventListener('click', handleClickOutside);
+            window.addEventListener('keydown', handleEscape);
+        }
+        
+        return () => {
+            window.removeEventListener('click', handleClickOutside);
+            window.removeEventListener('keydown', handleEscape);
+        };
+    }, [contextMenu, identifyMode]);
 
     useEffect(() => {
         const onMouseMove = (e) => handleDragMove(e);
@@ -272,8 +431,8 @@ function Inventory({ open, setOpen }) {
     };
 
     return (
-        <div className="d4-overlay" onClick={onClose}>
-            <div className="d4-container" onClick={e => e.stopPropagation()}>
+        <div className={`d4-overlay ${isDraggingOutside ? 'drag-outside-active' : ''}`} onClick={onClose}>
+            <div className="d4-container" ref={containerRef} onClick={e => e.stopPropagation()}>
                 <button className="d4-close-btn" onClick={onClose}>✕</button>
                 
                 <div className="d4-main">
@@ -298,7 +457,7 @@ function Inventory({ open, setOpen }) {
                                         return (
                                             <div
                                                 key={`${rowIndex}-${colIndex}`}
-                                                className={`d4-grid-cell ${item ? 'has-item' : ''} ${isDragging ? 'dragging' : ''}`}
+                                                className={`d4-grid-cell ${item ? 'has-item' : ''} ${isDragging ? 'dragging' : ''} ${identifyMode !== null && item && isItemIdentifiable(item) ? 'can-identify' : ''}`}
                                                 style={{
                                                     gridColumn: `${colIndex + 1} / span ${size[0]}`,
                                                     gridRow: `${rowIndex + 1} / span ${size[1]}`
@@ -310,12 +469,18 @@ function Inventory({ open, setOpen }) {
                                                 onMouseDown={(e) => item && handleDragStart(item, 'backpack', cell.index, e)}
                                                 onTouchStart={(e) => item && handleDragStart(item, 'backpack', cell.index, e)}
                                                 onClick={() => handleGridCellClick(rowIndex, colIndex, cell)}
+                                                onContextMenu={(e) => item && handleContextMenu(e, item, 'backpack', cell.index)}
                                             >
                                                 {item && (
-                                                    <div className={`d4-slot-item ${getRarityClass(item.rarity)}`}>
+                                                    <div className={`d4-slot-item ${getRarityClass(item.rarity)} ${!item.identified && (item.rarity === 'epic' || item.rarity === 'legendary') ? 'unidentified' : ''}`}>
                                                         <span className="d4-item-icon">{getItemIcon(item)}</span>
                                                         {item.name && size[0] >= 2 && size[1] >= 2 && (
-                                                            <span className="d4-item-name">{item.name.slice(0, 6)}</span>
+                                                            <span className="d4-item-name">
+                                                                {!item.identified && (item.rarity === 'epic' || item.rarity === 'legendary') ? '???' : item.name.slice(0, 6)}
+                                                            </span>
+                                                        )}
+                                                        {!item.identified && (item.rarity === 'epic' || item.rarity === 'legendary') && (
+                                                            <span className="d4-unidentified-badge">?</span>
                                                         )}
                                                     </div>
                                                 )}
@@ -374,6 +539,7 @@ function Inventory({ open, setOpen }) {
                                             onMouseDown={(e) => item && handleDragStart(item, 'equip', slot.id, e)}
                                             onTouchStart={(e) => item && handleDragStart(item, 'equip', slot.id, e)}
                                             onClick={() => handleEquipClick(slot.id)}
+                                            onContextMenu={(e) => item && handleContextMenu(e, item, 'equip', slot.id)}
                                         >
                                             {item ? (
                                                 <div className={`d4-slot-item ${getRarityClass(item.rarity)}`}>
@@ -441,7 +607,7 @@ function Inventory({ open, setOpen }) {
 
             {dragItem && (
                 <div 
-                    className={`d4-drag-ghost ${getRarityClass(dragItem.rarity)}`}
+                    className={`d4-drag-ghost ${getRarityClass(dragItem.rarity)} ${isDraggingOutside ? 'drag-outside' : ''}`}
                     style={{ 
                         left: dragPos.x - 20, 
                         top: dragPos.y - 20,
@@ -449,7 +615,66 @@ function Inventory({ open, setOpen }) {
                         height: dragItemSize[1] * 44 + (dragItemSize[1] - 1) * 3
                     }}
                 >
-                    <span className="d4-item-icon">{getItemIcon(dragItem)}</span>
+                    <span className="d4-item-icon">{isDraggingOutside ? '🗑️' : getItemIcon(dragItem)}</span>
+                    {isDraggingOutside && <span className="d4-drop-hint">放開丟棄</span>}
+                </div>
+            )}
+
+            {contextMenu && (
+                <div 
+                    className="d4-context-menu"
+                    style={{
+                        left: Math.min(contextMenu.x, window.innerWidth - 160),
+                        top: Math.min(contextMenu.y, window.innerHeight - 180)
+                    }}
+                    onClick={e => e.stopPropagation()}
+                >
+                    <div className="d4-context-header">
+                        <span className={`d4-context-item-name ${getRarityClass(contextMenu.item.rarity)}`}>
+                            {contextMenu.item.name}
+                        </span>
+                    </div>
+                    {(contextMenu.item.type === 'hp_potion' || contextMenu.item.type === 'mana_potion') && (
+                        <button className="d4-context-btn use" onClick={handleUseItem}>
+                            <span className="d4-context-icon">🧪</span>
+                            使用
+                        </button>
+                    )}
+                    {contextMenu.item.type === 'identification_scroll' && (
+                        <button className="d4-context-btn identify" onClick={handleIdentifyMode}>
+                            <span className="d4-context-icon">🔮</span>
+                            鑑定物品
+                        </button>
+                    )}
+                    {contextMenu.source === 'backpack' && contextMenu.item.type && EQUIPMENT_TYPES[contextMenu.item.type] && (
+                        <button className="d4-context-btn equip" onClick={() => {
+                            equipItem(contextMenu.item.type, contextMenu.index);
+                            closeContextMenu();
+                        }}>
+                            <span className="d4-context-icon">⚔️</span>
+                            裝備
+                        </button>
+                    )}
+                    {contextMenu.item.type !== 'gold' && (
+                        <button className="d4-context-btn sell" onClick={handleSellItem}>
+                            <span className="d4-context-icon">💰</span>
+                            賣出 ({Math.floor((contextMenu.item.value || 10) * 0.5)} 金)
+                        </button>
+                    )}
+                    <button className="d4-context-btn drop" onClick={handleDropItem}>
+                        <span className="d4-context-icon">🗑️</span>
+                        丟棄
+                    </button>
+                </div>
+            )}
+
+            {identifyMode !== null && (
+                <div className="d4-identify-overlay">
+                    <div className="d4-identify-hint">
+                        <span className="d4-identify-icon">🔮</span>
+                        <span>點擊要鑑定的物品</span>
+                        <button className="d4-identify-cancel" onClick={cancelIdentifyMode}>取消 (ESC)</button>
+                    </div>
                 </div>
             )}
         </div>

@@ -5,12 +5,23 @@ export function createLightningPath(start, end, segments, offset) {
     const direction = end.clone().sub(start);
     const length = direction.length();
     direction.normalize();
+    
+    const perpX = new THREE.Vector3(-direction.z, 0, direction.x).normalize();
+    const perpY = new THREE.Vector3(0, 1, 0);
+    
     for (let i = 1; i <= segments; i++) {
         const t = i / (segments + 1);
         const point = start.clone().add(direction.clone().multiplyScalar(length * t));
-        const perpendicular = new THREE.Vector3(-direction.z, 0, direction.x);
-        point.add(perpendicular.multiplyScalar((Math.random() - 0.5) * offset));
-        point.y += (Math.random() - 0.5) * offset * 0.5;
+        
+        const jitterScale = Math.sin(t * Math.PI) * offset;
+        const offsetX = (Math.random() - 0.5) * 2 * jitterScale;
+        const offsetY = (Math.random() - 0.5) * jitterScale * 0.5;
+        const offsetZ = (Math.random() - 0.5) * 2 * jitterScale;
+        
+        point.add(perpX.clone().multiplyScalar(offsetX));
+        point.y += offsetY;
+        point.add(direction.clone().cross(perpX).multiplyScalar(offsetZ));
+        
         points.push(point);
     }
     points.push(end.clone());

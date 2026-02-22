@@ -2,7 +2,31 @@
 import useGameState from '../hooks/useGameState';
 import { createParticles } from '../game/Particles';
 import { generateLoot, generateGold, generatePotion, generateEquipment } from './itemSystem';
+import { EnemyDeathEffect } from '../game/effects/SkillEffectFactory';
 import * as THREE from 'three';
+
+// 全局死亡效果管理
+const deathEffects = [];
+let sceneRef = null;
+
+export function initDeathEffectManager(scene) {
+    sceneRef = scene;
+}
+
+export function updateDeathEffects(delta) {
+    for (let i = deathEffects.length - 1; i >= 0; i--) {
+        const effect = deathEffects[i];
+        const isAlive = effect.update(delta);
+        
+        if (!isAlive) {
+            effect.dispose();
+            if (sceneRef && effect.group) {
+                sceneRef.remove(effect.group);
+            }
+            deathEffects.splice(i, 1);
+        }
+    }
+}
 
 export function checkEnemyDeath(enemy) {
     if (enemy.hp > 0) return;
@@ -88,15 +112,20 @@ export function checkEnemyDeath(enemy) {
         }
     });
 
-    // 死亡特效
-    createParticles(
-        enemy.position.clone().add(new THREE.Vector3(0, enemy.size / 2, 0)),
-        isBoss ? 0xff4400 : isElite ? 0xff8800 : 0xffff00,
-        isBoss ? 300 : isElite ? 150 : 100,
-        isBoss ? 30 : isElite ? 20 : 15,
-        isBoss ? 5 : isElite ? 3.5 : 2.5,
-        'death_explosion'
-    );
+    // 華麗死亡效果
+    const deathPos = enemy.position.clone().add(new THREE.Vector3(0, enemy.size / 2, 0));
+    
+    if (sceneRef) {
+        const deathEffect = new EnemyDeathEffect(deathPos, {
+            isBoss,
+            isElite,
+            size: enemy.size || 2,
+            color: 0xffff00
+        });
+        
+        sceneRef.add(deathEffect.group);
+        deathEffects.push(deathEffect);
+    }
 
     // 移除怪物
     setEnemies(enemies.filter(e => e.id !== enemy.id));
@@ -165,5 +194,7 @@ export function openChest(chest) {
 
 export default {
     checkEnemyDeath,
-    openChest
+    openChest,
+    initDeathEffectManager,
+    updateDeathEffects
 };

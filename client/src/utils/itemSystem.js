@@ -1009,7 +1009,7 @@ export function generateEquipment(type, level = 1, forcedRarity = null, rarityBo
         affixes,
         stats: allStats,
         value,
-        identified: rarity === 'common',
+        identified: rarity !== 'epic' && rarity !== 'legendary',
         setName,
         setPiece: setInfo ? setInfo.pieces.indexOf(type) + 1 : null
     };
@@ -1100,7 +1100,11 @@ export function isItemIdentifiable(item) {
     if (item.type === 'gold' || item.type === 'hp_potion' || item.type === 'mana_potion' || item.type === 'identification_scroll') {
         return false;
     }
-    return !item.identified && item.rarity !== 'common';
+    // 只有史詩(紫色)和傳說(橙色)需要鑑定
+    if (item.rarity !== 'epic' && item.rarity !== 'legendary') {
+        return false;
+    }
+    return !item.identified;
 }
 
 // 鑑定費用計算

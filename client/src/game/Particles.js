@@ -44,6 +44,36 @@ const PARTICLE_CONFIG = {
     heal_sparkle: { geo: new THREE.SphereGeometry(1, 6, 6), scale: 0.8 },
     cast_flash: { geo: new THREE.SphereGeometry(1, 8, 8), scale: 0.8 },
     nova_center: { geo: new THREE.SphereGeometry(1, 16, 16), scale: 2.0 },
+
+    // --- 擊中效果 ---
+    hit_impact: { geo: new THREE.RingGeometry(0.3, 1, 8), scale: 1.5 },
+    hit_flash: { geo: new THREE.SphereGeometry(1, 8, 8), scale: 1.0 },
+    hit_sparks: { geo: new THREE.TetrahedronGeometry(1, 0), scale: 0.5 },
+    hit_ring: { geo: new THREE.RingGeometry(0.5, 1.5, 12), scale: 1.2 },
+    hit_burst: { geo: new THREE.OctahedronGeometry(1, 0), scale: 0.8 },
+    
+    // --- 暴擊效果 ---
+    crit_explosion: { geo: new THREE.OctahedronGeometry(1, 0), scale: 1.5 },
+    crit_sparks: { geo: new THREE.TetrahedronGeometry(1, 0), scale: 0.8 },
+    crit_flash: { geo: new THREE.SphereGeometry(1, 12, 12), scale: 1.2 },
+    crit_ring: { geo: new THREE.RingGeometry(0.8, 2, 16), scale: 1.5 },
+    crit_star: { geo: new THREE.OctahedronGeometry(1, 0), scale: 1.0 },
+
+    // --- 死亡效果 ---
+    death_explosion: { geo: new THREE.SphereGeometry(1, 8, 8), scale: 1.2 },
+    death_smoke: { geo: new THREE.SphereGeometry(1, 6, 6), scale: 2.5 },
+    death_soul: { geo: new THREE.SphereGeometry(1, 8, 8), scale: 1.0 },
+    death_debris: { geo: new THREE.BoxGeometry(1, 1, 1), scale: 0.6 },
+    death_flash: { geo: new THREE.SphereGeometry(1, 12, 12), scale: 2.0 },
+    death_ring: { geo: new THREE.RingGeometry(1, 3, 16), scale: 1.5 },
+    
+    // --- 元素擊中 ---
+    fire_hit: { geo: new THREE.OctahedronGeometry(1, 0), scale: 1.0 },
+    ice_hit: { geo: new THREE.TetrahedronGeometry(1, 0), scale: 0.9 },
+    lightning_hit: { geo: new THREE.TetrahedronGeometry(1, 0), scale: 0.8 },
+    poison_hit: { geo: new THREE.SphereGeometry(1, 6, 6), scale: 0.7 },
+    arcane_hit: { geo: new THREE.OctahedronGeometry(1, 0), scale: 1.1 },
+    nature_hit: { geo: new THREE.SphereGeometry(1, 8, 8), scale: 0.9 },
 };
 
 const getParticleConfig = (type) => PARTICLE_CONFIG[type] || PARTICLE_CONFIG.default;
@@ -55,7 +85,7 @@ function ParticleRenderer({ particles, geometry }) {
     const meshRef = useRef();
     const tempObject = useMemo(() => new THREE.Object3D(), []);
     const tempColor = useMemo(() => new THREE.Color(), []);
-    const maxCount = 500;
+    const maxCount = 800;
     const frameCount = useRef(0);
 
     useFrame((state) => {
@@ -189,7 +219,7 @@ function ParticleSystem() {
 // ==========================================
 // 4. 創建粒子的工廠函數 (優化版：批量添加，預分配對象)
 // ==========================================
-const MAX_TOTAL_PARTICLES = 200;
+const MAX_TOTAL_PARTICLES = 600;
 
 const _tempVel = new THREE.Vector3();
 const _tempPos = new THREE.Vector3();
@@ -258,6 +288,55 @@ export const createParticles = (position, color, count, speed, size, type) => {
             vy = rand() * speed * 0.8;
             vz = Math.sin(angle) * speed * r;
             lifetime = 0.6 + rand() * 0.5;
+        } else if (type.includes('hit')) {
+            gravity = -5.0;
+            const angle = rand() * Math.PI * 2;
+            const r = rand();
+            vx = Math.cos(angle) * speed * r;
+            vy = rand() * speed * 0.8 + speed * 0.3;
+            vz = Math.sin(angle) * speed * r;
+            lifetime = 0.3 + rand() * 0.4;
+            particleSize = size * (0.8 + rand() * 0.4);
+        } else if (type.includes('crit')) {
+            gravity = -8.0;
+            const angle = rand() * Math.PI * 2;
+            const r = rand() * 0.8 + 0.5;
+            vx = Math.cos(angle) * speed * r;
+            vy = rand() * speed * 1.2 + speed * 0.5;
+            vz = Math.sin(angle) * speed * r;
+            lifetime = 0.4 + rand() * 0.5;
+            particleSize = size * (1.0 + rand() * 0.5);
+        } else if (type.includes('death')) {
+            gravity = -2.0;
+            const angle = rand() * Math.PI * 2;
+            const r = rand();
+            if (type.includes('soul')) {
+                gravity = 1.5;
+                vx = (rand() - 0.5) * speed * 0.3;
+                vy = speed * 1.5;
+                vz = (rand() - 0.5) * speed * 0.3;
+                lifetime = 1.5 + rand() * 1.0;
+                particleSize = size * 0.8;
+            } else if (type.includes('debris')) {
+                gravity = -15.0;
+                vx = Math.cos(angle) * speed * r;
+                vy = rand() * speed * 1.5;
+                vz = Math.sin(angle) * speed * r;
+                lifetime = 0.6 + rand() * 0.4;
+                particleSize = size * (0.5 + rand() * 0.5);
+            } else if (type.includes('ring')) {
+                gravity = 0;
+                vx = Math.cos(angle) * speed * r;
+                vy = 0;
+                vz = Math.sin(angle) * speed * r;
+                lifetime = 0.5 + rand() * 0.3;
+                particleSize = size * 1.2;
+            } else {
+                vx = Math.cos(angle) * speed * r;
+                vy = rand() * speed * 0.8;
+                vz = Math.sin(angle) * speed * r;
+                lifetime = 0.8 + rand() * 0.6;
+            }
         } else {
             const angle = rand() * Math.PI * 2;
             vx = Math.cos(angle) * speed;

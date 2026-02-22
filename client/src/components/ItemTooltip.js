@@ -1,6 +1,6 @@
 // src/components/ItemTooltip.js - 物品提示組件（帶比較功能）
 import React from 'react';
-import { RARITIES, EQUIPMENT_TYPES, AFFIXES, compareItems } from '../utils/itemSystem';
+import { RARITIES, EQUIPMENT_TYPES, AFFIXES, compareItems, isItemIdentifiable } from '../utils/itemSystem';
 import './ItemTooltip.css';
 
 function ItemTooltip({ item, compareItem, position }) {
@@ -8,12 +8,13 @@ function ItemTooltip({ item, compareItem, position }) {
 
     // 檢查是否是消耗品或金幣
     const isConsumable = item.type === 'hp_potion' || item.type === 'mana_potion' || item.type === 'gold';
+    const isUnidentified = !item.identified && (item.rarity === 'epic' || item.rarity === 'legendary') && !isConsumable;
     
     // 獲取稀有度數據
     const rarityData = RARITIES[item.rarity] || RARITIES.common;
     
-    // 比較屬性
-    const comparison = compareItem && !isConsumable ? compareItems(compareItem, item) : null;
+    // 比較屬性（未鑑定不比較）
+    const comparison = compareItem && !isConsumable && !isUnidentified ? compareItems(compareItem, item) : null;
 
     // 格式化屬性值
     const formatStatValue = (key, value) => {
@@ -51,14 +52,26 @@ function ItemTooltip({ item, compareItem, position }) {
                 background: `linear-gradient(90deg, ${rarityData.bgColor} 0%, transparent 100%)`,
                 borderLeft: `4px solid ${rarityData.color}`
             }}>
-                <div className="item-icon-large">{item.icon}</div>
+                <div className="item-icon-large">{isUnidentified ? '❓' : item.icon}</div>
                 <div className="item-title">
-                    <h3 style={{ color: rarityData.color }}>{item.name || '未命名'}</h3>
+                    <h3 style={{ color: rarityData.color }}>{isUnidentified ? '???' : (item.name || '未命名')}</h3>
                     <span className="rarity-label">{rarityData.name}</span>
                 </div>
             </div>
 
+            {/* 未鑑定提示 */}
+            {isUnidentified && (
+                <div className="tooltip-unidentified">
+                    <div className="unidentified-warning">
+                        <span className="unidentified-icon">🔮</span>
+                        <span>此物品尚未鑑定</span>
+                    </div>
+                    <p className="unidentified-hint">使用鑑定卷軸來揭示物品屬性</p>
+                </div>
+            )}
+
             {/* 基礎信息 */}
+            {!isUnidentified && (
             <div className="tooltip-info">
                 {item.type && (
                     <div className="info-row">
@@ -87,9 +100,10 @@ function ItemTooltip({ item, compareItem, position }) {
                     </div>
                 )}
             </div>
+            )}
 
             {/* 屬性區域 */}
-            {!isConsumable && item.stats && Object.keys(item.stats).length > 0 && (
+            {!isUnidentified && !isConsumable && item.stats && Object.keys(item.stats).length > 0 && (
                 <div className="tooltip-stats">
                     <h4>屬性</h4>
                     {Object.entries(item.stats).map(([key, value]) => {
@@ -117,7 +131,7 @@ function ItemTooltip({ item, compareItem, position }) {
             )}
 
             {/* 詞綴區域 */}
-            {item.affixes && item.affixes.length > 0 && (
+            {!isUnidentified && item.affixes && item.affixes.length > 0 && (
                 <div className="tooltip-affixes">
                     <h4>附加屬性</h4>
                     {item.affixes.map((affix, idx) => (
@@ -129,7 +143,7 @@ function ItemTooltip({ item, compareItem, position }) {
             )}
 
             {/* 套裝效果 */}
-            {item.setName && (
+            {!isUnidentified && item.setName && (
                 <div className="tooltip-set">
                     <h4 style={{ color: '#ffdd00' }}>套裝: {item.setName}</h4>
                     <p className="set-description">收集更多套裝部件可獲得額外加成</p>
@@ -137,7 +151,7 @@ function ItemTooltip({ item, compareItem, position }) {
             )}
 
             {/* 特殊效果（傳奇裝備） */}
-            {item.special && (
+            {!isUnidentified && item.special && (
                 <div className="tooltip-special">
                     <h4>特殊效果</h4>
                     <p style={{ color: '#ff8000' }}>{item.special}</p>
@@ -201,12 +215,16 @@ function ItemTooltip({ item, compareItem, position }) {
 
             {/* 提示文字 */}
             <div className="tooltip-hint">
-                {EQUIPMENT_TYPES[item.type] ? (
-                    <p>💡 點擊裝備，右鍵打開菜單</p>
+                {isUnidentified ? (
+                    <p>💡 右鍵使用鑑定卷軸</p>
+                ) : item.type === 'identification_scroll' ? (
+                    <p>💡 右鍵選擇鑑定物品</p>
+                ) : EQUIPMENT_TYPES[item.type] ? (
+                    <p>💡 左鍵裝備 | 右鍵選單</p>
                 ) : item.type === 'hp_potion' || item.type === 'mana_potion' ? (
                     <p>💡 點擊使用或按 Q/E 快捷鍵</p>
                 ) : (
-                    <p>💡 自動拾取</p>
+                    <p>💡 右鍵開啟選單</p>
                 )}
             </div>
         </div>

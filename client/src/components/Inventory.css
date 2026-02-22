@@ -30,6 +30,11 @@
     align-items: center;
     z-index: 1000;
     backdrop-filter: blur(3px);
+    transition: background 0.2s;
+}
+
+.d4-overlay.drag-outside-active {
+    background: rgba(80, 20, 20, 0.95);
 }
 
 .d4-container {
@@ -212,6 +217,62 @@
 .d4-slot-item.common {
     background: linear-gradient(135deg, #202020 0%, #303030 50%, #181818 100%);
     border-color: var(--d4-common);
+}
+
+.d4-slot-item.unidentified {
+    position: relative;
+}
+
+.d4-slot-item.unidentified::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+        45deg,
+        transparent,
+        transparent 3px,
+        rgba(100, 100, 100, 0.1) 3px,
+        rgba(100, 100, 100, 0.1) 6px
+    );
+    border-radius: 4px;
+    pointer-events: none;
+}
+
+.d4-unidentified-badge {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    width: 14px;
+    height: 14px;
+    background: #666;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: bold;
+    color: #fff;
+    border: 1px solid #888;
+}
+
+.d4-grid-cell.can-identify {
+    animation: d4-identifyPulse 1s ease-in-out infinite;
+    cursor: pointer;
+}
+
+.d4-grid-cell.can-identify:hover {
+    border-color: #a335ee !important;
+    box-shadow: 0 0 15px rgba(163, 53, 238, 0.5);
+}
+
+@keyframes d4-identifyPulse {
+    0%, 100% { 
+        border-color: var(--d4-border-dark);
+    }
+    50% { 
+        border-color: #a335ee;
+        box-shadow: 0 0 10px rgba(163, 53, 238, 0.3);
+    }
 }
 
 .d4-item-icon {
@@ -482,6 +543,35 @@
     border: 2px solid var(--d4-common);
 }
 
+.d4-drag-ghost.drag-outside {
+    background: linear-gradient(135deg, rgba(180, 40, 40, 0.9) 0%, rgba(120, 20, 20, 0.95) 100%) !important;
+    border: 2px solid #ff4444 !important;
+    box-shadow: 0 0 25px rgba(255, 68, 68, 0.8), inset 0 0 15px rgba(255, 0, 0, 0.3) !important;
+    animation: d4-dropPulse 0.5s ease-in-out infinite !important;
+}
+
+.d4-drop-hint {
+    position: absolute;
+    bottom: -20px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 10px;
+    color: #ff6666;
+    white-space: nowrap;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+}
+
+@keyframes d4-dropPulse {
+    0%, 100% { 
+        transform: scale(1);
+        box-shadow: 0 0 25px rgba(255, 68, 68, 0.8), inset 0 0 15px rgba(255, 0, 0, 0.3);
+    }
+    50% { 
+        transform: scale(1.05);
+        box-shadow: 0 0 35px rgba(255, 68, 68, 1), inset 0 0 20px rgba(255, 0, 0, 0.5);
+    }
+}
+
 /* Animations */
 @keyframes d4-pulse {
     0%, 100% { 
@@ -526,4 +616,154 @@
         animation-duration: 0.01ms !important;
         transition-duration: 0.01ms !important;
     }
+}
+
+/* Context Menu */
+.d4-context-menu {
+    position: fixed;
+    background: linear-gradient(180deg, rgba(18, 16, 13, 0.98) 0%, rgba(8, 8, 8, 0.98) 100%);
+    border: 1px solid var(--d4-border-gold);
+    border-radius: 6px;
+    padding: 6px;
+    min-width: 140px;
+    z-index: 3000;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.8), 0 0 15px rgba(107, 90, 62, 0.3);
+}
+
+.d4-context-menu::before {
+    content: '';
+    position: absolute;
+    inset: 3px;
+    border: 1px solid rgba(107, 90, 62, 0.2);
+    border-radius: 4px;
+    pointer-events: none;
+}
+
+.d4-context-header {
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--d4-border-dark);
+    margin-bottom: 4px;
+}
+
+.d4-context-item-name {
+    font-family: 'Cinzel', serif;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.d4-context-item-name.legendary { color: var(--d4-legendary); }
+.d4-context-item-name.epic { color: var(--d4-epic); }
+.d4-context-item-name.rare { color: var(--d4-rare); }
+.d4-context-item-name.magic { color: var(--d4-magic); }
+.d4-context-item-name.common { color: var(--d4-common); }
+
+.d4-context-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 10px 12px;
+    background: transparent;
+    border: none;
+    color: var(--d4-text-light);
+    font-family: 'Noto Sans SC', sans-serif;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.15s;
+    border-radius: 4px;
+    text-align: left;
+}
+
+.d4-context-btn:hover {
+    background: rgba(107, 90, 62, 0.3);
+}
+
+.d4-context-btn.use:hover {
+    background: rgba(30, 150, 80, 0.3);
+    color: #4ade80;
+}
+
+.d4-context-btn.equip:hover {
+    background: rgba(30, 100, 200, 0.3);
+    color: #60a5fa;
+}
+
+.d4-context-btn.sell:hover {
+    background: rgba(200, 150, 30, 0.3);
+    color: #fcd34d;
+}
+
+.d4-context-btn.drop:hover {
+    background: rgba(180, 40, 40, 0.3);
+    color: #f87171;
+}
+
+.d4-context-btn.identify {
+    color: #a335ee;
+}
+
+.d4-context-btn.identify:hover {
+    background: rgba(163, 53, 238, 0.3);
+    color: #c084fc;
+}
+
+.d4-context-icon {
+    font-size: 14px;
+    width: 20px;
+    text-align: center;
+}
+
+/* Identify Mode Overlay */
+.d4-identify-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(100, 50, 150, 0.2);
+    pointer-events: none;
+    z-index: 1500;
+}
+
+.d4-identify-hint {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: linear-gradient(180deg, rgba(60, 30, 80, 0.95) 0%, rgba(40, 20, 60, 0.95) 100%);
+    border: 1px solid #a335ee;
+    border-radius: 8px;
+    padding: 12px 24px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    z-index: 1600;
+    box-shadow: 0 4px 20px rgba(163, 53, 238, 0.4);
+}
+
+.d4-identify-icon {
+    font-size: 24px;
+    animation: d4-identifyFloat 1.5s ease-in-out infinite;
+}
+
+@keyframes d4-identifyFloat {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-5px); }
+}
+
+.d4-identify-hint span:nth-child(2) {
+    color: #e0d0ff;
+    font-size: 14px;
+}
+
+.d4-identify-cancel {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: #e0d0ff;
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.d4-identify-cancel:hover {
+    background: rgba(255, 255, 255, 0.2);
 }

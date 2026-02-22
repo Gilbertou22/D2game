@@ -1,0 +1,1034 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>火球术 - 纹理增强版</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Noto+Sans+SC:wght@400;600&display=swap');
+        
+        :root {
+            --bg: #030305;
+            --fg: #f5f0e8;
+            --accent: #ff4500;
+            --accent-glow: #ff6b00;
+            --card: rgba(10, 8, 15, 0.95);
+            --border: rgba(255, 100, 0, 0.5);
+        }
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Noto Sans SC', sans-serif;
+            background: #000;
+            color: var(--fg);
+            overflow: hidden;
+            min-height: 100vh;
+        }
+        
+        #canvas-container {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 0;
+        }
+        
+        .vignette {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none;
+            background: radial-gradient(ellipse at 50% 50%, transparent 30%, rgba(0,0,0,0.85) 100%);
+            z-index: 2;
+        }
+        
+        .heat-distortion {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none;
+            z-index: 1;
+            background: transparent;
+            animation: heatWave 2s infinite ease-in-out;
+        }
+        
+        @keyframes heatWave {
+            0%, 100% { filter: blur(0px); }
+            50% { filter: blur(0.5px); }
+        }
+        
+        .ui-panel {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 100;
+            display: flex;
+            gap: 20px;
+            align-items: center;
+            background: var(--card);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 18px 35px;
+            box-shadow: 0 0 40px rgba(255, 50, 0, 0.25),
+                        inset 0 0 20px rgba(255, 100, 0, 0.05);
+        }
+        
+        .title-badge {
+            position: fixed;
+            top: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 100;
+            font-family: 'Cinzel', serif;
+            font-weight: 900;
+            font-size: 34px;
+            letter-spacing: 8px;
+            color: #fff;
+            text-shadow: 0 0 10px #ff4400,
+                         0 0 30px #ff4400,
+                         0 0 50px #ff2200;
+            background: linear-gradient(180deg, rgba(20,10,5,0.9) 0%, rgba(10,5,2,0.95) 100%);
+            padding: 14px 50px;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 100, 0, 0.4);
+            box-shadow: 0 0 30px rgba(255, 50, 0, 0.3);
+        }
+        
+        .mode-toggle {
+            display: flex;
+            background: rgba(0, 0, 0, 0.6);
+            border-radius: 10px;
+            padding: 4px;
+            border: 1px solid rgba(255, 100, 0, 0.2);
+        }
+        
+        .mode-btn {
+            padding: 10px 22px;
+            border: none;
+            background: transparent;
+            color: rgba(255,255,255,0.5);
+            font-family: 'Noto Sans SC', sans-serif;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            border-radius: 8px;
+            transition: all 0.3s;
+        }
+        
+        .mode-btn.active {
+            background: linear-gradient(135deg, #ff3300, #ff6600);
+            color: #fff;
+            box-shadow: 0 0 20px rgba(255, 50, 0, 0.7);
+            text-shadow: 0 0 10px rgba(255,255,255,0.5);
+        }
+        
+        .mode-btn:hover:not(.active) {
+            color: #fff;
+            background: rgba(255, 100, 0, 0.15);
+        }
+        
+        .cast-btn {
+            padding: 16px 55px;
+            border: none;
+            background: linear-gradient(180deg, #ff2200 0%, #ff5500 50%, #ff7700 100%);
+            color: #fff;
+            font-family: 'Cinzel', serif;
+            font-weight: 700;
+            font-size: 18px;
+            letter-spacing: 4px;
+            cursor: pointer;
+            border-radius: 10px;
+            transition: all 0.15s ease;
+            box-shadow: 0 0 30px rgba(255, 50, 0, 0.6),
+                        0 5px 15px rgba(0,0,0,0.5),
+                        inset 0 1px 0 rgba(255,255,255,0.3);
+            text-transform: uppercase;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .cast-btn::after {
+            content: '';
+            position: absolute;
+            top: 0; left: -100%; width: 100%; height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+            transition: left 0.4s;
+        }
+        
+        .cast-btn:hover::after { left: 100%; }
+        .cast-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 0 50px rgba(255, 50, 0, 0.8), 0 8px 20px rgba(0,0,0,0.6);
+        }
+        .cast-btn:active { transform: translateY(1px) scale(0.98); }
+        .cast-btn.cooldown { opacity: 0.5; pointer-events: none; }
+        
+        .stats {
+            font-size: 12px;
+            color: rgba(255,255,255,0.4);
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            min-width: 100px;
+        }
+        .stats span { color: #ffaa00; font-weight: bold; font-size: 14px; }
+        
+        .hint {
+            position: fixed;
+            bottom: 110px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 12px;
+            color: rgba(255, 150, 100, 0.4);
+            letter-spacing: 2px;
+        }
+        
+        @media (max-width: 768px) {
+            .ui-panel { padding: 14px 18px; gap: 12px; flex-wrap: wrap; justify-content: center; }
+            .title-badge { font-size: 22px; padding: 10px 25px; letter-spacing: 4px; }
+            .stats { min-width: auto; }
+        }
+    </style>
+</head>
+<body>
+    <div class="title-badge">FIREBALL</div>
+    <div class="vignette"></div>
+    <div class="heat-distortion"></div>
+    <div id="canvas-container"></div>
+    <div class="hint">SPACE 快速施法</div>
+    
+    <div class="ui-panel">
+        <div class="mode-toggle">
+            <button class="mode-btn active" data-mode="single">火球术</button>
+            <button class="mode-btn" data-mode="multi">多重投射</button>
+        </div>
+        <button class="cast-btn" id="castBtn">施法</button>
+        <div class="stats">
+            <div>施法: <span id="castCount">0</span></div>
+            <div>粒子: <span id="particleCount">0</span></div>
+        </div>
+    </div>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+        }
+    }
+    </script>
+    
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        
+        // === 全局状态 ===
+        let scene, camera, renderer, controls;
+        let mage = null;
+        let staffGemLight = null;
+        let staffTipPos = new THREE.Vector3(0.6, 1.8, 0);
+        let fireballs = [];
+        let particles = [];
+        let smokeParticles = [];
+        let shockwaves = [];
+        let sparkParticles = [];
+        let castCount = 0;
+        let currentMode = 'single';
+        let clock = new THREE.Clock();
+        
+        // === 纹理生成器 ===
+        const TextureGenerator = {
+            // 火焰噪声纹理
+            createFireNoiseTexture(size = 256) {
+                const canvas = document.createElement('canvas');
+                canvas.width = size;
+                canvas.height = size;
+                const ctx = canvas.getContext('2d');
+                
+                // 多层噪声叠加
+                const imageData = ctx.createImageData(size, size);
+                const data = imageData.data;
+                
+                for (let y = 0; y < size; y++) {
+                    for (let x = 0; x < size; x++) {
+                        const i = (y * size + x) * 4;
+                        
+                        // 多频率噪声
+                        let noise = 0;
+                        noise += this.simplex2D(x * 0.02, y * 0.02) * 0.5;
+                        noise += this.simplex2D(x * 0.05, y * 0.05) * 0.3;
+                        noise += this.simplex2D(x * 0.1, y * 0.1) * 0.2;
+                        noise = (noise + 1) * 0.5; // 归一化到0-1
+                        
+                        // 火焰渐变
+                        const gradient = 1 - (y / size);
+                        const intensity = noise * gradient * gradient;
+                        
+                        data[i] = Math.min(255, intensity * 3 * 255);     // R
+                        data[i + 1] = Math.min(255, intensity * 1.5 * 255); // G
+                        data[i + 2] = Math.min(255, intensity * 0.3 * 255); // B
+                        data[i + 3] = intensity * 255;                       // A
+                    }
+                }
+                
+                ctx.putImageData(imageData, 0, 0);
+                const texture = new THREE.CanvasTexture(canvas);
+                texture.wrapS = THREE.RepeatWrapping;
+                texture.wrapT = THREE.RepeatWrapping;
+                return texture;
+            },
+            
+            // 光晕纹理
+            createGlowTexture(size = 128) {
+                const canvas = document.createElement('canvas');
+                canvas.width = size;
+                canvas.height = size;
+                const ctx = canvas.getContext('2d');
+                
+                const gradient = ctx.createRadialGradient(
+                    size/2, size/2, 0,
+                    size/2, size/2, size/2
+                );
+                gradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
+                gradient.addColorStop(0.1, 'rgba(255, 200, 100, 0.8)');
+                gradient.addColorStop(0.3, 'rgba(255, 100, 0, 0.4)');
+                gradient.addColorStop(0.6, 'rgba(255, 50, 0, 0.1)');
+                gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+                
+                ctx.fillStyle = gradient;
+                ctx.fillRect(0, 0, size, size);
+                
+                const texture = new THREE.CanvasTexture(canvas);
+                return texture;
+            },
+            
+            // 烟雾纹理
+            createSmokeTexture(size = 128) {
+                const canvas = document.createElement('canvas');
+                canvas.width = size;
+                canvas.height = size;
+                const ctx = canvas.getContext('2d');
+                
+                const gradient = ctx.createRadialGradient(
+                    size/2, size/2, 0,
+                    size/2, size/2, size/2
+                );
+                gradient.addColorStop(0, 'rgba(80, 60, 50, 0.6)');
+                gradient.addColorStop(0.3, 'rgba(60, 50, 40, 0.4)');
+                gradient.addColorStop(0.6, 'rgba(40, 35, 30, 0.2)');
+                gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+                
+                ctx.fillStyle = gradient;
+                ctx.fillRect(0, 0, size, size);
+                
+                return new THREE.CanvasTexture(canvas);
+            },
+            
+            // 火花纹理
+            createSparkTexture(size = 32) {
+                const canvas = document.createElement('canvas');
+                canvas.width = size;
+                canvas.height = size;
+                const ctx = canvas.getContext('2d');
+                
+                const gradient = ctx.createRadialGradient(
+                    size/2, size/2, 0,
+                    size/2, size/2, size/2
+                );
+                gradient.addColorStop(0, 'rgba(255, 255, 200, 1)');
+                gradient.addColorStop(0.2, 'rgba(255, 200, 50, 0.8)');
+                gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+                
+                ctx.fillStyle = gradient;
+                ctx.fillRect(0, 0, size, size);
+                
+                return new THREE.CanvasTexture(canvas);
+            },
+            
+            // 简单噪声函数
+            simplex2D(x, y) {
+                const F2 = 0.5 * (Math.sqrt(3) - 1);
+                const G2 = (3 - Math.sqrt(3)) / 6;
+                
+                let n0, n1, n2;
+                const s = (x + y) * F2;
+                const i = Math.floor(x + s);
+                const j = Math.floor(y + s);
+                
+                const t = (i + j) * G2;
+                const X0 = i - t;
+                const Y0 = j - t;
+                const x0 = x - X0;
+                const y0 = y - Y0;
+                
+                let i1, j1;
+                if (x0 > y0) { i1 = 1; j1 = 0; }
+                else { i1 = 0; j1 = 1; }
+                
+                const x1 = x0 - i1 + G2;
+                const y1 = y0 - j1 + G2;
+                const x2 = x0 - 1 + 2 * G2;
+                const y2 = y0 - 1 + 2 * G2;
+                
+                const ii = i & 255;
+                const jj = j & 255;
+                
+                const perm = [];
+                for (let k = 0; k < 512; k++) perm[k] = Math.floor(Math.random() * 256);
+                
+                const grad = (hash, x, y) => {
+                    const h = hash & 7;
+                    const u = h < 4 ? x : y;
+                    const v = h < 4 ? y : x;
+                    return ((h & 1) ? -u : u) + ((h & 2) ? -2 * v : 2 * v);
+                };
+                
+                let t0 = 0.5 - x0 * x0 - y0 * y0;
+                if (t0 < 0) n0 = 0;
+                else {
+                    t0 *= t0;
+                    n0 = t0 * t0 * grad(perm[ii + perm[jj]], x0, y0);
+                }
+                
+                let t1 = 0.5 - x1 * x1 - y1 * y1;
+                if (t1 < 0) n1 = 0;
+                else {
+                    t1 *= t1;
+                    n1 = t1 * t1 * grad(perm[ii + i1 + perm[jj + j1]], x1, y1);
+                }
+                
+                let t2 = 0.5 - x2 * x2 - y2 * y2;
+                if (t2 < 0) n2 = 0;
+                else {
+                    t2 *= t2;
+                    n2 = t2 * t2 * grad(perm[ii + 1 + perm[jj + 1]], x2, y2);
+                }
+                
+                return 70 * (n0 + n1 + n2);
+            }
+        };
+        
+        // 预生成纹理
+        let fireTexture, glowTexture, smokeTexture, sparkTexture;
+        
+        // === 初始化 ===
+        function init() {
+            // 生成纹理
+            fireTexture = TextureGenerator.createFireNoiseTexture(256);
+            glowTexture = TextureGenerator.createGlowTexture(128);
+            smokeTexture = TextureGenerator.createSmokeTexture(128);
+            sparkTexture = TextureGenerator.createSparkTexture(32);
+            
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x020203);
+            scene.fog = new THREE.FogExp2(0x020203, 0.018);
+            
+            camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 4, 14);
+            
+            renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            renderer.toneMappingExposure = 1.2;
+            document.getElementById('canvas-container').appendChild(renderer.domElement);
+            
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.target.set(0, 1.5, 0);
+            controls.maxPolarAngle = Math.PI * 0.5;
+            controls.minDistance = 5;
+            controls.maxDistance = 30;
+            
+            createLighting();
+            createGround();
+            createEnvironment();
+            createMage();
+            setupUI();
+            
+            window.addEventListener('resize', onResize);
+            animate();
+        }
+        
+        // === 灯光 ===
+        function createLighting() {
+            scene.add(new THREE.AmbientLight(0x151020, 0.3));
+            
+            const moonLight = new THREE.DirectionalLight(0x3355aa, 0.25);
+            moonLight.position.set(20, 30, 10);
+            moonLight.castShadow = true;
+            moonLight.shadow.mapSize.width = 2048;
+            moonLight.shadow.mapSize.height = 2048;
+            moonLight.shadow.camera.near = 0.5;
+            moonLight.shadow.camera.far = 100;
+            moonLight.shadow.camera.left = -30;
+            moonLight.shadow.camera.right = 30;
+            moonLight.shadow.camera.top = 30;
+            moonLight.shadow.camera.bottom = -30;
+            scene.add(moonLight);
+        }
+        
+        // === 地面 ===
+        function createGround() {
+            const geo = new THREE.PlaneGeometry(100, 100, 64, 64);
+            const pos = geo.attributes.position;
+            for (let i = 0; i < pos.count; i++) {
+                const x = pos.getX(i);
+                const y = pos.getY(i);
+                pos.setZ(i, Math.sin(x * 0.15) * 0.5 + Math.cos(y * 0.15) * 0.5);
+            }
+            geo.computeVertexNormals();
+            
+            const mat = new THREE.MeshStandardMaterial({
+                color: 0x151210,
+                roughness: 0.95,
+                metalness: 0.0
+            });
+            
+            const ground = new THREE.Mesh(geo, mat);
+            ground.rotation.x = -Math.PI / 2;
+            ground.receiveShadow = true;
+            scene.add(ground);
+        }
+        
+        // === 环境 ===
+        function createEnvironment() {
+            const rockMat = new THREE.MeshStandardMaterial({ color: 0x252015, roughness: 0.9 });
+            
+            for (let i = 0; i < 18; i++) {
+                const geo = new THREE.DodecahedronGeometry(Math.random() * 1.5 + 0.5, 1);
+                const posArr = geo.attributes.position.array;
+                for (let j = 0; j < posArr.length; j += 3) {
+                    posArr[j] += (Math.random() - 0.5) * 0.4;
+                    posArr[j + 1] += (Math.random() - 0.5) * 0.3;
+                    posArr[j + 2] += (Math.random() - 0.5) * 0.4;
+                }
+                geo.computeVertexNormals();
+                
+                const rock = new THREE.Mesh(geo, rockMat);
+                const angle = Math.random() * Math.PI * 2;
+                const dist = 8 + Math.random() * 18;
+                rock.position.set(Math.cos(angle) * dist, 0, Math.sin(angle) * dist);
+                rock.rotation.set(Math.random(), Math.random(), Math.random());
+                rock.castShadow = true;
+                rock.receiveShadow = true;
+                scene.add(rock);
+            }
+        }
+        
+        // === 法师 ===
+        function createMage() {
+            mage = new THREE.Group();
+            
+            const bodyGeo = new THREE.CylinderGeometry(0.3, 0.5, 1.5, 8);
+            const bodyMat = new THREE.MeshStandardMaterial({ color: 0x0a0515, roughness: 0.7 });
+            const body = new THREE.Mesh(bodyGeo, bodyMat);
+            body.position.y = 0.75;
+            body.castShadow = true;
+            mage.add(body);
+            
+            const headGeo = new THREE.SphereGeometry(0.2, 16, 16);
+            const headMat = new THREE.MeshStandardMaterial({ color: 0xddb896, roughness: 0.6 });
+            const head = new THREE.Mesh(headGeo, headMat);
+            head.position.y = 1.7;
+            head.castShadow = true;
+            mage.add(head);
+            
+            const hatGeo = new THREE.ConeGeometry(0.3, 0.5, 8);
+            const hatMat = new THREE.MeshStandardMaterial({ color: 0x050308, roughness: 0.8 });
+            const hat = new THREE.Mesh(hatGeo, hatMat);
+            hat.position.set(0, 2.0, 0);
+            mage.add(hat);
+            
+            const staffGeo = new THREE.CylinderGeometry(0.03, 0.05, 2, 8);
+            const staffMat = new THREE.MeshStandardMaterial({ color: 0x2a1a08, roughness: 0.6 });
+            const staff = new THREE.Mesh(staffGeo, staffMat);
+            staff.position.set(0.5, 1, 0);
+            staff.rotation.z = -0.2;
+            staff.castShadow = true;
+            mage.add(staff);
+            
+            const gemGeo = new THREE.OctahedronGeometry(0.1, 0);
+            const gemMat = new THREE.MeshStandardMaterial({
+                color: 0xff6600,
+                emissive: 0xff4400,
+                emissiveIntensity: 2,
+                roughness: 0.1
+            });
+            const gem = new THREE.Mesh(gemGeo, gemMat);
+            gem.position.set(0.55, 1.95, 0);
+            gem.name = 'gem';
+            mage.add(gem);
+            
+            staffGemLight = new THREE.PointLight(0xff5500, 2, 5);
+            staffGemLight.position.copy(gem.position);
+            mage.add(staffGemLight);
+            
+            scene.add(mage);
+        }
+        
+        // === 施法效果 ===
+        function createCastEffect(pos) {
+            // 冲击波
+            const ringGeo = new THREE.RingGeometry(0.1, 0.3, 32);
+            const ringMat = new THREE.MeshBasicMaterial({
+                color: 0xff6600,
+                transparent: true,
+                opacity: 1,
+                side: THREE.DoubleSide,
+                blending: THREE.AdditiveBlending
+            });
+            
+            for (let i = 0; i < 2; i++) {
+                const ring = new THREE.Mesh(ringGeo, ringMat.clone());
+                ring.position.set(pos.x, 0.05, pos.z);
+                ring.rotation.x = -Math.PI / 2;
+                ring.userData = { type: 'ring', life: 1.0, speed: 0.8 + i * 0.3 };
+                scene.add(ring);
+                shockwaves.push(ring);
+            }
+            
+            // 爆发火花
+            for (let i = 0; i < 15; i++) {
+                const mat = new THREE.SpriteMaterial({
+                    map: sparkTexture,
+                    color: new THREE.Color().setHSL(0.08 + Math.random() * 0.04, 1, 0.6),
+                    transparent: true,
+                    blending: THREE.AdditiveBlending,
+                    depthWrite: false
+                });
+                
+                const spark = new THREE.Sprite(mat);
+                spark.position.copy(pos);
+                spark.scale.set(0.15, 0.15, 1);
+                
+                const angle = Math.random() * Math.PI * 2;
+                const speed = 0.1 + Math.random() * 0.15;
+                
+                spark.userData = {
+                    type: 'spark',
+                    life: 0.6,
+                    vel: new THREE.Vector3(
+                        Math.cos(angle) * speed,
+                        Math.random() * 0.1 + 0.05,
+                        Math.sin(angle) * speed
+                    )
+                };
+                
+                scene.add(spark);
+                sparkParticles.push(spark);
+            }
+        }
+        
+        // === 发射火球 ===
+        function castFireball() {
+            const btn = document.getElementById('castBtn');
+            btn.classList.add('cooldown');
+            setTimeout(() => btn.classList.remove('cooldown'), 350);
+            
+            const startPos = staffTipPos.clone();
+            if (mage) startPos.applyMatrix4(mage.matrixWorld);
+            
+            const dir = new THREE.Vector3(0, 0.08, -1);
+            
+            createCastEffect(startPos);
+            
+            if (currentMode === 'single') {
+                createFireball(startPos, dir);
+                castCount++;
+            } else {
+                const angles = [-0.28, -0.14, 0, 0.14, 0.28];
+                angles.forEach(a => {
+                    const newDir = dir.clone();
+                    newDir.applyAxisAngle(new THREE.Vector3(0, 1, 0), a);
+                    createFireball(startPos.clone(), newDir);
+                });
+                castCount++;
+            }
+            document.getElementById('castCount').textContent = castCount;
+        }
+        
+        // === 创建火球（纹理增强版） ===
+        function createFireball(pos, dir) {
+            const group = new THREE.Group();
+            group.position.copy(pos);
+            
+            // 1. 核心发光球
+            const coreMat = new THREE.MeshBasicMaterial({
+                color: 0xffffcc,
+                transparent: true,
+                opacity: 1
+            });
+            const core = new THREE.Mesh(new THREE.SphereGeometry(0.08, 16, 16), coreMat);
+            group.add(core);
+            
+            // 2. 内焰 - 使用Shader+纹理
+            const innerMat = new THREE.ShaderMaterial({
+                uniforms: {
+                    uTime: { value: 0 },
+                    uTexture: { value: fireTexture },
+                    uColor1: { value: new THREE.Color(0xffff88) },
+                    uColor2: { value: new THREE.Color(0xff4400) }
+                },
+                vertexShader: `
+                    varying vec2 vUv;
+                    varying vec3 vNormal;
+                    uniform float uTime;
+                    
+                    void main() {
+                        vUv = uv;
+                        vNormal = normal;
+                        
+                        // 顶点动画 - 表面扰动
+                        vec3 pos = position;
+                        float displacement = sin(pos.x * 10.0 + uTime * 5.0) * 
+                                           sin(pos.y * 10.0 + uTime * 4.0) * 
+                                           sin(pos.z * 10.0 + uTime * 3.0) * 0.02;
+                        pos += normal * displacement;
+                        
+                        gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+                    }
+                `,
+                fragmentShader: `
+                    uniform float uTime;
+                    uniform sampler2D uTexture;
+                    uniform vec3 uColor1;
+                    uniform vec3 uColor2;
+                    
+                    varying vec2 vUv;
+                    varying vec3 vNormal;
+                    
+                    void main() {
+                        // UV动画
+                        vec2 uv = vUv;
+                        uv.y -= uTime * 0.5; // 向上流动
+                        uv.x += sin(uv.y * 5.0 + uTime * 2.0) * 0.1; // 水平扭曲
+                        
+                        vec4 texColor = texture2D(uTexture, uv);
+                        
+                        // 边缘发光
+                        float rim = 1.0 - dot(vNormal, vec3(0.0, 0.0, 1.0));
+                        rim = pow(rim, 1.5);
+                        
+                        vec3 color = mix(uColor1, uColor2, texColor.r);
+                        float alpha = texColor.a * 0.9 + rim * 0.3;
+                        
+                        gl_FragColor = vec4(color, alpha);
+                    }
+                `,
+                transparent: true,
+                blending: THREE.AdditiveBlending,
+                side: THREE.DoubleSide,
+                depthWrite: false
+            });
+            
+            const inner = new THREE.Mesh(new THREE.SphereGeometry(0.18, 24, 24), innerMat);
+            group.add(inner);
+            
+            // 3. 外层光晕Sprite
+            const glowMat = new THREE.SpriteMaterial({
+                map: glowTexture,
+                color: 0xff5500,
+                transparent: true,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false,
+                opacity: 0.8
+            });
+            const glow = new THREE.Sprite(glowMat);
+            glow.scale.set(1.8, 1.8, 1);
+            group.add(glow);
+            
+            // 4. 最外层大光晕
+            const outerGlowMat = new THREE.SpriteMaterial({
+                map: glowTexture,
+                color: 0xff3300,
+                transparent: true,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false,
+                opacity: 0.3
+            });
+            const outerGlow = new THREE.Sprite(outerGlowMat);
+            outerGlow.scale.set(3.5, 3.5, 1);
+            group.add(outerGlow);
+            
+            // 5. 动态点光源
+            const light = new THREE.PointLight(0xff5500, 12, 20);
+            light.castShadow = true;
+            light.shadow.mapSize.width = 512;
+            light.shadow.mapSize.height = 512;
+            light.shadow.bias = -0.001;
+            group.add(light);
+            
+            // 6. 次级光源（暖色）
+            const warmLight = new THREE.PointLight(0xff8800, 6, 10);
+            group.add(warmLight);
+            
+            group.userData = {
+                velocity: dir.normalize().multiplyScalar(0.45),
+                life: 3.5,
+                maxLife: 3.5,
+                innerMat: innerMat,
+                glowMat: glowMat,
+                outerGlowMat: outerGlowMat,
+                light: light,
+                warmLight: warmLight
+            };
+            
+            scene.add(group);
+            fireballs.push(group);
+        }
+        
+        // === 创建尾迹粒子 ===
+        function spawnTrailParticle(pos, type = 'fire') {
+            const isSmoke = type === 'smoke';
+            const tex = isSmoke ? smokeTexture : glowTexture;
+            
+            const mat = new THREE.SpriteMaterial({
+                map: tex,
+                color: isSmoke ? new THREE.Color(0x302520) : new THREE.Color().setHSL(0.06 + Math.random() * 0.04, 1, 0.55),
+                transparent: true,
+                blending: isSmoke ? THREE.NormalBlending : THREE.AdditiveBlending,
+                depthWrite: false,
+                opacity: isSmoke ? 0.6 : 1.0
+            });
+            
+            const sprite = new THREE.Sprite(mat);
+            sprite.position.copy(pos);
+            sprite.position.add(new THREE.Vector3(
+                (Math.random() - 0.5) * 0.1,
+                (Math.random() - 0.5) * 0.1,
+                (Math.random() - 0.5) * 0.1
+            ));
+            
+            const size = isSmoke ? 0.8 + Math.random() * 0.4 : 0.2 + Math.random() * 0.15;
+            sprite.scale.set(size, size, 1);
+            
+            sprite.userData = {
+                type: type,
+                life: isSmoke ? 2.5 : 0.8,
+                maxLife: isSmoke ? 2.5 : 0.8,
+                vel: new THREE.Vector3(
+                    (Math.random() - 0.5) * 0.02,
+                    isSmoke ? 0.015 + Math.random() * 0.01 : 0.01 + Math.random() * 0.01,
+                    (Math.random() - 0.5) * 0.02
+                ),
+                rotSpeed: (Math.random() - 0.5) * 0.1
+            };
+            
+            scene.add(sprite);
+            if (isSmoke) {
+                smokeParticles.push(sprite);
+            } else {
+                particles.push(sprite);
+            }
+        }
+        
+        // === 创建火花 ===
+        function spawnSpark(pos) {
+            const mat = new THREE.SpriteMaterial({
+                map: sparkTexture,
+                color: new THREE.Color().setHSL(0.1, 1, 0.7),
+                transparent: true,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false
+            });
+            
+            const spark = new THREE.Sprite(mat);
+            spark.position.copy(pos);
+            spark.scale.set(0.08, 0.15, 1);
+            
+            spark.userData = {
+                type: 'spark',
+                life: 0.3 + Math.random() * 0.3,
+                vel: new THREE.Vector3(
+                    (Math.random() - 0.5) * 0.08,
+                    Math.random() * 0.06,
+                    (Math.random() - 0.5) * 0.08
+                )
+            };
+            
+            scene.add(spark);
+            sparkParticles.push(spark);
+        }
+        
+        // === 设置UI ===
+        function setupUI() {
+            document.querySelectorAll('.mode-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+                    e.target.classList.add('active');
+                    currentMode = e.target.dataset.mode;
+                });
+            });
+            
+            document.getElementById('castBtn').addEventListener('click', castFireball);
+            
+            window.addEventListener('keydown', (e) => {
+                if (e.code === 'Space') {
+                    e.preventDefault();
+                    castFireball();
+                }
+            });
+        }
+        
+        // === 更新逻辑 ===
+        function updateScene(dt, time) {
+            // 更新火球
+            for (let i = fireballs.length - 1; i >= 0; i--) {
+                const fb = fireballs[i];
+                const d = fb.userData;
+                
+                fb.position.add(d.velocity);
+                d.life -= dt;
+                
+                // Shader时间
+                if (d.innerMat.uniforms) {
+                    d.innerMat.uniforms.uTime.value = time;
+                }
+                
+                // 光源闪烁
+                const flicker = Math.sin(time * 25) * 0.15 + 0.85;
+                d.light.intensity = 12 * flicker;
+                d.warmLight.intensity = 6 * flicker;
+                
+                // 生成尾迹
+                if (Math.random() < 0.5) spawnTrailParticle(fb.position, 'fire');
+                if (Math.random() < 0.15) spawnTrailParticle(fb.position, 'smoke');
+                if (Math.random() < 0.1) spawnSpark(fb.position);
+                
+                // 淡出
+                const fadeStart = d.maxLife * 0.3;
+                if (d.life < fadeStart) {
+                    const fade = d.life / fadeStart;
+                    d.glowMat.opacity = 0.8 * fade;
+                    d.outerGlowMat.opacity = 0.3 * fade;
+                }
+                
+                if (d.life <= 0 || fb.position.length() > 50) {
+                    scene.remove(fb);
+                    fireballs.splice(i, 1);
+                }
+            }
+            
+            // 更新火焰粒子
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i];
+                const d = p.userData;
+                
+                d.life -= dt;
+                p.position.add(d.vel);
+                
+                const ratio = 1 - (d.life / d.maxLife);
+                p.material.opacity = Math.pow(1 - ratio, 1.5);
+                p.scale.x += dt * 0.3;
+                p.scale.y += dt * 0.3;
+                
+                // 颜色渐变
+                const hue = 0.08 - ratio * 0.06;
+                p.material.color.setHSL(Math.max(0.02, hue), 1, 0.5 - ratio * 0.2);
+                
+                if (d.life <= 0) {
+                    scene.remove(p);
+                    particles.splice(i, 1);
+                }
+            }
+            
+            // 更新烟雾
+            for (let i = smokeParticles.length - 1; i >= 0; i--) {
+                const p = smokeParticles[i];
+                const d = p.userData;
+                
+                d.life -= dt;
+                p.position.add(d.vel);
+                
+                // 风力影响
+                d.vel.x += Math.sin(time * 2 + p.position.x) * 0.0001;
+                
+                const ratio = 1 - (d.life / d.maxLife);
+                p.material.opacity = 0.6 * (1 - ratio * ratio);
+                p.scale.x += dt * 0.8;
+                p.scale.y += dt * 0.8;
+                
+                // 旋转
+                p.material.rotation += d.rotSpeed * dt;
+                
+                if (d.life <= 0) {
+                    scene.remove(p);
+                    smokeParticles.splice(i, 1);
+                }
+            }
+            
+            // 更新火花
+            for (let i = sparkParticles.length - 1; i >= 0; i--) {
+                const p = sparkParticles[i];
+                const d = p.userData;
+                
+                d.life -= dt;
+                p.position.add(d.vel);
+                d.vel.y -= 0.002; // 重力
+                
+                const ratio = 1 - (d.life / d.maxLife || 0.5);
+                p.material.opacity = 1 - ratio;
+                
+                if (d.life <= 0) {
+                    scene.remove(p);
+                    sparkParticles.splice(i, 1);
+                }
+            }
+            
+            // 更新冲击波
+            for (let i = shockwaves.length - 1; i >= 0; i--) {
+                const s = shockwaves[i];
+                const d = s.userData;
+                
+                d.life -= dt * 1.5;
+                s.scale.x += dt * d.speed * 10;
+                s.scale.y += dt * d.speed * 10;
+                s.material.opacity = d.life;
+                
+                if (d.life <= 0) {
+                    scene.remove(s);
+                    shockwaves.splice(i, 1);
+                }
+            }
+            
+            // 法师动画
+            if (mage) {
+                const gem = mage.getObjectByName('gem');
+                if (gem) {
+                    gem.rotation.y = time * 3;
+                    gem.rotation.x = Math.sin(time * 4) * 0.3;
+                    staffGemLight.intensity = 1.5 + Math.sin(time * 6) * 0.5;
+                }
+                mage.position.y = Math.sin(time * 1.2) * 0.03;
+                mage.rotation.y = Math.sin(time * 0.4) * 0.02;
+            }
+            
+            document.getElementById('particleCount').textContent = particles.length + smokeParticles.length + sparkParticles.length;
+        }
+        
+        // === 窗口调整 ===
+        function onResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+        
+        // === 动画循环 ===
+        function animate() {
+            requestAnimationFrame(animate);
+            const dt = Math.min(clock.getDelta(), 0.1);
+            const time = clock.getElapsedTime();
+            
+            controls.update();
+            updateScene(dt, time);
+            renderer.render(scene, camera);
+        }
+        
+        // 启动
+        init();
+    </script>
+</body>
+</html>

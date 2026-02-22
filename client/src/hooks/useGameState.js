@@ -1158,18 +1158,74 @@ const useGameState = create((set, get) => ({
     }),
     
     // 丟棄物品
-    dropItem: (index) => set((state) => {
-        const newBackpack = [...state.backpack];
-        newBackpack.splice(index, 1);
-        return { backpack: newBackpack };
-    }),
-    
-    // 出售物品
-    sellItem: (index) => set((state) => {
+    dropItem: (index, isEquipped = false) => set((state) => {
+        if (isEquipped) {
+            const slotId = index;
+            const item = state.equipped[slotId];
+            if (!item) return state;
+            
+            const newEquipped = { ...state.equipped };
+            delete newEquipped[slotId];
+            
+            return {
+                equipped: newEquipped,
+                eventLog: [...state.eventLog, {
+                    message: `丟棄了 ${item.name}`,
+                    color: '#888888',
+                    type: 'info',
+                    time: Date.now()
+                }].slice(-50)
+            };
+        }
+        
         const item = state.backpack[index];
         if (!item) return state;
         
-        const sellValue = Math.floor((item.value || 10) * 0.3); // 30% 原價
+        const newBackpack = [...state.backpack];
+        newBackpack.splice(index, 1);
+        
+        return {
+            backpack: newBackpack,
+            eventLog: [...state.eventLog, {
+                message: `丟棄了 ${item.name}`,
+                color: '#888888',
+                type: 'info',
+                time: Date.now()
+            }].slice(-50)
+        };
+    }),
+    
+    // 出售物品
+    sellItem: (index, isEquipped = false) => set((state) => {
+        let item;
+        let sellValue;
+        
+        if (isEquipped) {
+            const slotId = index;
+            item = state.equipped[slotId];
+            if (!item) return state;
+            
+            sellValue = Math.floor((item.value || 10) * 0.5);
+            
+            const newEquipped = { ...state.equipped };
+            delete newEquipped[slotId];
+            
+            return {
+                equipped: newEquipped,
+                playerGold: state.playerGold + sellValue,
+                eventLog: [...state.eventLog, {
+                    message: `出售 ${item.name} 獲得 ${sellValue} 金幣`,
+                    color: '#ffdd00',
+                    type: 'info',
+                    time: Date.now()
+                }].slice(-50)
+            };
+        }
+        
+        item = state.backpack[index];
+        if (!item) return state;
+        
+        sellValue = Math.floor((item.value || 10) * 0.5);
         const newBackpack = [...state.backpack];
         newBackpack.splice(index, 1);
         
@@ -1179,6 +1235,42 @@ const useGameState = create((set, get) => ({
             eventLog: [...state.eventLog, {
                 message: `出售 ${item.name} 獲得 ${sellValue} 金幣`,
                 color: '#ffdd00',
+                type: 'info',
+                time: Date.now()
+            }].slice(-50)
+        };
+    }),
+    
+    // 使用鑑定卷軸鑑定物品
+    identifyItemWithScroll: (scrollIndex, targetIndex) => set((state) => {
+        const scroll = state.backpack[scrollIndex];
+        const target = state.backpack[targetIndex];
+        
+        if (!scroll || scroll.type !== 'identification_scroll') {
+            return state;
+        }
+        
+        if (!target || target.identified || target.rarity === 'common') {
+            return state;
+        }
+        
+        const newBackpack = [...state.backpack];
+        
+        // 移除卷軸
+        newBackpack.splice(scrollIndex, 1);
+        
+        // 鑑定目標物品
+        const targetNewIndex = scrollIndex < targetIndex ? targetIndex - 1 : targetIndex;
+        newBackpack[targetNewIndex] = {
+            ...target,
+            identified: true
+        };
+        
+        return {
+            backpack: newBackpack,
+            eventLog: [...state.eventLog, {
+                message: `鑑定了 ${target.name}`,
+                color: '#a335ee',
                 type: 'info',
                 time: Date.now()
             }].slice(-50)

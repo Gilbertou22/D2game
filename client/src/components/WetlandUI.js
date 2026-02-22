@@ -3,6 +3,7 @@ import useGameState from '../hooks/useGameState';
 import { expPerLevel } from '../utils/levelUtils';
 import classConfigs from '../configs/classConfigs';
 import CharacterPanel from './CharacterPanel';
+import SkillEditor from './SkillEditor';
 
 const ITEM_KEYS = ['q', 'w', 'e'];
 
@@ -105,6 +106,7 @@ function WetlandUI() {
     const skillKeybinds = useGameState(s => s.skillKeybinds);
 
     const [characterPanelOpen, setCharacterPanelOpen] = useState(false);
+    const [skillEditorOpen, setSkillEditorOpen] = useState(false);
 
     const logRef = useRef(null);
     const particlesRef = useRef(null);
@@ -378,6 +380,13 @@ function WetlandUI() {
                             </div>
                         );
                     })}
+                    <div 
+                        className="wl-skill-slot wl-skill-editor-btn"
+                        onClick={() => setSkillEditorOpen(true)}
+                        title="技能編輯器"
+                    >
+                        <span className="wl-skill-icon" style={{ fontSize: '18px' }}>⚙️</span>
+                    </div>
                 </div>
             </div>
 
@@ -923,6 +932,17 @@ function WetlandUI() {
                     border-color: rgba(239, 68, 68, 0.5);
                 }
 
+                .wl-skill-editor-btn {
+                    border-color: rgba(180, 150, 100, 0.3);
+                    opacity: 0.7;
+                }
+
+                .wl-skill-editor-btn:hover {
+                    border-color: #a08050;
+                    opacity: 1;
+                    box-shadow: 0 4px 20px rgba(160, 128, 80, 0.3);
+                }
+
                 .wl-skill-icon {
                     z-index: 2;
                     filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
@@ -1050,6 +1070,7 @@ function WetlandUI() {
             `}</style>
 
             {characterPanelOpen && <CharacterPanel onClose={() => setCharacterPanelOpen(false)} />}
+            {skillEditorOpen && <SkillEditor onClose={() => setSkillEditorOpen(false)} />}
         </>
     );
 }
